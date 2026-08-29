@@ -11,6 +11,7 @@ const staffRoutes = require('./routes/staff');
 const timesheetsRoutes = require('./routes/timesheets');
 const agreementsRoutes = require('./routes/agreements');
 const authRoutes = require('./routes/auth');
+const webhooksRoutes = require('./routes/webhooks');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -39,7 +40,13 @@ app.use(cors({
 // serving any HTML/canvas signing pages directly from this backend.
 app.use(helmet());
 
-// ---- Body parsing ----
+// ---- Stripe webhook (raw body required) ----
+// MUST be mounted before express.json() below — Stripe signature verification
+// needs the raw, unparsed request body. This is the one route in the whole app
+// that does NOT get JSON-parsed globally.
+app.use('/webhooks', express.raw({ type: 'application/json' }), webhooksRoutes);
+
+// ---- Body parsing (for every other route) ----
 // Base64 signature images (agreements) need a larger limit than the 100kb default.
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));

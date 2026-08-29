@@ -113,6 +113,12 @@ router.post('/:id(\\d+)/payment-link', async (req, res) => {
     const paymentLink = await stripe.paymentLinks.create({
       line_items: [{ price: price.id, quantity: 1 }],
       metadata: { invoice_id: String(inv.id), invoice_number: inv.invoice_number },
+      // metadata on the Payment Link itself does NOT carry over to the PaymentIntent
+      // created when someone pays — payment_intent_data.metadata is what the webhook
+      // handler (src/routes/webhooks.js) actually reads from payment_intent.succeeded.
+      payment_intent_data: {
+        metadata: { invoice_id: String(inv.id), invoice_number: inv.invoice_number },
+      },
     });
 
     await pool.query(
