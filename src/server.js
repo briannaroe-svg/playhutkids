@@ -1,0 +1,68 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+
+const childrenRoutes = require('./routes/children');
+const familiesRoutes = require('./routes/families');
+const invoicesRoutes = require('./routes/invoices');
+const feeAdjustmentsRoutes = require('./routes/feeAdjustments');
+const staffRoutes = require('./routes/staff');
+const timesheetsRoutes = require('./routes/timesheets');
+const agreementsRoutes = require('./routes/agreements');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// ---- CORS whitelist ----
+// Mirrors KP's pattern: explicit origins only, update when frontend hosting is finalized
+const allowedOrigins = [
+  'https://www.playhutkids.com',
+  'https://playhutkids.com',
+  'https://little-playhut-backend.onrender.com', // update to actual Render URL once created
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+}));
+
+// ---- Security headers ----
+// NOTE: Helmet's default CSP blocks inline scripts on backend-served pages —
+// this bit KP during agreements.js development. Adjust directives here if
+// serving any HTML/canvas signing pages directly from this backend.
+app.use(helmet());
+
+// ---- Body parsing ----
+// Base64 signature images (agreements) need a larger limit than the 100kb default.
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+
+// ---- Route mounts ----
+// Route order matters: more specific paths before parameterized /:id routes.
+app.use('/children', childrenRoutes);
+app.use('/families', familiesRoutes);
+app.use('/invoices', invoicesRoutes);
+app.use('/fee-adjustments', feeAdjustmentsRoutes);
+app.use('/staff', staffRoutes);
+app.use('/timesheets', timesheetsRoutes);
+app.use('/agreements', agreementsRoutes);
+
+app.get('/', (req, res) => {
+  res.json({ status: 'Little Playhut backend is running' });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.listen(PORT, () => {
+  console.log(`Little Playhut backend listening on port ${PORT}`);
+});
+
+module.exports = app;
