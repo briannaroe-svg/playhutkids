@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
 const crypto = require('crypto');
+const { uploadPdfBuffer } = require('../utils/cloudinary');
+const { generateSignedAgreementPdf } = require('../utils/generateAgreementPdf');
 
 // GET /agreements/templates — active handbook versions
 router.get('/templates', async (req, res) => {
@@ -11,6 +13,30 @@ router.get('/templates', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch agreement templates' });
+  }
+});
+
+// POST /agreements/templates — register a new handbook version.
+// Upload the source PDF to Cloudinary yourself (or via a future admin upload UI)
+// and pass the resulting URL here as content_url, or omit it if the handbook
+// content lives only in the signed-agreement PDF text itself.
+router.post('/templates', async (req, res) => {
+  const { agreement_type, version, title, content_url } = req.body;
+  try {
+    // Deactivate any prior version of the same agreement_type so only one is "active"
+    await pool.query(
+      `UPDATE agreement_templates SET is_active = false WHERE agreement_type = $1`,
+      [agreement_type]
+    );
+    const result = await pool.query(
+      `INSERT INTO agreement_templates (agreement_type, version, title, content_url, is_active)
+       VALUES ($1,$2,$3,$4,true) RETURNING *`,
+      [agreement_type, version, title, content_url || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create agreement template' });
   }
 });
 
@@ -104,7 +130,9 @@ router.post('/sign/:token', async (req, res) => {
   const { signer_name, signature_data } = req.body;
   try {
     const agreementResult = await pool.query(
-      `SELECT * FROM agreements WHERE remote_link_token = $1`,
+      `SELECT a.*, t.title
+       FROM agreements a JOIN agreement_templates t ON a.template_id = t.id
+       WHERE a.remote_link_token = $1`,
       [req.params.token]
     );
     if (agreementResult.rows.length === 0) return res.status(404).json({ error: 'Invalid signing link' });
@@ -120,13 +148,34 @@ router.post('/sign/:token', async (req, res) => {
       [agreement.id, signer_name, signature_data, req.ip]
     );
 
-    const updated = await pool.query(
-      `UPDATE agreements SET status = 'signed', signed_at = now() WHERE id = $1 RETURNING *`,
-      [agreement.id]
-    );
+    const signedAtISO = new Date().toISOString();
 
-    // TODO: generate signed PDF and upload to Cloudinary (mirrors KP's PDF generation step),
-    // then store the resulting URL in agreements.signed_pdf_url
+    // Generate the signed PDF and upload it to Cloudinary. If this step fails,
+    // the signature itself is already recorded in agreement_signatures above —
+    // we still mark the agreement signed, just without a PDF copy, rather than
+    // losing the signature over a PDF/upload failure.
+    let signedPdfUrl = null;
+    try {
+      const pdfBuffer = await generateSignedAgreementPdf({
+        title: agreement.title,
+        signerName: signer_name,
+        signedAtISO,
+        signatureDataUri: signature_data,
+      });
+      signedPdfUrl = await uploadPdfBuffer(
+        pdfBuffer,
+        `agreement-${agreement.id}-${Date.now()}`,
+        'little-playhut/signed-agreements'
+      );
+    } catch (pdfErr) {
+      console.error('Signed PDF generation/upload failed:', pdfErr);
+    }
+
+    const updated = await pool.query(
+      `UPDATE agreements SET status = 'signed', signed_at = now(), signed_pdf_url = COALESCE($2, signed_pdf_url)
+       WHERE id = $1 RETURNING *`,
+      [agreement.id, signedPdfUrl]
+    );
 
     res.json(updated.rows[0]);
   } catch (err) {
@@ -139,17 +188,47 @@ router.post('/sign/:token', async (req, res) => {
 router.post('/:id(\\d+)/sign-in-person', async (req, res) => {
   const { signer_name, signature_data } = req.body;
   try {
+    const agreementResult = await pool.query(
+      `SELECT a.*, t.title
+       FROM agreements a JOIN agreement_templates t ON a.template_id = t.id
+       WHERE a.id = $1`,
+      [req.params.id]
+    );
+    if (agreementResult.rows.length === 0) return res.status(404).json({ error: 'Agreement not found' });
+    const agreement = agreementResult.rows[0];
+
     await pool.query(
       `INSERT INTO agreement_signatures (agreement_id, signer_name, signature_data, signed_ip)
        VALUES ($1,$2,$3,$4)`,
       [req.params.id, signer_name, signature_data, req.ip]
     );
+
+    const signedAtISO = new Date().toISOString();
+
+    let signedPdfUrl = null;
+    try {
+      const pdfBuffer = await generateSignedAgreementPdf({
+        title: agreement.title,
+        signerName: signer_name,
+        signedAtISO,
+        signatureDataUri: signature_data,
+      });
+      signedPdfUrl = await uploadPdfBuffer(
+        pdfBuffer,
+        `agreement-${agreement.id}-${Date.now()}`,
+        'little-playhut/signed-agreements'
+      );
+    } catch (pdfErr) {
+      console.error('Signed PDF generation/upload failed:', pdfErr);
+    }
+
     const updated = await pool.query(
-      `UPDATE agreements SET status = 'signed', signed_at = now(), sign_method = 'in_person_canvas'
+      `UPDATE agreements
+       SET status = 'signed', signed_at = now(), sign_method = 'in_person_canvas',
+           signed_pdf_url = COALESCE($2, signed_pdf_url)
        WHERE id = $1 RETURNING *`,
-      [req.params.id]
+      [req.params.id, signedPdfUrl]
     );
-    if (updated.rows.length === 0) return res.status(404).json({ error: 'Agreement not found' });
     res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);

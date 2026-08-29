@@ -43,13 +43,15 @@ Postgres on Neon, Cloudinary for file/image storage, Stripe for payments.
 | Fee adjustments (discounts/credits) | `src/routes/feeAdjustments.js` | Scaffolded, working CRUD |
 | Staff directory | `src/routes/staff.js` | Scaffolded, working CRUD |
 | Timesheets / clock in-out | `src/routes/timesheets.js` | Scaffolded, working clock-in/out + manual correction |
-| Handbook e-signing (daycare + preschool) | `src/routes/agreements.js` | Scaffolded, working remote link + in-person signing flow |
+| Handbook e-signing (daycare + preschool) | `src/routes/agreements.js` | Working remote link + in-person signing flow, with signed-PDF generation (PDFKit) and Cloudinary upload |
 
 ## Known TODOs
 
 - Invoice PDF generation (PDFKit, same as KP's `generateQuotePDF.js`) not yet built
-- Signed agreement PDF generation + Cloudinary upload not yet built (stubbed with TODO in `agreements.js`)
 - Email sending (invoices, remote signing links) not yet wired — nodemailer is installed but unused
+- No admin UI yet for uploading the source handbook PDFs — use `POST /agreements/templates`
+  with a `content_url` you've uploaded to Cloudinary yourself in the meantime (or omit
+  `content_url` if the handbook text only needs to live in the signed-agreement PDF)
 - Stripe webhook handler for auto-marking invoices paid not yet built — `mark-paid` is currently manual-only
 - Payroll calculation from timesheet hours not yet built (schema supports it via `staff.hourly_rate`, no calc logic yet)
 - Frontend (admin dashboard + parent-facing pages) not started
