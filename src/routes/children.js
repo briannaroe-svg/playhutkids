@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
+const { requireAdmin } = require('../middleware/auth');
+
+router.use(requireAdmin);
 
 // GET /children/search?q=...  (must come before /:id so it isn't shadowed)
 router.get('/search', async (req, res) => {

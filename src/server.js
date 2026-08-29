@@ -10,6 +10,7 @@ const feeAdjustmentsRoutes = require('./routes/feeAdjustments');
 const staffRoutes = require('./routes/staff');
 const timesheetsRoutes = require('./routes/timesheets');
 const agreementsRoutes = require('./routes/agreements');
+const authRoutes = require('./routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -45,6 +46,7 @@ app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 // ---- Route mounts ----
 // Route order matters: more specific paths before parameterized /:id routes.
+app.use('/auth', authRoutes);
 app.use('/children', childrenRoutes);
 app.use('/families', familiesRoutes);
 app.use('/invoices', invoicesRoutes);

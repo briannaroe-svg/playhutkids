@@ -4,9 +4,17 @@ const pool = require('../db/pool');
 const crypto = require('crypto');
 const { uploadPdfBuffer } = require('../utils/cloudinary');
 const { generateSignedAgreementPdf } = require('../utils/generateAgreementPdf');
+const { requireAdmin } = require('../middleware/auth');
+
+// NOTE: this file deliberately does NOT use a blanket router.use(requireAdmin).
+// The /sign/:token routes (GET and POST) must stay public — that's the whole
+// point of the token-based remote signing flow; a signing parent is not a
+// logged-in staff member. Every other route below has requireAdmin applied
+// individually. Do not add a blanket router.use(requireAdmin) here without
+// re-excluding the /sign/:token routes, or remote signing will break.
 
 // GET /agreements/templates — active handbook versions
-router.get('/templates', async (req, res) => {
+router.get('/templates', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`SELECT * FROM agreement_templates WHERE is_active = true ORDER BY agreement_type`);
     res.json(result.rows);
@@ -20,7 +28,7 @@ router.get('/templates', async (req, res) => {
 // Upload the source PDF to Cloudinary yourself (or via a future admin upload UI)
 // and pass the resulting URL here as content_url, or omit it if the handbook
 // content lives only in the signed-agreement PDF text itself.
-router.post('/templates', async (req, res) => {
+router.post('/templates', requireAdmin, async (req, res) => {
   const { agreement_type, version, title, content_url } = req.body;
   try {
     // Deactivate any prior version of the same agreement_type so only one is "active"
@@ -41,7 +49,7 @@ router.post('/templates', async (req, res) => {
 });
 
 // GET /agreements?family_id=&status=
-router.get('/', async (req, res) => {
+router.get('/', requireAdmin, async (req, res) => {
   const { family_id, status } = req.query;
   try {
     let query = `SELECT * FROM agreements WHERE 1=1`;
@@ -58,7 +66,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /agreements — create a pending agreement (daycare or preschool handbook) for a family
-router.post('/', async (req, res) => {
+router.post('/', requireAdmin, async (req, res) => {
   const { template_id, family_id, child_id } = req.body;
   try {
     const result = await pool.query(
@@ -74,7 +82,7 @@ router.post('/', async (req, res) => {
 });
 
 // POST /agreements/:id/send-remote-link — generate 72-hour signing link (KP pattern)
-router.post('/:id(\\d+)/send-remote-link', async (req, res) => {
+router.post('/:id(\\d+)/send-remote-link', requireAdmin, async (req, res) => {
   try {
     const token = crypto.randomBytes(24).toString('hex');
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours
@@ -185,7 +193,7 @@ router.post('/sign/:token', async (req, res) => {
 });
 
 // POST /agreements/:id/sign-in-person — canvas signature captured on-site (director's tablet/laptop)
-router.post('/:id(\\d+)/sign-in-person', async (req, res) => {
+router.post('/:id(\\d+)/sign-in-person', requireAdmin, async (req, res) => {
   const { signer_name, signature_data } = req.body;
   try {
     const agreementResult = await pool.query(

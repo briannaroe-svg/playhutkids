@@ -44,8 +44,51 @@ Postgres on Neon, Cloudinary for file/image storage, Stripe for payments.
 | Staff directory | `src/routes/staff.js` | Scaffolded, working CRUD |
 | Timesheets / clock in-out | `src/routes/timesheets.js` | Scaffolded, working clock-in/out + manual correction |
 | Handbook e-signing (daycare + preschool) | `src/routes/agreements.js` | Working remote link + in-person signing flow, with signed-PDF generation (PDFKit) and Cloudinary upload |
+| Staff login / auth | `src/routes/auth.js`, `src/middleware/auth.js` | Working — email/password login, JWT, two-tier access (`staff` / `admin`) |
 
-## Known TODOs
+## Authentication and access control
+
+Two access levels on `staff.access_level`: `staff` and `admin`.
+
+- `staff` can clock in/out (no login needed — PIN-based, `POST /timesheets/clock-in` and
+  `/clock-out`) and, once logged into the dashboard, view **only their own** timesheet entries.
+- `admin` can do everything staff can, plus manage children, families, invoices, fee
+  adjustments, agreements, and other staff records, and correct any timesheet entry.
+
+Dashboard login is separate from the clock-in PIN — it's `POST /auth/login` with email + password,
+returning a JWT. Pass it as `Authorization: Bearer <token>` on every protected request.
+
+### Creating the first admin account
+
+There's a chicken-and-egg problem: no one can log in to create a staff record until an
+admin account exists. `POST /auth/bootstrap-admin` solves this — it's guarded by a
+`BOOTSTRAP_SECRET` env var (set your own long random value in Render) instead of a login,
+and it refuses to run again once any admin account exists, so it can't be reused as a backdoor.
+
+```bash
+curl -X POST https://little-playhut-backend.onrender.com/auth/bootstrap-admin \
+  -H "Content-Type: application/json" \
+  -d '{
+    "secret": "<your BOOTSTRAP_SECRET value>",
+    "first_name": "Brianna",
+    "last_name": "Roe",
+    "email": "you@example.com",
+    "password": "choose-a-real-password"
+  }'
+```
+
+After this succeeds once, log in normally via `POST /auth/login` and use the dashboard (once
+built) or `POST /staff` (admin-only) to add the rest of the team.
+
+## Migrations
+
+`src/db/schema.sql` is the original full schema. Anything added after the initial schema
+lives in `src/db/migrations/`, applied in order. Run each new migration file the same way
+you ran the original schema — paste into Neon's SQL Editor, or `psql $DATABASE_URL -f <file>`.
+
+Current migrations:
+- `001_add_staff_auth.sql` — adds `password_hash` and `access_level` to `staff`
+
 
 - Invoice PDF generation (PDFKit, same as KP's `generateQuotePDF.js`) not yet built
 - Email sending (invoices, remote signing links) not yet wired — nodemailer is installed but unused

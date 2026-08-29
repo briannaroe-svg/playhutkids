@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 // POST /timesheets/clock-in — staff clocks in via PIN
 router.post('/clock-in', async (req, res) => {
@@ -56,13 +57,17 @@ router.post('/clock-out', async (req, res) => {
   }
 });
 
-// GET /timesheets?staff_id=&start=&end=  — for attendance review or future payroll export
-router.get('/', async (req, res) => {
-  const { staff_id, start, end } = req.query;
+// GET /timesheets?staff_id=&start=&end=  — for attendance review or future payroll export.
+// Non-admin staff can only see their own entries, regardless of what staff_id
+// they pass — the query param is overridden by their own token identity unless
+// they're an admin.
+router.get('/', requireAuth, async (req, res) => {
+  const { start, end } = req.query;
+  const effectiveStaffId = req.staff.access_level === 'admin' ? req.query.staff_id : req.staff.staff_id;
   try {
     let query = `SELECT * FROM timesheet_entries WHERE 1=1`;
     const params = [];
-    if (staff_id) { params.push(staff_id); query += ` AND staff_id = $${params.length}`; }
+    if (effectiveStaffId) { params.push(effectiveStaffId); query += ` AND staff_id = $${params.length}`; }
     if (start) { params.push(start); query += ` AND clock_in >= $${params.length}`; }
     if (end) { params.push(end); query += ` AND clock_in <= $${params.length}`; }
     query += ` ORDER BY clock_in DESC`;
@@ -74,8 +79,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// PUT /timesheets/:id — manual correction by a manager
-router.put('/:id(\\d+)', async (req, res) => {
+// PUT /timesheets/:id — manual correction by a manager (admin only)
+router.put('/:id(\\d+)', requireAdmin, async (req, res) => {
   const { clock_in, clock_out, notes, edited_by } = req.body;
   try {
     const result = await pool.query(
