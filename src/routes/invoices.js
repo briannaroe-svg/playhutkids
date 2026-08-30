@@ -116,11 +116,16 @@ router.get('/tax-report', async (req, res) => {
 router.get('/', async (req, res) => {
   const { status, family_id } = req.query;
   try {
-    let query = `SELECT * FROM invoices WHERE 1=1`;
+    let query = `
+      SELECT i.*, f.primary_parent_name,
+        (f.card_brand IS NOT NULL) AS has_card_on_file
+      FROM invoices i
+      JOIN families f ON i.family_id = f.id
+      WHERE 1=1`;
     const params = [];
-    if (status) { params.push(status); query += ` AND status = $${params.length}`; }
-    if (family_id) { params.push(family_id); query += ` AND family_id = $${params.length}`; }
-    query += ` ORDER BY invoice_date DESC`;
+    if (status) { params.push(status); query += ` AND i.status = $${params.length}`; }
+    if (family_id) { params.push(family_id); query += ` AND i.family_id = $${params.length}`; }
+    query += ` ORDER BY i.invoice_date DESC`;
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
@@ -234,6 +239,73 @@ router.post('/:id(\\d+)/mark-paid', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to mark invoice paid' });
+  }
+});
+
+// POST /invoices/:id/charge-card — charge the family's saved card for this
+// invoice's grand_total, and mark it paid on success. This is an off-session
+// charge (the family isn't present at a checkout flow — admin is initiating
+// it on their behalf using a card saved earlier), which is exactly what
+// Stripe's off_session flag exists for. Declines and other card errors are
+// surfaced with Stripe's own message rather than a generic failure, since
+// "insufficient funds" vs "card expired" vs "call your bank" all need
+// different follow-up from admin.
+router.post('/:id(\\d+)/charge-card', async (req, res) => {
+  try {
+    const invoiceResult = await pool.query(`SELECT * FROM invoices WHERE id = $1`, [req.params.id]);
+    if (invoiceResult.rows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
+    const invoice = invoiceResult.rows[0];
+
+    if (invoice.status === 'paid') return res.status(400).json({ error: 'This invoice is already paid' });
+    if (invoice.status === 'void') return res.status(400).json({ error: 'This invoice has been voided' });
+
+    const familyResult = await pool.query(`SELECT * FROM families WHERE id = $1`, [invoice.family_id]);
+    const family = familyResult.rows[0];
+    if (!family || !family.stripe_customer_id || !family.card_brand) {
+      return res.status(400).json({ error: 'This family has no saved card on file' });
+    }
+
+    const customer = await stripe.customers.retrieve(family.stripe_customer_id);
+    const paymentMethodId = customer.invoice_settings?.default_payment_method;
+    if (!paymentMethodId) {
+      return res.status(400).json({ error: 'No default payment method found on this card — try re-adding the card' });
+    }
+
+    let paymentIntent;
+    try {
+      paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(Number(invoice.grand_total) * 100), // Stripe expects cents
+        currency: 'usd',
+        customer: family.stripe_customer_id,
+        payment_method: paymentMethodId,
+        off_session: true,
+        confirm: true,
+        description: `Invoice ${invoice.invoice_number} — The Little Playhut`,
+        metadata: { invoice_id: String(invoice.id), invoice_number: invoice.invoice_number },
+      });
+    } catch (stripeErr) {
+      // Stripe card errors (declined, expired, etc.) land here, distinct from
+      // a genuine server/network failure — surface Stripe's own message.
+      if (stripeErr.type === 'StripeCardError') {
+        return res.status(402).json({ error: stripeErr.message || 'The card was declined.' });
+      }
+      throw stripeErr;
+    }
+
+    if (paymentIntent.status !== 'succeeded') {
+      return res.status(402).json({ error: `Charge did not complete (status: ${paymentIntent.status}). No payment was recorded.` });
+    }
+
+    const result = await pool.query(
+      `UPDATE invoices SET status = 'paid', payment_method = 'card', stripe_payment_intent_id = $2, paid_at = now(), updated_at = now()
+       WHERE id = $1 RETURNING *`,
+      [req.params.id, paymentIntent.id]
+    );
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to charge card: ' + err.message });
   }
 });
 

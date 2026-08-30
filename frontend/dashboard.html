@@ -17,7 +17,7 @@
     --coral-dark: #BF8A2E;
     --charcoal: #3A2E22;
     --sage: #8B5E34;
-    --sage-light: #EDE6D6;
+    --sage-light: #D6C9AD;
     --white: #FFFFFF;
     --error: #B3462E;
     --error-bg: #FBEAE4;
@@ -4575,15 +4575,17 @@
 
     wrap.innerHTML = `
       <table>
-        <thead><tr><th>Invoice #</th><th>Date</th><th>Total</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Invoice #</th><th>Family</th><th>Date</th><th>Total</th><th>Status</th><th></th></tr></thead>
         <tbody>
           ${invoicesCache.map(inv => `
             <tr>
               <td><strong>${escapeHtml(inv.invoice_number)}</strong></td>
+              <td>${escapeHtml(inv.primary_parent_name || '—')}</td>
               <td>${formatDate(inv.invoice_date)}</td>
               <td>${formatCurrency(inv.grand_total)}</td>
               <td><span class="badge ${STATUS_BADGE_CLASS[inv.status] || 'badge-staff'}">${escapeHtml(inv.status)}</span></td>
               <td>
+                ${inv.status !== 'paid' && inv.status !== 'void' && inv.has_card_on_file ? `<button class="icon-btn" id="invoice-charge-btn-${inv.id}" onclick="chargeInvoiceCard(${inv.id})">Charge card</button>` : ''}
                 ${inv.status !== 'paid' && inv.status !== 'void' ? `<button class="icon-btn" onclick="createPaymentLink(${inv.id})">Get payment link</button>` : ''}
                 ${inv.stripe_payment_link_url ? `<button class="icon-btn" onclick="copyPaymentLink('${inv.stripe_payment_link_url}')">Copy link</button>` : ''}
                 ${inv.status !== 'paid' && inv.status !== 'void' ? `<button class="icon-btn" onclick="markInvoicePaid(${inv.id})">Mark paid</button>` : ''}
@@ -4670,6 +4672,27 @@
     } finally {
       btn.disabled = false;
       btn.textContent = originalText;
+    }
+  }
+
+  async function chargeInvoiceCard(invoiceId) {
+    const inv = invoicesCache.find(i => i.id === invoiceId);
+    const confirmed = confirm(
+      `Charge ${inv.primary_parent_name}'s card on file ${formatCurrency(inv.grand_total)} for invoice ${inv.invoice_number}?\n\nThis charges a real card immediately and cannot be undone from here.`
+    );
+    if (!confirmed) return;
+
+    const btn = document.getElementById('invoice-charge-btn-' + invoiceId);
+    btn.disabled = true;
+    btn.textContent = 'Charging…';
+    try {
+      await apiFetch('/invoices/' + invoiceId + '/charge-card', { method: 'POST' });
+      invoicesCache = await apiFetch('/invoices');
+      renderInvoicesTable();
+    } catch (err) {
+      alert('Charge failed: ' + err.message);
+      btn.disabled = false;
+      btn.textContent = 'Charge card';
     }
   }
 
