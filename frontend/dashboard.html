@@ -153,6 +153,20 @@
   .empty-state h3 { color: var(--charcoal); margin: 0 0 8px; font-size: 16px; }
   .empty-state p { font-size: 13.5px; margin: 0 0 18px; }
 
+  /* ---------- Home page grid panels ---------- */
+  .home-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .home-panel { background: #fff; border: 1px solid var(--sage-light); border-radius: 14px; padding: 18px 20px; }
+  .home-panel-header { margin-bottom: 12px; }
+  .home-panel-header h3 { font-size: 14.5px; color: var(--teal-dark); margin: 0; font-family: 'Fredoka', sans-serif; font-weight: 600; }
+  .home-panel-header p { font-size: 12px; color: #8A9490; margin: 3px 0 0; line-height: 1.4; }
+  .empty-state-sm { text-align: center; padding: 22px 10px; color: #8A9490; font-size: 13px; }
+  .empty-state-sm p { margin: 0; }
+  .home-panel table { font-size: 13px; }
+  .home-panel th, .home-panel td { padding: 8px 4px; }
+  @media (max-width: 640px) {
+    .home-grid { grid-template-columns: 1fr; }
+  }
+
   .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
     padding: 11px 18px; border-radius: 10px; border: none; font-family: 'Inter', sans-serif;
@@ -3471,22 +3485,29 @@
         </div>
       </div>
 
-      ${isAdmin ? `
-        <div class="page-header" style="margin-bottom:14px;"><div><h2 style="font-size:19px;">Room ratios right now</h2><p>Based on Idaho's IDAPA 16.06.02 points system. Verify against current state regulations — not a substitute for knowing the actual rule.</p></div></div>
-        <div class="card" id="home-ratios-wrap" style="margin-bottom:28px;">
-          <div class="empty-state"><p>Loading…</p></div>
-        </div>
-      ` : ''}
+      <div class="home-grid">
+        ${isAdmin ? `
+          <div class="home-panel">
+            <div class="home-panel-header">
+              <h3>Room ratios</h3>
+              <p>IDAPA 16.06.02 points — verify against the current rule.</p>
+            </div>
+            <div id="home-ratios-wrap"><div class="empty-state-sm"><p>Loading…</p></div></div>
+          </div>
+        ` : ''}
 
-      <div class="page-header" style="margin-bottom:14px;"><div><h2 style="font-size:19px;">Today's events</h2></div></div>
-      <div class="card" id="home-events-wrap" style="margin-bottom:28px;">
-        <div class="empty-state"><p>Loading…</p></div>
+        <div class="home-panel">
+          <div class="home-panel-header"><h3>Today's events</h3></div>
+          <div id="home-events-wrap"><div class="empty-state-sm"><p>Loading…</p></div></div>
+        </div>
+
+        <div class="home-panel">
+          <div class="home-panel-header"><h3>${isAdmin ? "Today's staff" : "Your shift today"}</h3></div>
+          <div id="home-shifts-wrap"><div class="empty-state-sm"><p>Loading…</p></div></div>
+        </div>
       </div>
 
-      <div class="page-header" style="margin-bottom:14px;"><div><h2 style="font-size:19px;">${isAdmin ? "Today's scheduled staff" : "Your shift today"}</h2></div></div>
-      <div class="card" id="home-shifts-wrap" style="margin-bottom:28px;"></div>
-
-      <div class="page-header" style="margin-bottom:14px;"><div><h2 style="font-size:19px;">Next 7 days</h2><p>Everything scheduled through ${new Date(weekEndStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.</p></div></div>
+      <div class="page-header" style="margin:28px 0 14px;"><div><h2 style="font-size:19px;">Next 7 days</h2><p>Everything scheduled through ${new Date(weekEndStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.</p></div></div>
       <div class="card" id="home-week-wrap">
         <div class="empty-state"><p>Loading…</p></div>
       </div>
@@ -3530,20 +3551,20 @@
     const withChildren = ratios.filter(r => r.checked_in_points > 0);
 
     if (withChildren.length === 0) {
-      wrap.innerHTML = `<div class="empty-state"><h3>No one checked in yet</h3><p>Ratios will show up here once children are checked in.</p></div>`;
+      wrap.innerHTML = `<div class="empty-state-sm"><p>No one checked in yet.</p></div>`;
       return;
     }
 
     wrap.innerHTML = `
       <table>
-        <thead><tr><th>Room</th><th>Staff present</th><th>Staff required</th><th>Status</th></tr></thead>
+        <thead><tr><th>Room</th><th>Have</th><th>Need</th><th></th></tr></thead>
         <tbody>
           ${withChildren.map(r => `
             <tr>
               <td><strong>${escapeHtml(r.room)}</strong></td>
               <td>${r.staff_present}</td>
               <td>${r.staff_required}</td>
-              <td><span class="badge ${r.in_compliance ? 'badge-active' : 'badge-inactive'}">${r.in_compliance ? 'In ratio' : 'Understaffed'}</span></td>
+              <td><span class="badge ${r.in_compliance ? 'badge-active' : 'badge-inactive'}">${r.in_compliance ? 'OK' : 'Short'}</span></td>
             </tr>
           `).join('')}
         </tbody>
@@ -3600,7 +3621,7 @@
   function renderHomeEvents(events) {
     const wrap = document.getElementById('home-events-wrap');
     if (events.length === 0) {
-      wrap.innerHTML = `<div class="empty-state"><h3>Nothing scheduled today</h3><p>No events posted for today.</p></div>`;
+      wrap.innerHTML = `<div class="empty-state-sm"><p>Nothing scheduled today.</p></div>`;
       return;
     }
     wrap.innerHTML = events.map(e => `
@@ -3617,7 +3638,7 @@
   function renderHomeShifts(shifts, isAdmin) {
     const wrap = document.getElementById('home-shifts-wrap');
     if (shifts.length === 0) {
-      wrap.innerHTML = `<div class="empty-state"><h3>${isAdmin ? 'No one is scheduled today' : "You're not scheduled today"}</h3></div>`;
+      wrap.innerHTML = `<div class="empty-state-sm"><p>${isAdmin ? 'No one is scheduled today.' : "You're not scheduled today."}</p></div>`;
       return;
     }
     wrap.innerHTML = `
