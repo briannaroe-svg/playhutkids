@@ -57,7 +57,24 @@ router.post('/', requireAdmin, async (req, res) => {
        child_allergies, child_medical_notes, child_emergency_contact_name,
        child_emergency_contact_phone, child_base_tuition_rate || null, req.staff.staff_id]
     );
-    res.status(201).json(result.rows[0]);
+    const registration = result.rows[0];
+
+    // Auto-close any matching waitlist entry — matched by parent email, since
+    // that's the one field guaranteed to be entered consistently in both
+    // places. Failure here should never block the registration itself from
+    // being created, so it's isolated in its own try/catch.
+    try {
+      await pool.query(
+        `UPDATE waitlist_entries
+         SET status = 'enrolled', converted_registration_id = $2, converted_at = now()
+         WHERE parent_email = $1 AND status = 'waiting'`,
+        [primary_parent_email, registration.id]
+      );
+    } catch (waitlistErr) {
+      console.error('Registration created, but waitlist auto-conversion failed:', waitlistErr);
+    }
+
+    res.status(201).json(registration);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to start registration' });

@@ -547,6 +547,73 @@
   </div>
 </div>
 
+<!-- ============ ADD/EDIT WAITLIST ENTRY MODAL (admin only) ============ -->
+<div class="modal-overlay" id="waitlist-modal-overlay">
+  <div class="modal" style="max-width:480px;">
+    <h3 id="waitlist-modal-title">Add inquiry</h3>
+    <p class="modal-sub">Log a family who's asked about enrollment.</p>
+    <div class="error-banner" id="waitlist-modal-error"></div>
+    <form id="waitlist-form">
+      <input type="hidden" id="waitlist-id">
+
+      <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:0 0 10px;">Parent</p>
+      <div class="field">
+        <label for="waitlist-parent-name">Name</label>
+        <input type="text" id="waitlist-parent-name" required>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="waitlist-parent-email">Email</label>
+          <input type="email" id="waitlist-parent-email" required>
+        </div>
+        <div class="field">
+          <label for="waitlist-parent-phone">Phone</label>
+          <input type="text" id="waitlist-parent-phone">
+        </div>
+      </div>
+
+      <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:18px 0 10px;">Child <span style="font-weight:400; text-transform:none; letter-spacing:normal;">(optional)</span></p>
+      <div class="field-row">
+        <div class="field">
+          <label for="waitlist-child-first-name">First name</label>
+          <input type="text" id="waitlist-child-first-name">
+        </div>
+        <div class="field">
+          <label for="waitlist-child-last-name">Last name</label>
+          <input type="text" id="waitlist-child-last-name">
+        </div>
+      </div>
+      <div class="field">
+        <label for="waitlist-child-dob">Date of birth</label>
+        <input type="date" id="waitlist-child-dob">
+      </div>
+      <div class="field">
+        <label for="waitlist-room">Room interested in <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <select id="waitlist-room">
+          <option value="">Undecided</option>
+          <option value="Little Bunnies">Little Bunnies</option>
+          <option value="Little Raccoons">Little Raccoons</option>
+          <option value="Little Cubs">Little Cubs</option>
+          <option value="3 Year Old Preschool-AM">3yo Preschool-AM</option>
+          <option value="3 Year Old Preschool-PM">3yo Preschool-PM</option>
+          <option value="4 Year Old Preschool-AM">4yo Preschool-AM</option>
+          <option value="4 Year Old Preschool-PM">4yo Preschool-PM</option>
+          <option value="Wolf Den">Wolf Den</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="waitlist-notes">Notes <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="waitlist-notes" placeholder="Anything worth remembering for the follow-up">
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeWaitlistModal()">Cancel</button>
+        <button type="submit" class="btn btn-teal" id="waitlist-submit-btn">Add inquiry</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- ============ ADD REGISTRATION MODAL (admin only) ============ -->
 <div class="modal-overlay" id="registration-modal-overlay">
   <div class="modal" style="max-width:560px;">
@@ -1177,6 +1244,7 @@
     { id: 'home',       label: 'Home',           adminOnly: false, icon: 'home' },
     { id: 'families',   label: 'Families',       adminOnly: true,  icon: 'family' },
     { id: 'children',   label: 'Children',       adminOnly: false, icon: 'child' },
+    { id: 'waitlist',   label: 'Waitlist',       adminOnly: true,  icon: 'waitlist' },
     { id: 'registrations', label: 'Registration', adminOnly: true, icon: 'registration' },
     { id: 'agreements', label: 'Documents',      adminOnly: false, icon: 'doc' },
     { id: 'messages',   label: 'Messages',       adminOnly: false, icon: 'messages' },
@@ -1192,6 +1260,7 @@
     timesheets: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 3v3M16 3v3M4 10h16M8 14h2M8 17h2" stroke-linecap="round"/></svg>',
     calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18" stroke-linecap="round"/><circle cx="8" cy="14" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="14" r="1" fill="currentColor" stroke="none"/></svg>',
     registration: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 3h6l3 3v15H6V3z" stroke-linejoin="round"/><path d="M9 3v15h9" opacity="0"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    waitlist: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h11M4 12h11M4 18h7" stroke-linecap="round"/><circle cx="19" cy="17" r="3"/><path d="M19 15.5V17l1 1" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     child: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-4 3-6.5 7-6.5s7 2.5 7 6.5" stroke-linecap="round"/></svg>',
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11l8-7 8 7" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 10v9a1 1 0 001 1h10a1 1 0 001-1v-9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     family: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="2.6"/><circle cx="17" cy="9" r="2.2"/><path d="M3 20c0-3 2.2-5.4 5-5.4s5 2.4 5 5.4M14 20c0-2.4 1.7-4.4 4-4.4s4 2 4 4.4" stroke-linecap="round"/></svg>',
@@ -1264,6 +1333,7 @@
       invoices: renderInvoicesView,
       timesheets: renderTimesheetsView,
       scheduling: renderSchedulingView,
+      waitlist: renderWaitlistView,
       registrations: renderRegistrationsView,
       children: renderChildrenView,
       agreements: renderDocumentsView,
@@ -2757,6 +2827,159 @@
   function closeAckStatusModal() {
     document.getElementById('ack-status-modal-overlay').classList.remove('show');
   }
+
+  // ============================================================
+  // WAITLIST VIEW (admin only) — prospective families before Registration.
+  // Auto-marked "enrolled" and linked when a matching Registration (by
+  // parent email) is created — see registrations.js.
+  // ============================================================
+  let waitlistCache = [];
+
+  async function renderWaitlistView() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h2>Waitlist</h2>
+          <p>Enrollment inquiries — automatically marked enrolled once a matching Registration is created.</p>
+        </div>
+        <button class="btn btn-coral" onclick="openWaitlistModal()">+ Add inquiry</button>
+      </div>
+      <div class="card" id="waitlist-table-wrap">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+    `;
+
+    try {
+      waitlistCache = await apiFetch('/waitlist');
+      renderWaitlistTable();
+    } catch (err) {
+      document.getElementById('waitlist-table-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load the waitlist</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function ageFromDob(dob) {
+    if (!dob) return null;
+    const ageMs = Date.now() - new Date(dob).getTime();
+    const years = ageMs / (1000 * 60 * 60 * 24 * 365.25);
+    if (years < 1) return `${Math.floor(years * 12)} mo`;
+    return `${Math.floor(years)} yr`;
+  }
+
+  function renderWaitlistTable() {
+    const wrap = document.getElementById('waitlist-table-wrap');
+    if (waitlistCache.length === 0) {
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <h3>No inquiries yet</h3>
+          <p>Log a family here when they call or ask about enrollment.</p>
+          <button class="btn btn-coral" onclick="openWaitlistModal()">+ Add inquiry</button>
+        </div>
+      `;
+      return;
+    }
+
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Parent</th><th>Child</th><th>Age</th><th>Room interest</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${waitlistCache.map(w => `
+            <tr>
+              <td><strong>${escapeHtml(w.parent_name)}</strong><br><span style="color:#8A9490; font-size:12.5px;">${escapeHtml(w.parent_email)}</span></td>
+              <td>${w.child_first_name ? escapeHtml(w.child_first_name) + ' ' + escapeHtml(w.child_last_name || '') : '<span style="color:#8A9490;">—</span>'}</td>
+              <td>${ageFromDob(w.child_date_of_birth) || '—'}</td>
+              <td>${w.interested_room ? escapeHtml(w.interested_room) : '<span style="color:#8A9490;">Undecided</span>'}</td>
+              <td><span class="badge ${w.status === 'enrolled' ? 'badge-active' : 'badge-staff'}">${w.status === 'enrolled' ? 'Enrolled' : 'Waiting'}</span></td>
+              <td>
+                ${w.status === 'waiting' ? `
+                  <button class="icon-btn" onclick="openWaitlistModal(${w.id})">Edit</button>
+                  <button class="icon-btn" style="color:var(--error);" onclick="deleteWaitlistEntry(${w.id})">Remove</button>
+                ` : '<span style="color:#8A9490; font-size:13px;">Converted to registration</span>'}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function deleteWaitlistEntry(id) {
+    if (!confirm('Remove this inquiry from the waitlist?')) return;
+    try {
+      await apiFetch('/waitlist/' + id, { method: 'DELETE' });
+      waitlistCache = await apiFetch('/waitlist');
+      renderWaitlistTable();
+    } catch (err) {
+      alert('Could not remove entry: ' + err.message);
+    }
+  }
+
+  function openWaitlistModal(id) {
+    document.getElementById('waitlist-form').reset();
+    document.getElementById('waitlist-modal-error').classList.remove('show');
+    document.getElementById('waitlist-id').value = id || '';
+
+    if (id) {
+      const w = waitlistCache.find(x => x.id === id);
+      document.getElementById('waitlist-modal-title').textContent = 'Edit inquiry';
+      document.getElementById('waitlist-parent-name').value = w.parent_name;
+      document.getElementById('waitlist-parent-email').value = w.parent_email;
+      document.getElementById('waitlist-parent-phone').value = w.parent_phone || '';
+      document.getElementById('waitlist-child-first-name').value = w.child_first_name || '';
+      document.getElementById('waitlist-child-last-name').value = w.child_last_name || '';
+      document.getElementById('waitlist-child-dob').value = w.child_date_of_birth ? w.child_date_of_birth.slice(0, 10) : '';
+      document.getElementById('waitlist-room').value = w.interested_room || '';
+      document.getElementById('waitlist-notes').value = w.notes || '';
+      document.getElementById('waitlist-submit-btn').textContent = 'Save changes';
+    } else {
+      document.getElementById('waitlist-modal-title').textContent = 'Add inquiry';
+      document.getElementById('waitlist-submit-btn').textContent = 'Add inquiry';
+    }
+
+    document.getElementById('waitlist-modal-overlay').classList.add('show');
+  }
+
+  function closeWaitlistModal() {
+    document.getElementById('waitlist-modal-overlay').classList.remove('show');
+  }
+
+  document.getElementById('waitlist-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('waitlist-id').value;
+    const errorBox = document.getElementById('waitlist-modal-error');
+    const btn = document.getElementById('waitlist-submit-btn');
+    errorBox.classList.remove('show');
+
+    const payload = {
+      parent_name: document.getElementById('waitlist-parent-name').value.trim(),
+      parent_email: document.getElementById('waitlist-parent-email').value.trim(),
+      parent_phone: document.getElementById('waitlist-parent-phone').value.trim() || null,
+      child_first_name: document.getElementById('waitlist-child-first-name').value.trim() || null,
+      child_last_name: document.getElementById('waitlist-child-last-name').value.trim() || null,
+      child_date_of_birth: document.getElementById('waitlist-child-dob').value || null,
+      interested_room: document.getElementById('waitlist-room').value || null,
+      notes: document.getElementById('waitlist-notes').value.trim() || null,
+    };
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      if (id) {
+        await apiFetch('/waitlist/' + id, { method: 'PUT', body: JSON.stringify(payload) });
+      } else {
+        await apiFetch('/waitlist', { method: 'POST', body: JSON.stringify(payload) });
+      }
+      closeWaitlistModal();
+      waitlistCache = await apiFetch('/waitlist');
+      renderWaitlistTable();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = id ? 'Save changes' : 'Add inquiry';
+    }
+  });
 
   // ============================================================
   // REGISTRATIONS VIEW (admin only)
