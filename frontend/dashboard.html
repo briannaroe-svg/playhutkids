@@ -82,25 +82,35 @@
   .logout-link { font-size: 12.5px; color: rgba(255,255,255,0.5); cursor: pointer; display: inline-block; text-decoration: none; }
   .logout-link:hover { color: #fff; }
 
-  .sidebar-clock-wrap { padding: 4px 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .sidebar-clock-wrap { padding: 4px 12px 14px; }
+  .sidebar-clock-card {
+    background: rgba(255,255,255,0.06); border-radius: 10px; padding: 10px 12px;
+  }
+  .sidebar-clock-status {
+    display: flex; align-items: center; gap: 8px; font-size: 12.5px;
+    font-weight: 600; color: rgba(255,255,255,0.75); margin-bottom: 9px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sidebar-clock-actions { display: flex; gap: 6px; }
   .sidebar-clock-btn {
-    width: 100%; display: flex; align-items: center; gap: 9px;
-    padding: 11px 14px; border-radius: 9px; border: none; cursor: pointer;
-    font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 600;
-    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.9);
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 6px; border-radius: 7px; border: none; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 600;
+    background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.9);
     transition: background 0.15s ease;
   }
-  .sidebar-clock-btn:hover { background: rgba(255,255,255,0.14); }
-  .sidebar-clock-btn.clocked-in { background: rgba(232,115,74,0.18); color: #fff; }
-  .sidebar-clock-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-  .sidebar-clock-btn:disabled:hover { background: rgba(255,255,255,0.08); }
+  .sidebar-clock-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .sidebar-clock-btn:hover { background: rgba(255,255,255,0.18); }
+  .sidebar-clock-btn.clocked-in { background: rgba(232,115,74,0.28); color: #fff; }
+  .sidebar-clock-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .sidebar-clock-btn:disabled:hover { background: rgba(255,255,255,0.1); }
   .clock-dot {
-    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-    background: rgba(255,255,255,0.4);
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(255,255,255,0.35);
   }
-  .sidebar-clock-btn.clocked-in .clock-dot { background: var(--coral); box-shadow: 0 0 0 3px rgba(232,115,74,0.25); }
-  .sidebar-break-btn.on-break { background: rgba(139,94,52,0.32); color: #fff; }
-  .sidebar-break-btn.on-break .clock-dot { background: #C9A876; box-shadow: 0 0 0 3px rgba(201,168,118,0.3); }
+  .clock-dot.active { background: var(--coral); box-shadow: 0 0 0 3px rgba(232,115,74,0.25); }
+  .clock-dot.on-break { background: #C9A876; box-shadow: 0 0 0 3px rgba(201,168,118,0.3); }
+  .sidebar-break-btn.on-break { background: rgba(139,94,52,0.38); color: #fff; }
 
   .main { flex: 1; padding: 34px 42px; max-width: 1080px; }
   .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 26px; gap: 20px; flex-wrap: wrap; }
@@ -319,14 +329,22 @@
     <ul class="nav-list" id="nav-list"></ul>
 
     <div class="sidebar-clock-wrap">
-      <button class="sidebar-clock-btn" id="sidebar-clock-btn" onclick="handleSidebarClockToggle()">
-        <span class="clock-dot" id="sidebar-clock-dot"></span>
-        <span id="sidebar-clock-label">Loading…</span>
-      </button>
-      <button class="sidebar-clock-btn sidebar-break-btn" id="sidebar-break-btn" onclick="handleSidebarBreakToggle()" disabled>
-        <span class="clock-dot" id="sidebar-break-dot"></span>
-        <span id="sidebar-break-label">Break / Lunch</span>
-      </button>
+      <div class="sidebar-clock-card">
+        <div class="sidebar-clock-status" id="sidebar-clock-status">
+          <span class="clock-dot" id="sidebar-clock-dot"></span>
+          <span id="sidebar-clock-label">Loading…</span>
+        </div>
+        <div class="sidebar-clock-actions">
+          <button class="sidebar-clock-btn" id="sidebar-clock-btn" onclick="handleSidebarClockToggle()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg>
+            <span id="sidebar-clock-btn-label">Clock in</span>
+          </button>
+          <button class="sidebar-clock-btn sidebar-break-btn" id="sidebar-break-btn" onclick="handleSidebarBreakToggle()" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h13a3 3 0 010 6h-1M4 8v9a1 1 0 001 1h9a1 1 0 001-1V8M4 8V6a1 1 0 011-1h9a1 1 0 011 1v2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span id="sidebar-break-btn-label">Break</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <div class="sidebar-footer">
@@ -1327,40 +1345,51 @@
   let currentClockStatus = null; // { clocked_in, entry, on_break, break }
 
   async function renderSidebarClockButton() {
+    const dot = document.getElementById('sidebar-clock-dot');
+    const statusLabel = document.getElementById('sidebar-clock-label');
     const btn = document.getElementById('sidebar-clock-btn');
-    const label = document.getElementById('sidebar-clock-label');
+    const btnLabel = document.getElementById('sidebar-clock-btn-label');
     const breakBtn = document.getElementById('sidebar-break-btn');
-    const breakLabel = document.getElementById('sidebar-break-label');
+    const breakBtnLabel = document.getElementById('sidebar-break-btn-label');
 
     try {
       currentClockStatus = await apiFetch('/timesheets/my-status');
     } catch (err) {
-      label.textContent = 'Clock unavailable';
+      statusLabel.textContent = 'Clock unavailable';
       return;
     }
 
     if (currentClockStatus.clocked_in) {
       const clockInTime = new Date(currentClockStatus.entry.clock_in);
-      btn.classList.add('clocked-in');
-      label.textContent = `Clock out (in since ${clockInTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })})`;
+      const sinceTime = clockInTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
       breakBtn.disabled = false;
       if (currentClockStatus.on_break) {
         const breakStartTime = new Date(currentClockStatus.break.break_start);
+        const breakSince = breakStartTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        dot.className = 'clock-dot on-break';
+        statusLabel.textContent = `On break since ${breakSince}`;
         breakBtn.classList.add('on-break');
-        breakLabel.textContent = `End break (since ${breakStartTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })})`;
+        breakBtnLabel.textContent = 'End break';
         btn.disabled = true; // can't clock out mid-break — end the break first
+        btnLabel.textContent = 'Clock out';
       } else {
+        dot.className = 'clock-dot active';
+        statusLabel.textContent = `Clocked in since ${sinceTime}`;
         breakBtn.classList.remove('on-break');
-        breakLabel.textContent = 'Break / Lunch';
+        breakBtnLabel.textContent = 'Break';
         btn.disabled = false;
+        btn.classList.add('clocked-in');
+        btnLabel.textContent = 'Clock out';
       }
     } else {
+      dot.className = 'clock-dot';
+      statusLabel.textContent = 'Not clocked in';
       btn.classList.remove('clocked-in');
-      label.textContent = 'Clock in';
+      btnLabel.textContent = 'Clock in';
       breakBtn.disabled = true;
       breakBtn.classList.remove('on-break');
-      breakLabel.textContent = 'Break / Lunch';
+      breakBtnLabel.textContent = 'Break';
     }
   }
 
