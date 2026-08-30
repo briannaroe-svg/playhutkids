@@ -52,11 +52,18 @@ router.post('/templates', requireAdmin, async (req, res) => {
 router.get('/', requireAdmin, async (req, res) => {
   const { family_id, status } = req.query;
   try {
-    let query = `SELECT * FROM agreements WHERE 1=1`;
+    let query = `
+      SELECT a.*, t.title, t.agreement_type, f.primary_parent_name,
+             c.first_name AS child_first_name, c.last_name AS child_last_name
+      FROM agreements a
+      JOIN agreement_templates t ON a.template_id = t.id
+      JOIN families f ON a.family_id = f.id
+      LEFT JOIN children c ON a.child_id = c.id
+      WHERE 1=1`;
     const params = [];
-    if (family_id) { params.push(family_id); query += ` AND family_id = $${params.length}`; }
-    if (status) { params.push(status); query += ` AND status = $${params.length}`; }
-    query += ` ORDER BY created_at DESC`;
+    if (family_id) { params.push(family_id); query += ` AND a.family_id = $${params.length}`; }
+    if (status) { params.push(status); query += ` AND a.status = $${params.length}`; }
+    query += ` ORDER BY a.created_at DESC`;
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {

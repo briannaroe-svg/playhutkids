@@ -70,6 +70,26 @@ router.get('/my', requireAuth, async (req, res) => {
   }
 });
 
+// GET /staff-agreements/signed — admin only, every SIGNED staff agreement across
+// everyone, for the admin-wide Documents view (as opposed to /my, which is
+// scoped to the logged-in user and includes pending ones too).
+router.get('/signed', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT sa.*, t.title, t.version, s.first_name, s.last_name
+       FROM staff_agreements sa
+       JOIN staff_agreement_templates t ON sa.template_id = t.id
+       JOIN staff s ON sa.staff_id = s.id
+       WHERE sa.status = 'signed'
+       ORDER BY sa.signed_at DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch signed staff agreements' });
+  }
+});
+
 // GET /staff-agreements/:templateId/status — admin only, who has/hasn't signed a given handbook
 router.get('/:templateId(\\d+)/status', requireAdmin, async (req, res) => {
   try {

@@ -2634,7 +2634,7 @@
       <div class="page-header">
         <div>
           <h2>Documents</h2>
-          <p>Employee handbook agreements you've signed, or need to sign.</p>
+          <p>${isAdmin ? "Employee handbook agreements you've signed, or need to sign." : "Documents you've signed, or need to sign."}</p>
         </div>
         ${isAdmin ? '<button class="btn btn-coral" onclick="openHandbookTemplateModal()">+ Add handbook version</button>' : ''}
       </div>
@@ -2643,7 +2643,10 @@
       </div>
       ${isAdmin ? `
         <div class="page-header" style="margin: 28px 0 14px;"><div><h2 style="font-size:19px;">Staff signing status</h2></div></div>
-        <div class="card" id="agreement-templates-wrap"></div>
+        <div class="card" id="agreement-templates-wrap" style="margin-bottom:28px;"></div>
+
+        <div class="page-header" style="margin: 0 0 14px;"><div><h2 style="font-size:19px;">All signed documents</h2><p>Every signed document across staff and families.</p></div></div>
+        <div class="card" id="all-signed-docs-wrap"></div>
       ` : ''}
     `;
 
@@ -2661,7 +2664,61 @@
       } catch (err) {
         document.getElementById('agreement-templates-wrap').innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
       }
+
+      try {
+        const [signedStaffDocs, parentAgreements] = await Promise.all([
+          apiFetch('/staff-agreements/signed'),
+          apiFetch('/agreements'),
+        ]);
+        renderAllSignedDocuments(signedStaffDocs, parentAgreements);
+      } catch (err) {
+        document.getElementById('all-signed-docs-wrap').innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+      }
     }
+  }
+
+  function renderAllSignedDocuments(signedStaffDocs, parentAgreements) {
+    const wrap = document.getElementById('all-signed-docs-wrap');
+    const signedParentAgreements = parentAgreements.filter(a => a.status === 'signed');
+
+    const rows = [
+      ...signedStaffDocs.map(d => ({
+        who: `${d.first_name} ${d.last_name}`,
+        kind: 'Staff',
+        document: `${d.title} (v${d.version})`,
+        signedAt: d.signed_at,
+        pdfUrl: d.signed_pdf_url,
+      })),
+      ...signedParentAgreements.map(a => ({
+        who: a.primary_parent_name + (a.child_first_name ? ` (${a.child_first_name} ${a.child_last_name})` : ''),
+        kind: 'Parent',
+        document: a.title || (a.agreement_type === 'daycare_handbook' ? 'Daycare Handbook' : 'Preschool Handbook'),
+        signedAt: a.signed_at,
+        pdfUrl: a.signed_pdf_url,
+      })),
+    ].sort((a, b) => new Date(b.signedAt) - new Date(a.signedAt));
+
+    if (rows.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>No signed documents yet</h3></div>`;
+      return;
+    }
+
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Who</th><th>Type</th><th>Document</th><th>Signed</th><th></th></tr></thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td><strong>${escapeHtml(r.who)}</strong></td>
+              <td><span class="badge ${r.kind === 'Staff' ? 'badge-admin' : 'badge-staff'}">${r.kind}</span></td>
+              <td>${escapeHtml(r.document)}</td>
+              <td>${formatDate(r.signedAt)}</td>
+              <td>${r.pdfUrl ? `<a href="${r.pdfUrl}" target="_blank" class="icon-btn" style="text-decoration:none;">View PDF</a>` : '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
   }
 
   function renderMyAgreements() {
