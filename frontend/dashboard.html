@@ -232,6 +232,14 @@
   .daily-report-photo-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
   .daily-report-photo-grid img { width: 76px; height: 76px; object-fit: cover; border-radius: 8px; border: 1px solid var(--sage-light); }
 
+  .child-doc-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 0; border-bottom: 1px solid var(--sage-light);
+  }
+  .child-doc-row:last-child { border-bottom: none; }
+  .child-doc-row-main { font-size: 14px; }
+  .child-doc-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
 
   .signature-canvas {
     width: 100%; height: 160px; border: 1.5px dashed var(--sage); border-radius: 9px;
@@ -912,6 +920,40 @@
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" onclick="closeDailyReportModal()">Cancel</button>
       <button type="button" class="btn btn-teal" id="daily-report-save-btn" onclick="saveDailyReport()">Save report</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CHILD DOCUMENTS MODAL (admin only) ============ -->
+<div class="modal-overlay" id="child-documents-modal-overlay">
+  <div class="modal" style="max-width:460px;">
+    <h3>Documents — <span id="child-documents-child-name">—</span></h3>
+    <p class="modal-sub">Immunizations, health forms, and emergency contact forms on file.</p>
+    <div id="child-documents-body"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-teal" onclick="closeChildDocumentsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ UPLOAD/REPLACE DOCUMENT MODAL (admin only) ============ -->
+<div class="modal-overlay" id="upload-doc-modal-overlay">
+  <div class="modal" style="max-width:420px;">
+    <h3>Upload <span id="upload-doc-type-label">—</span></h3>
+    <p class="modal-sub">PDF or photo of the document.</p>
+    <div class="error-banner" id="upload-doc-error"></div>
+    <input type="hidden" id="upload-doc-type-hidden">
+    <div class="field">
+      <label for="upload-doc-file-input">File</label>
+      <input type="file" id="upload-doc-file-input" accept="image/*,application/pdf">
+    </div>
+    <div class="field">
+      <label for="upload-doc-expiration">Expiration date <span style="font-weight:400; color:#8A9490;">(optional — leave blank if this document doesn't expire)</span></label>
+      <input type="date" id="upload-doc-expiration">
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeUploadDocModal()">Cancel</button>
+      <button type="button" class="btn btn-teal" id="upload-doc-save-btn" onclick="saveChildDocument()">Upload</button>
     </div>
   </div>
 </div>
@@ -1994,6 +2036,7 @@
                 <td>${statusBadge}</td>
                 <td>
                   ${isAdmin ? `<button class="icon-btn" onclick="openChildModal(${c.id})">Edit</button>` : ''}
+                  ${isAdmin ? `<button class="icon-btn" onclick="openChildDocumentsModal(${c.id})">Documents</button>` : ''}
                   <button class="icon-btn" onclick="openDailyReportModal(${c.id})">Daily Report</button>
                   ${isCheckedIn
                     ? `<button class="btn btn-sm" style="background:var(--error); color:#fff; padding:7px 14px; font-size:13px;" onclick="handleChildCheckOut(${c.id})">Check out</button>`
@@ -2227,6 +2270,124 @@
     } finally {
       btn.disabled = false;
       btn.textContent = 'Save report';
+    }
+  }
+
+  // ---- Child Documents modal (admin only): immunizations, health forms, etc. ----
+  const CHILD_DOCUMENT_TYPES = ['Immunizations', 'Physical/Health Form', 'Emergency Contact Form'];
+  let childDocumentsChildId = null;
+  let childDocumentsCache = [];
+
+  async function openChildDocumentsModal(childId) {
+    childDocumentsChildId = childId;
+    const c = childrenCache.find(x => x.id === childId);
+    document.getElementById('child-documents-child-name').textContent = `${c.first_name} ${c.last_name}`;
+    document.getElementById('child-documents-modal-overlay').classList.add('show');
+    document.getElementById('child-documents-body').innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+
+    try {
+      childDocumentsCache = await apiFetch('/child-documents/' + childId);
+      renderChildDocumentsList();
+    } catch (err) {
+      document.getElementById('child-documents-body').innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+    }
+  }
+
+  function closeChildDocumentsModal() {
+    document.getElementById('child-documents-modal-overlay').classList.remove('show');
+  }
+
+  function renderChildDocumentsList() {
+    const wrap = document.getElementById('child-documents-body');
+    const today = localDateString();
+
+    wrap.innerHTML = CHILD_DOCUMENT_TYPES.map(type => {
+      const doc = childDocumentsCache
+        .filter(d => d.document_type === type)
+        .sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at))[0]; // most recent, if replaced
+
+      let statusBadge = '<span class="badge badge-staff">Not on file</span>';
+      if (doc) {
+        if (doc.expiration_date) {
+          const isExpired = doc.expiration_date.slice(0, 10) < today;
+          statusBadge = isExpired
+            ? `<span class="badge badge-inactive">Expired ${formatDate(doc.expiration_date)}</span>`
+            : `<span class="badge badge-active">Valid through ${formatDate(doc.expiration_date)}</span>`;
+        } else {
+          statusBadge = `<span class="badge badge-active">On file</span>`;
+        }
+      }
+
+      return `
+        <div class="child-doc-row">
+          <div class="child-doc-row-main">
+            <strong>${escapeHtml(type)}</strong>
+            <div style="margin-top:4px;">${statusBadge}</div>
+          </div>
+          <div class="child-doc-row-actions">
+            ${doc ? `<a href="${doc.file_url}" target="_blank" class="icon-btn" style="text-decoration:none;">View</a>` : ''}
+            <button class="icon-btn" onclick="openUploadChildDocument('${type}')">${doc ? 'Replace' : 'Upload'}</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function openUploadChildDocument(documentType) {
+    document.getElementById('upload-doc-type-label').textContent = documentType;
+    document.getElementById('upload-doc-type-hidden').value = documentType;
+    document.getElementById('upload-doc-expiration').value = '';
+    document.getElementById('upload-doc-file-input').value = '';
+    document.getElementById('upload-doc-error').classList.remove('show');
+    window.uploadDocPendingFile = null;
+    document.getElementById('upload-doc-modal-overlay').classList.add('show');
+  }
+
+  function closeUploadDocModal() {
+    document.getElementById('upload-doc-modal-overlay').classList.remove('show');
+  }
+
+  document.getElementById('upload-doc-file-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      window.uploadDocPendingFile = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  async function saveChildDocument() {
+    const errorBox = document.getElementById('upload-doc-error');
+    const btn = document.getElementById('upload-doc-save-btn');
+    errorBox.classList.remove('show');
+
+    if (!window.uploadDocPendingFile) {
+      errorBox.textContent = 'Please choose a file to upload.';
+      errorBox.classList.add('show');
+      return;
+    }
+
+    const payload = {
+      document_type: document.getElementById('upload-doc-type-hidden').value,
+      expiration_date: document.getElementById('upload-doc-expiration').value || null,
+      file_data: window.uploadDocPendingFile,
+    };
+
+    btn.disabled = true;
+    btn.textContent = 'Uploading…';
+
+    try {
+      await apiFetch('/child-documents/' + childDocumentsChildId, { method: 'POST', body: JSON.stringify(payload) });
+      closeUploadDocModal();
+      childDocumentsCache = await apiFetch('/child-documents/' + childDocumentsChildId);
+      renderChildDocumentsList();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Upload';
     }
   }
 
@@ -3750,6 +3911,16 @@
           </div>
         ` : ''}
 
+        ${isAdmin ? `
+          <div class="home-panel">
+            <div class="home-panel-header">
+              <h3>Documents expiring soon</h3>
+              <p>Within 30 days, or already expired.</p>
+            </div>
+            <div id="home-expiring-docs-wrap"><div class="empty-state-sm"><p>Loading…</p></div></div>
+          </div>
+        ` : ''}
+
         <div class="home-panel">
           <div class="home-panel-header"><h3>Today's events</h3></div>
           <div id="home-events-wrap"><div class="empty-state-sm"><p>Loading…</p></div></div>
@@ -3766,6 +3937,15 @@
         <div class="empty-state"><p>Loading…</p></div>
       </div>
     `;
+
+    if (isAdmin) {
+      try {
+        const expiringDocs = await apiFetch('/child-documents/expiring?days=30');
+        renderHomeExpiringDocs(expiringDocs);
+      } catch (err) {
+        document.getElementById('home-expiring-docs-wrap').innerHTML = `<div class="empty-state-sm"><p>${err.message}</p></div>`;
+      }
+    }
 
     if (isAdmin) {
       try {
@@ -3798,6 +3978,32 @@
     } catch (err) {
       document.getElementById('home-week-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load this week's schedule</h3><p>${err.message}</p></div>`;
     }
+  }
+
+  function renderHomeExpiringDocs(docs) {
+    const wrap = document.getElementById('home-expiring-docs-wrap');
+    if (docs.length === 0) {
+      wrap.innerHTML = `<div class="empty-state-sm"><p>Nothing expiring soon.</p></div>`;
+      return;
+    }
+    const today = localDateString();
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Child</th><th>Document</th><th></th></tr></thead>
+        <tbody>
+          ${docs.map(d => {
+            const isExpired = d.expiration_date.slice(0, 10) < today;
+            return `
+              <tr>
+                <td><strong>${escapeHtml(d.first_name)} ${escapeHtml(d.last_name)}</strong></td>
+                <td>${escapeHtml(d.document_type)}</td>
+                <td><span class="badge ${isExpired ? 'badge-inactive' : 'badge-staff'}">${isExpired ? 'Expired' : formatDate(d.expiration_date)}</span></td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
   }
 
   function renderHomeRatios(ratios) {

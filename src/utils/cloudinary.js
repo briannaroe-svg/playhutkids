@@ -47,4 +47,22 @@ function uploadBase64Image(base64Data, publicId, folder = 'little-playhut/signat
     .then((result) => result.secure_url);
 }
 
-module.exports = { cloudinary, uploadPdfBuffer, uploadBase64Image };
+/**
+ * Upload a base64-encoded file of ANY type (PDF or image) to Cloudinary,
+ * letting Cloudinary auto-detect the resource type from the data URI's MIME
+ * type. Used for child document uploads (immunization records, health forms)
+ * where the admin could pick either a PDF or a photo of a paper form —
+ * unlike uploadPdfBuffer (always PDF) or uploadBase64Image (always image),
+ * this one doesn't assume which.
+ * @param {string} base64Data - full data URI, e.g. "data:application/pdf;base64,...." or "data:image/jpeg;base64,...."
+ * @param {string} publicId
+ * @param {string} folder
+ * @returns {Promise<string>} the secure_url
+ */
+function uploadBase64File(base64Data, publicId, folder = 'little-playhut/documents') {
+  return cloudinary.uploader
+    .upload(base64Data, { folder, public_id: publicId, overwrite: true, resource_type: 'auto' })
+    .then((result) => result.secure_url);
+}
+
+module.exports = { cloudinary, uploadPdfBuffer, uploadBase64Image, uploadBase64File };
