@@ -69,6 +69,12 @@
     background: var(--coral); border-radius: 0 3px 3px 0;
   }
   .nav-icon { width: 17px; height: 17px; flex-shrink: 0; opacity: 0.9; }
+  .nav-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px; margin-left: auto;
+    background: var(--coral); color: #fff; font-size: 11px; font-weight: 700;
+    border-radius: 100px;
+  }
 
   .sidebar-footer { padding: 16px 22px 0; border-top: 1px solid rgba(255,255,255,0.12); margin-top: 12px; }
   .sidebar-user { font-size: 12.5px; color: rgba(255,255,255,0.5); margin-bottom: 10px; }
@@ -247,6 +253,15 @@
     font-size: 15px; font-weight: 600; color: var(--error); text-align: left;
   }
   .allergy-gate-card .btn { width: 100%; }
+
+  /* ---------- Scheduling calendar list ---------- */
+  .sched-day-row { display: flex; gap: 20px; padding: 16px 20px; border-bottom: 1px solid var(--sage-light); }
+  .sched-day-row:last-child { border-bottom: none; }
+  .sched-day-label { flex: 0 0 150px; font-size: 13.5px; font-weight: 600; color: var(--teal-dark); padding-top: 2px; }
+  .sched-day-items { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+  .sched-item { display: flex; align-items: center; gap: 10px; font-size: 13.5px; }
+  .sched-item-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .sched-item-text { flex: 1; }
 
   /* ---------- Invoice line items ---------- */
   .line-item-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
@@ -546,6 +561,138 @@
   </div>
 </div>
 
+<!-- ============ EVENT ACKNOWLEDGMENT GATE (staff, no click-outside dismiss) ============ -->
+<div class="allergy-gate-overlay" id="ack-event-overlay">
+  <div class="allergy-gate-card" style="border-top-color: var(--teal);">
+    <svg class="allergy-gate-icon" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="1.6" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="5" width="18" height="16" rx="2"/>
+      <path d="M8 3v4M16 3v4M3 10h18" stroke-linecap="round"/>
+    </svg>
+    <h3 style="color:var(--teal-dark);">New announcement</h3>
+    <p class="allergy-gate-sub" id="ack-event-when">—</p>
+    <div class="allergy-gate-box" style="background:var(--sage-light); color:var(--charcoal);">
+      <div id="ack-event-title" style="font-weight:700; margin-bottom:4px;">—</div>
+      <div id="ack-event-description" style="font-weight:400; font-size:13.5px;"></div>
+    </div>
+    <button type="button" class="btn btn-teal" onclick="acknowledgeCurrentEvent()">I understand</button>
+  </div>
+</div>
+
+<!-- ============ EVENT ACKNOWLEDGMENT STATUS MODAL (admin, who's seen this) ============ -->
+<div class="modal-overlay" id="ack-status-modal-overlay">
+  <div class="modal" style="max-width:400px;">
+    <h3>Who's seen this?</h3>
+    <p class="modal-sub" id="ack-status-title">—</p>
+    <div id="ack-status-body"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-teal" onclick="closeAckStatusModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ADD SHIFT MODAL (admin only) ============ -->
+<div class="modal-overlay" id="shift-modal-overlay">
+  <div class="modal">
+    <h3>Add shift</h3>
+    <p class="modal-sub">Assign a staff member to a date and time.</p>
+    <div class="error-banner" id="shift-modal-error"></div>
+    <form id="shift-form">
+      <div class="field">
+        <label for="shift-staff-select">Staff member</label>
+        <select id="shift-staff-select" required></select>
+      </div>
+      <div class="field">
+        <label for="shift-date">Date</label>
+        <input type="date" id="shift-date" required>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="shift-start">Start time</label>
+          <input type="time" id="shift-start" required>
+        </div>
+        <div class="field">
+          <label for="shift-end">End time</label>
+          <input type="time" id="shift-end" required>
+        </div>
+      </div>
+      <div class="field">
+        <label for="shift-notes">Notes <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="shift-notes">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeShiftModal()">Cancel</button>
+        <button type="submit" class="btn btn-teal" id="shift-submit-btn">Add shift</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ ADD EVENT MODAL (admin only) ============ -->
+<div class="modal-overlay" id="event-modal-overlay">
+  <div class="modal">
+    <h3>Add event</h3>
+    <p class="modal-sub">A meeting, closure, or other date everyone should see.</p>
+    <div class="error-banner" id="event-modal-error"></div>
+    <form id="event-form">
+      <div class="field">
+        <label for="event-title">Title</label>
+        <input type="text" id="event-title" placeholder="Staff meeting" required>
+      </div>
+      <div class="field">
+        <label for="event-description">Description <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="event-description">
+      </div>
+      <div class="field">
+        <label for="event-date">Date</label>
+        <input type="date" id="event-date" required>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="event-start">Start time <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+          <input type="time" id="event-start">
+        </div>
+        <div class="field">
+          <label for="event-end">End time <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+          <input type="time" id="event-end">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeEventModal()">Cancel</button>
+        <button type="submit" class="btn btn-teal" id="event-submit-btn">Add event</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ REQUEST TIME OFF MODAL (everyone) ============ -->
+<div class="modal-overlay" id="timeoff-modal-overlay">
+  <div class="modal">
+    <h3>Request time off</h3>
+    <p class="modal-sub">Admins will be notified by email.</p>
+    <div class="error-banner" id="timeoff-modal-error"></div>
+    <form id="timeoff-form">
+      <div class="field-row">
+        <div class="field">
+          <label for="timeoff-start">Start date</label>
+          <input type="date" id="timeoff-start" required>
+        </div>
+        <div class="field">
+          <label for="timeoff-end">End date</label>
+          <input type="date" id="timeoff-end" required>
+        </div>
+      </div>
+      <div class="field">
+        <label for="timeoff-reason">Reason <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="timeoff-reason">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeTimeOffModal()">Cancel</button>
+        <button type="submit" class="btn btn-coral" id="timeoff-submit-btn">Submit request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- ============ ADD/EDIT SERVICE MODAL ============ -->
 <div class="modal-overlay" id="service-modal-overlay">
   <div class="modal">
@@ -713,6 +860,7 @@
   // ============================================================
   const NAV_ITEMS = [
     { id: 'timesheets', label: 'Timesheets',     adminOnly: false, icon: 'timesheets' },
+    { id: 'scheduling', label: 'Scheduling',     adminOnly: false, icon: 'calendar' },
     { id: 'children',   label: 'Children',       adminOnly: false, icon: 'child' },
     { id: 'families',   label: 'Families',       adminOnly: true,  icon: 'family' },
     { id: 'services',   label: 'Services',       adminOnly: true,  icon: 'services' },
@@ -724,6 +872,7 @@
   const ICONS = {
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg>',
     timesheets: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 3v3M16 3v3M4 10h16M8 14h2M8 17h2" stroke-linecap="round"/></svg>',
+    calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18" stroke-linecap="round"/><circle cx="8" cy="14" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="14" r="1" fill="currentColor" stroke="none"/></svg>',
     child: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-4 3-6.5 7-6.5s7 2.5 7 6.5" stroke-linecap="round"/></svg>',
     family: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="2.6"/><circle cx="17" cy="9" r="2.2"/><path d="M3 20c0-3 2.2-5.4 5-5.4s5 2.4 5 5.4M14 20c0-2.4 1.7-4.4 4-4.4s4 2 4 4.4" stroke-linecap="round"/></svg>',
     services: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7l8-4 8 4-8 4-8-4z"/><path d="M4 7v10l8 4 8-4V7M12 11v10" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -741,8 +890,27 @@
         <li class="nav-item" data-view="${item.id}" onclick="navigateTo('${item.id}')">
           <span class="nav-icon">${ICONS[item.icon]}</span>
           ${item.label}
+          ${item.id === 'scheduling' && isAdmin ? '<span class="nav-badge" id="scheduling-nav-badge" style="display:none;"></span>' : ''}
         </li>
       `).join('');
+
+    if (isAdmin) refreshPendingTimeOffBadge();
+  }
+
+  async function refreshPendingTimeOffBadge() {
+    const badge = document.getElementById('scheduling-nav-badge');
+    if (!badge) return;
+    try {
+      const { count } = await apiFetch('/time-off/pending-count');
+      if (count > 0) {
+        badge.textContent = count;
+        badge.style.display = 'inline-flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    } catch (err) {
+      // Silent — a badge failing to load shouldn't interrupt anything else.
+    }
   }
 
   function navigateTo(viewId) {
@@ -755,6 +923,7 @@
       services: renderServicesView,
       invoices: renderInvoicesView,
       timesheets: renderTimesheetsView,
+      scheduling: renderSchedulingView,
       children: renderChildrenView,
       agreements: () => renderPlaceholder('Agreements', 'Signed handbook agreements will show up here.'),
     };
@@ -1580,6 +1749,438 @@
   });
 
   // ============================================================
+  // SCHEDULING VIEW
+  // Admin: assign shifts, create events, review time-off requests.
+  // Staff: see their own shifts + all events, request time off, see their history.
+  // ============================================================
+  let schedShiftsCache = [];
+  let schedEventsCache = [];
+  let schedTimeOffCache = [];
+  let schedAllStaffCache = [];
+  let schedRangeStart = '';
+  let schedRangeEnd = '';
+
+  function schedDefaultRange() {
+    const start = new Date();
+    const end = new Date();
+    end.setDate(end.getDate() + 13); // today + next 2 weeks
+    return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+  }
+
+  async function renderSchedulingView() {
+    const isAdmin = currentUser.access_level === 'admin';
+    const range = schedDefaultRange();
+    schedRangeStart = range.start;
+    schedRangeEnd = range.end;
+
+    const main = document.getElementById('main-content');
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h2>Scheduling</h2>
+          <p>${isAdmin ? 'Assign shifts, post events, and review time-off requests.' : 'Your shifts, upcoming events, and time-off requests.'}</p>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          ${isAdmin ? '<button class="btn btn-ghost" onclick="openEventModal()">+ Add event</button>' : ''}
+          ${isAdmin ? '<button class="btn btn-ghost" onclick="openShiftModal()">+ Add shift</button>' : ''}
+          <button class="btn btn-coral" onclick="openTimeOffModal()">Request time off</button>
+        </div>
+      </div>
+
+      <div class="page-header" style="margin-bottom:16px; align-items:center;">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <div class="field" style="margin-bottom:0;">
+            <input type="date" id="sched-range-start" value="${range.start}" style="padding:9px 12px;">
+          </div>
+          <span style="color:#8A9490; font-size:13px;">to</span>
+          <div class="field" style="margin-bottom:0;">
+            <input type="date" id="sched-range-end" value="${range.end}" style="padding:9px 12px;">
+          </div>
+          <button class="btn btn-ghost" id="sched-filter-btn">Filter</button>
+        </div>
+      </div>
+
+      <div class="card" id="schedule-calendar-wrap" style="margin-bottom:22px;">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+
+      ${isAdmin ? `
+        <div class="page-header" style="margin-bottom:14px;"><div><h2 style="font-size:19px;">Time-off requests</h2></div></div>
+        <div class="card" id="time-off-admin-wrap" style="margin-bottom:22px;"></div>
+      ` : `
+        <div class="page-header" style="margin-bottom:14px;"><div><h2 style="font-size:19px;">Your time-off requests</h2></div></div>
+        <div class="card" id="time-off-mine-wrap" style="margin-bottom:22px;"></div>
+      `}
+    `;
+
+    document.getElementById('sched-filter-btn').addEventListener('click', () => {
+      schedRangeStart = document.getElementById('sched-range-start').value;
+      schedRangeEnd = document.getElementById('sched-range-end').value;
+      loadScheduleData();
+    });
+
+    if (isAdmin) schedAllStaffCache = await apiFetch('/staff');
+    await loadScheduleData();
+  }
+
+  async function loadScheduleData() {
+    const isAdmin = currentUser.access_level === 'admin';
+    const wrap = document.getElementById('schedule-calendar-wrap');
+    wrap.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+    try {
+      const params = new URLSearchParams({ start: schedRangeStart, end: schedRangeEnd });
+      const [shifts, events] = await Promise.all([
+        apiFetch((isAdmin ? '/shifts?' : '/shifts/my-schedule?') + params.toString()),
+        apiFetch('/schedule-events?' + params.toString()),
+      ]);
+      schedShiftsCache = shifts;
+      schedEventsCache = events;
+      renderScheduleCalendar();
+
+      if (isAdmin) {
+        schedTimeOffCache = await apiFetch('/time-off');
+        renderTimeOffAdmin();
+      } else {
+        schedTimeOffCache = await apiFetch('/time-off/my-requests');
+        renderTimeOffMine();
+      }
+    } catch (err) {
+      wrap.innerHTML = `<div class="empty-state"><h3>Couldn't load schedule</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function formatShiftTime(t) {
+    if (!t) return '';
+    const [h, m] = t.split(':');
+    const hour = Number(h);
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+    return `${displayHour}:${m} ${period}`;
+  }
+
+  function renderScheduleCalendar() {
+    const isAdmin = currentUser.access_level === 'admin';
+    const wrap = document.getElementById('schedule-calendar-wrap');
+
+    // Group everything by date
+    const byDate = {};
+    const addToDate = (date, item) => {
+      if (!byDate[date]) byDate[date] = { shifts: [], events: [] };
+      byDate[date][item.kind].push(item);
+    };
+    schedShiftsCache.forEach(s => addToDate(s.shift_date.slice(0, 10), { ...s, kind: 'shifts' }));
+    schedEventsCache.forEach(e => addToDate(e.event_date.slice(0, 10), { ...e, kind: 'events' }));
+
+    const dates = Object.keys(byDate).sort();
+
+    if (dates.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>Nothing scheduled in this range</h3><p>${isAdmin ? 'Add a shift or event above.' : 'Check back later, or widen the date range.'}</p></div>`;
+      return;
+    }
+
+    wrap.innerHTML = dates.map(date => {
+      const day = byDate[date];
+      const dateLabel = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+      return `
+        <div class="sched-day-row">
+          <div class="sched-day-label">${dateLabel}</div>
+          <div class="sched-day-items">
+            ${day.events.map(e => `
+              <div class="sched-item sched-item-event">
+                <span class="sched-item-dot" style="background:var(--coral);"></span>
+                <span class="sched-item-text"><strong>${escapeHtml(e.title)}</strong>${e.start_time ? ` — ${formatShiftTime(e.start_time)}${e.end_time ? '–' + formatShiftTime(e.end_time) : ''}` : ''}</span>
+                ${isAdmin ? `<button class="icon-btn" onclick="viewEventAcknowledgments(${e.id}, '${escapeHtml(e.title).replace(/'/g, "\\'")}')">Who's seen this?</button>` : ''}
+                ${isAdmin ? `<button class="icon-btn" onclick="deleteScheduleEvent(${e.id})">Remove</button>` : ''}
+              </div>
+            `).join('')}
+            ${day.shifts.map(s => `
+              <div class="sched-item sched-item-shift">
+                <span class="sched-item-dot" style="background:var(--teal);"></span>
+                <span class="sched-item-text">${isAdmin ? `<strong>${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</strong> — ` : ''}${formatShiftTime(s.start_time)}–${formatShiftTime(s.end_time)}${s.notes ? ` <span style="color:#8A9490;">(${escapeHtml(s.notes)})</span>` : ''}</span>
+                ${isAdmin ? `<button class="icon-btn" onclick="deleteShift(${s.id})">Remove</button>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function deleteShift(shiftId) {
+    if (!confirm('Remove this shift?')) return;
+    try {
+      await apiFetch('/shifts/' + shiftId, { method: 'DELETE' });
+      await loadScheduleData();
+    } catch (err) {
+      alert('Could not remove shift: ' + err.message);
+    }
+  }
+
+  async function deleteScheduleEvent(eventId) {
+    if (!confirm('Remove this event?')) return;
+    try {
+      await apiFetch('/schedule-events/' + eventId, { method: 'DELETE' });
+      await loadScheduleData();
+    } catch (err) {
+      alert('Could not remove event: ' + err.message);
+    }
+  }
+
+  // ---- Add Shift modal (admin only) ----
+  function openShiftModal() {
+    document.getElementById('shift-form').reset();
+    document.getElementById('shift-modal-error').classList.remove('show');
+    document.getElementById('shift-staff-select').innerHTML = schedAllStaffCache
+      .filter(s => s.is_active)
+      .map(s => `<option value="${s.id}">${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</option>`)
+      .join('');
+    document.getElementById('shift-modal-overlay').classList.add('show');
+  }
+
+  function closeShiftModal() {
+    document.getElementById('shift-modal-overlay').classList.remove('show');
+  }
+
+  document.getElementById('shift-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorBox = document.getElementById('shift-modal-error');
+    const btn = document.getElementById('shift-submit-btn');
+    errorBox.classList.remove('show');
+
+    const payload = {
+      staff_id: document.getElementById('shift-staff-select').value,
+      shift_date: document.getElementById('shift-date').value,
+      start_time: document.getElementById('shift-start').value,
+      end_time: document.getElementById('shift-end').value,
+      notes: document.getElementById('shift-notes').value.trim() || null,
+    };
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      await apiFetch('/shifts', { method: 'POST', body: JSON.stringify(payload) });
+      closeShiftModal();
+      await loadScheduleData();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Add shift';
+    }
+  });
+
+  // ---- Add Event modal (admin only) ----
+  function openEventModal() {
+    document.getElementById('event-form').reset();
+    document.getElementById('event-modal-error').classList.remove('show');
+    document.getElementById('event-modal-overlay').classList.add('show');
+  }
+
+  function closeEventModal() {
+    document.getElementById('event-modal-overlay').classList.remove('show');
+  }
+
+  document.getElementById('event-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorBox = document.getElementById('event-modal-error');
+    const btn = document.getElementById('event-submit-btn');
+    errorBox.classList.remove('show');
+
+    const payload = {
+      title: document.getElementById('event-title').value.trim(),
+      description: document.getElementById('event-description').value.trim() || null,
+      event_date: document.getElementById('event-date').value,
+      start_time: document.getElementById('event-start').value || null,
+      end_time: document.getElementById('event-end').value || null,
+    };
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      await apiFetch('/schedule-events', { method: 'POST', body: JSON.stringify(payload) });
+      closeEventModal();
+      await loadScheduleData();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Add event';
+    }
+  });
+
+  // ---- Request Time Off modal (everyone) ----
+  function openTimeOffModal() {
+    document.getElementById('timeoff-form').reset();
+    document.getElementById('timeoff-modal-error').classList.remove('show');
+    document.getElementById('timeoff-modal-overlay').classList.add('show');
+  }
+
+  function closeTimeOffModal() {
+    document.getElementById('timeoff-modal-overlay').classList.remove('show');
+  }
+
+  document.getElementById('timeoff-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorBox = document.getElementById('timeoff-modal-error');
+    const btn = document.getElementById('timeoff-submit-btn');
+    errorBox.classList.remove('show');
+
+    const payload = {
+      start_date: document.getElementById('timeoff-start').value,
+      end_date: document.getElementById('timeoff-end').value,
+      reason: document.getElementById('timeoff-reason').value.trim() || null,
+    };
+
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+    try {
+      await apiFetch('/time-off', { method: 'POST', body: JSON.stringify(payload) });
+      closeTimeOffModal();
+      await loadScheduleData();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Submit request';
+    }
+  });
+
+  // ---- Time-off: admin inbox ----
+  function renderTimeOffAdmin() {
+    const wrap = document.getElementById('time-off-admin-wrap');
+    if (schedTimeOffCache.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>No time-off requests</h3><p>Requests from staff will show up here.</p></div>`;
+      return;
+    }
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Staff</th><th>Dates</th><th>Reason</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${schedTimeOffCache.map(t => `
+            <tr>
+              <td><strong>${escapeHtml(t.first_name)} ${escapeHtml(t.last_name)}</strong></td>
+              <td>${formatDate(t.start_date)} – ${formatDate(t.end_date)}</td>
+              <td>${escapeHtml(t.reason || '—')}</td>
+              <td><span class="badge ${t.status === 'approved' ? 'badge-active' : t.status === 'denied' ? 'badge-inactive' : 'badge-staff'}">${t.status}</span></td>
+              <td>
+                ${t.status === 'pending' ? `
+                  <button class="icon-btn" style="color:var(--success);" onclick="reviewTimeOff(${t.id}, 'approved')">Approve</button>
+                  <button class="icon-btn" style="color:var(--error);" onclick="reviewTimeOff(${t.id}, 'denied')">Deny</button>
+                ` : ''}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function reviewTimeOff(requestId, status) {
+    try {
+      await apiFetch('/time-off/' + requestId + '/review', { method: 'PUT', body: JSON.stringify({ status }) });
+      schedTimeOffCache = await apiFetch('/time-off');
+      renderTimeOffAdmin();
+      refreshPendingTimeOffBadge();
+    } catch (err) {
+      alert('Could not update request: ' + err.message);
+    }
+  }
+
+  // ---- Time-off: staff's own history ----
+  function renderTimeOffMine() {
+    const wrap = document.getElementById('time-off-mine-wrap');
+    if (schedTimeOffCache.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>No requests yet</h3><p>Use "Request time off" above when you need to.</p></div>`;
+      return;
+    }
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Dates</th><th>Reason</th><th>Status</th></tr></thead>
+        <tbody>
+          ${schedTimeOffCache.map(t => `
+            <tr>
+              <td>${formatDate(t.start_date)} – ${formatDate(t.end_date)}</td>
+              <td>${escapeHtml(t.reason || '—')}</td>
+              <td><span class="badge ${t.status === 'approved' ? 'badge-active' : t.status === 'denied' ? 'badge-inactive' : 'badge-staff'}">${t.status}</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // ---- Event acknowledgment popup queue (shown on login) ----
+  let ackEventQueue = [];
+
+  async function checkUnacknowledgedEvents() {
+    try {
+      ackEventQueue = await apiFetch('/schedule-events/unacknowledged');
+      showNextAckEvent();
+    } catch (err) {
+      // Silent — this shouldn't block login if it fails.
+    }
+  }
+
+  function showNextAckEvent() {
+    if (ackEventQueue.length === 0) return;
+    const event = ackEventQueue[0];
+    document.getElementById('ack-event-title').textContent = event.title;
+    const dateLabel = new Date(event.event_date.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    const timeLabel = event.start_time ? ` — ${formatShiftTime(event.start_time)}${event.end_time ? '–' + formatShiftTime(event.end_time) : ''}` : '';
+    document.getElementById('ack-event-when').textContent = dateLabel + timeLabel;
+    document.getElementById('ack-event-description').textContent = event.description || '';
+    document.getElementById('ack-event-description').style.display = event.description ? 'block' : 'none';
+    document.getElementById('ack-event-overlay').dataset.eventId = event.id;
+    document.getElementById('ack-event-overlay').classList.add('show');
+  }
+
+  async function acknowledgeCurrentEvent() {
+    const eventId = document.getElementById('ack-event-overlay').dataset.eventId;
+    try {
+      await apiFetch('/schedule-events/' + eventId + '/acknowledge', { method: 'POST' });
+    } catch (err) {
+      // Even if the acknowledgment fails to save, don't trap the user behind
+      // the popup indefinitely — log it and move on.
+      console.error('Failed to record acknowledgment:', err);
+    }
+    ackEventQueue.shift();
+    document.getElementById('ack-event-overlay').classList.remove('show');
+    if (ackEventQueue.length > 0) {
+      setTimeout(showNextAckEvent, 200); // brief pause between stacked popups
+    }
+  }
+
+  // ---- Admin: who has/hasn't acknowledged a given event ----
+  async function viewEventAcknowledgments(eventId, eventTitle) {
+    document.getElementById('ack-status-title').textContent = eventTitle;
+    document.getElementById('ack-status-body').innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+    document.getElementById('ack-status-modal-overlay').classList.add('show');
+    try {
+      const statuses = await apiFetch('/schedule-events/' + eventId + '/acknowledgments');
+      document.getElementById('ack-status-body').innerHTML = `
+        <div class="assignments-box" style="max-height:260px;">
+          ${statuses.map(s => `
+            <div class="assignment-row" style="cursor:default;">
+              <span style="width:8px; height:8px; border-radius:50%; flex-shrink:0; background:${s.acknowledged_at ? 'var(--success)' : 'var(--sand)'};"></span>
+              <span style="flex:1;">${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</span>
+              <span style="font-size:12px; color:#8A9490;">${s.acknowledged_at ? 'Acknowledged' : 'Not yet'}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } catch (err) {
+      document.getElementById('ack-status-body').innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+    }
+  }
+
+  function closeAckStatusModal() {
+    document.getElementById('ack-status-modal-overlay').classList.remove('show');
+  }
+
+  // ============================================================
   // FAMILIES VIEW
   // ============================================================
   let familiesCache = [];
@@ -2138,6 +2739,7 @@
 
     renderNav();
     renderSidebarClockButton();
+    checkUnacknowledgedEvents();
     navigateTo(currentUser.access_level === 'admin' ? 'staff' : 'timesheets');
   })();
 </script>
