@@ -205,6 +205,20 @@
     background: var(--sage-light); border-radius: 9px; padding: 10px 14px; margin-top: 8px; font-size: 13.5px;
   }
 
+  /* ---------- Staff assignment checklist (child modal) ---------- */
+  .assignments-box {
+    border: 1.5px solid var(--sage-light); border-radius: 9px; padding: 6px 4px;
+    max-height: 160px; overflow-y: auto; background: var(--cream);
+  }
+  .assignment-row {
+    display: flex; align-items: center; gap: 9px; padding: 7px 10px;
+    font-size: 13.5px; cursor: pointer; border-radius: 6px;
+  }
+  .assignment-row:hover { background: #fff; }
+  .assignment-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal); cursor: pointer; }
+
+  .btn-sm { padding: 8px 14px; font-size: 13px; }
+
   /* ---------- Invoice line items ---------- */
   .line-item-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
   .line-item-row input, .line-item-row select {
@@ -387,6 +401,90 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="closeFamilyModal()">Cancel</button>
         <button type="submit" class="btn btn-teal" id="family-submit-btn">Add family</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ ADD/EDIT CHILD MODAL ============ -->
+<div class="modal-overlay" id="child-modal-overlay">
+  <div class="modal" style="max-width:520px;">
+    <h3 id="child-modal-title">Add child</h3>
+    <p class="modal-sub">Enrollment details and family link.</p>
+
+    <div class="error-banner" id="child-modal-error"></div>
+
+    <form id="child-form">
+      <input type="hidden" id="child-id">
+
+      <div class="field" id="child-family-field">
+        <label for="child-family-search">Family</label>
+        <input type="text" id="child-family-search" placeholder="Search by parent name or email…">
+        <div id="child-family-results"></div>
+        <div id="child-selected-family" class="selected-family-chip" style="display:none;">
+          <span>Family: <strong id="child-selected-family-name"></strong></span>
+          <button type="button" class="icon-btn" onclick="clearChildFamily()">Change</button>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="child-first-name">First name</label>
+          <input type="text" id="child-first-name" required>
+        </div>
+        <div class="field">
+          <label for="child-last-name">Last name</label>
+          <input type="text" id="child-last-name" required>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="child-dob">Date of birth</label>
+          <input type="date" id="child-dob" required>
+        </div>
+        <div class="field">
+          <label for="child-program">Program</label>
+          <select id="child-program" required>
+            <option value="daycare">Daycare</option>
+            <option value="preschool">Preschool</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="child-tuition">Base tuition rate <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="number" id="child-tuition" step="0.01" min="0" placeholder="0.00">
+      </div>
+
+      <div class="field">
+        <label for="child-allergies">Allergies <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="child-allergies">
+      </div>
+      <div class="field">
+        <label for="child-medical-notes">Medical notes <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="child-medical-notes">
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="child-emergency-name">Emergency contact</label>
+          <input type="text" id="child-emergency-name">
+        </div>
+        <div class="field">
+          <label for="child-emergency-phone">Emergency phone</label>
+          <input type="text" id="child-emergency-phone">
+        </div>
+      </div>
+
+      <div class="field" id="child-assignments-section" style="display:none;">
+        <label>Assigned staff</label>
+        <div id="child-assignments-list" class="assignments-box"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeChildModal()">Cancel</button>
+        <button type="submit" class="btn btn-teal" id="child-submit-btn">Add child</button>
       </div>
     </form>
   </div>
@@ -601,7 +699,7 @@
       services: renderServicesView,
       invoices: renderInvoicesView,
       timesheets: renderTimesheetsView,
-      children: () => renderPlaceholder('Children', 'Enrollment and roster management is coming next.'),
+      children: renderChildrenView,
       agreements: () => renderPlaceholder('Agreements', 'Signed handbook agreements will show up here.'),
     };
     (renderers[viewId] || renderers.staff)();
@@ -1079,6 +1177,286 @@
       btn.textContent = 'Download PDF';
     }
   }
+
+  // ============================================================
+  // CHILDREN VIEW
+  // Admin: full roster, add/edit, staff assignment, everyone's check-in status.
+  // Staff: only their assigned children, with check-in/check-out buttons.
+  // ============================================================
+  let childrenCache = [];
+  let allStaffCache = []; // for the assignment picker (admins only)
+  let attendanceToday = []; // keyed by matching child_id, from GET /attendance/today
+
+  async function renderChildrenView() {
+    const isAdmin = currentUser.access_level === 'admin';
+    const main = document.getElementById('main-content');
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h2>Children</h2>
+          <p>${isAdmin ? 'Enrolled children, their families, and who\'s checked in today.' : 'Children assigned to you — check them in when they arrive.'}</p>
+        </div>
+        ${isAdmin ? '<button class="btn btn-coral" onclick="openChildModal()">+ Add child</button>' : ''}
+      </div>
+      <div class="card" id="children-table-wrap">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+    `;
+
+    try {
+      const [children, attendance] = await Promise.all([
+        apiFetch(isAdmin ? '/children?status=active' : '/children/my-assigned'),
+        apiFetch('/attendance/today'),
+      ]);
+      childrenCache = children;
+      attendanceToday = attendance;
+
+      if (isAdmin) {
+        allStaffCache = await apiFetch('/staff');
+      }
+
+      renderChildrenTable();
+    } catch (err) {
+      document.getElementById('children-table-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load children</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function attendanceFor(childId) {
+    return attendanceToday.find(a => a.child_id === childId) || null;
+  }
+
+  function renderChildrenTable() {
+    const isAdmin = currentUser.access_level === 'admin';
+    const wrap = document.getElementById('children-table-wrap');
+
+    if (childrenCache.length === 0) {
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <h3>${isAdmin ? 'No children enrolled yet' : 'No children assigned to you yet'}</h3>
+          <p>${isAdmin ? 'Add your first enrolled child.' : 'Ask an admin to assign children to your account.'}</p>
+          ${isAdmin ? '<button class="btn btn-coral" onclick="openChildModal()">+ Add child</button>' : ''}
+        </div>
+      `;
+      return;
+    }
+
+    wrap.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Child</th><th>Program</th>
+            ${isAdmin ? '<th>Assigned staff</th>' : ''}
+            <th>Status</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${childrenCache.map(c => {
+            const att = attendanceFor(c.id);
+            const isCheckedIn = att && att.checked_in_at && !att.checked_out_at;
+            const wasCheckedOut = att && att.checked_out_at;
+            const statusBadge = isCheckedIn
+              ? `<span class="badge badge-active">Checked in ${formatTime(att.checked_in_at)}</span>`
+              : wasCheckedOut
+                ? `<span class="badge badge-inactive">Checked out ${formatTime(att.checked_out_at)}</span>`
+                : `<span class="badge badge-staff">Not checked in</span>`;
+
+            const assignedNames = isAdmin && c.assigned_staff
+              ? (c.assigned_staff.length ? c.assigned_staff.map(s => escapeHtml(s.first_name + ' ' + s.last_name)).join(', ') : '<span style="color:#8A9490;">Unassigned</span>')
+              : '';
+
+            return `
+              <tr>
+                <td><strong>${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</strong></td>
+                <td>${escapeHtml(c.program)}</td>
+                ${isAdmin ? `<td>${assignedNames}</td>` : ''}
+                <td>${statusBadge}</td>
+                <td>
+                  ${isAdmin
+                    ? `<button class="icon-btn" onclick="openChildModal(${c.id})">Edit</button>`
+                    : (isCheckedIn
+                        ? `<button class="btn btn-sm" style="background:var(--error); color:#fff; padding:7px 14px; font-size:13px;" onclick="handleChildCheckOut(${c.id})">Check out</button>`
+                        : `<button class="btn btn-sm btn-coral" style="padding:7px 14px; font-size:13px;" onclick="handleChildCheckIn(${c.id})">Check in</button>`)
+                  }
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function handleChildCheckIn(childId) {
+    try {
+      await apiFetch('/attendance/' + childId + '/check-in', { method: 'POST' });
+      attendanceToday = await apiFetch('/attendance/today');
+      renderChildrenTable();
+    } catch (err) {
+      alert('Could not check in: ' + err.message);
+    }
+  }
+
+  async function handleChildCheckOut(childId) {
+    try {
+      await apiFetch('/attendance/' + childId + '/check-out', { method: 'POST' });
+      attendanceToday = await apiFetch('/attendance/today');
+      renderChildrenTable();
+    } catch (err) {
+      alert('Could not check out: ' + err.message);
+    }
+  }
+
+  // ---- Add/Edit Child modal (admin only) ----
+  async function openChildModal(childId) {
+    document.getElementById('child-form').reset();
+    document.getElementById('child-modal-error').classList.remove('show');
+    document.getElementById('child-id').value = childId || '';
+    document.getElementById('child-assignments-section').style.display = childId ? 'block' : 'none';
+
+    // Family picker reuses the same search-as-you-type pattern as invoices.
+    document.getElementById('child-family-search').value = '';
+    document.getElementById('child-family-results').innerHTML = '';
+    document.getElementById('child-selected-family').style.display = 'none';
+    window.childSelectedFamily = null;
+
+    if (childId) {
+      const c = childrenCache.find(x => x.id === childId);
+      document.getElementById('child-modal-title').textContent = 'Edit child';
+      document.getElementById('child-first-name').value = c.first_name;
+      document.getElementById('child-last-name').value = c.last_name;
+      document.getElementById('child-dob').value = c.date_of_birth ? c.date_of_birth.slice(0, 10) : '';
+      document.getElementById('child-program').value = c.program;
+      document.getElementById('child-tuition').value = c.base_tuition_rate || '';
+      document.getElementById('child-allergies').value = c.allergies || '';
+      document.getElementById('child-medical-notes').value = c.medical_notes || '';
+      document.getElementById('child-emergency-name').value = c.emergency_contact_name || '';
+      document.getElementById('child-emergency-phone').value = c.emergency_contact_phone || '';
+      window.childSelectedFamily = { id: c.family_id, name: '(current family)' };
+      document.getElementById('child-selected-family').style.display = 'flex';
+      document.getElementById('child-selected-family-name').textContent = '(current family kept unless changed)';
+      document.getElementById('child-submit-btn').textContent = 'Save changes';
+      renderChildAssignments(c.id);
+    } else {
+      document.getElementById('child-modal-title').textContent = 'Add child';
+      document.getElementById('child-submit-btn').textContent = 'Add child';
+    }
+
+    document.getElementById('child-modal-overlay').classList.add('show');
+  }
+
+  function closeChildModal() {
+    document.getElementById('child-modal-overlay').classList.remove('show');
+  }
+
+  document.getElementById('child-family-search').addEventListener('input', debounce(async (e) => {
+    const term = e.target.value.trim();
+    const resultsBox = document.getElementById('child-family-results');
+    if (!term) { resultsBox.innerHTML = ''; return; }
+    try {
+      const results = await apiFetch('/families/search?q=' + encodeURIComponent(term));
+      resultsBox.innerHTML = results.length
+        ? results.map(f => `
+            <div class="family-result" onclick="selectChildFamily(${f.id}, '${escapeHtml(f.primary_parent_name).replace(/'/g, "\\'")}')">
+              <strong>${escapeHtml(f.primary_parent_name)}</strong> — ${escapeHtml(f.primary_parent_email)}
+            </div>
+          `).join('')
+        : '<div class="family-result-empty">No matches. Add the family under Families first.</div>';
+    } catch (err) {
+      resultsBox.innerHTML = `<div class="family-result-empty">${err.message}</div>`;
+    }
+  }, 300));
+
+  function selectChildFamily(id, name) {
+    window.childSelectedFamily = { id, name };
+    document.getElementById('child-family-results').innerHTML = '';
+    document.getElementById('child-family-search').value = '';
+    document.getElementById('child-selected-family').style.display = 'flex';
+    document.getElementById('child-selected-family-name').textContent = name;
+  }
+
+  function clearChildFamily() {
+    window.childSelectedFamily = null;
+    document.getElementById('child-selected-family').style.display = 'none';
+  }
+
+  async function renderChildAssignments(childId) {
+    const wrap = document.getElementById('child-assignments-list');
+    const c = childrenCache.find(x => x.id === childId);
+    const assignedIds = new Set((c.assigned_staff || []).map(s => s.id));
+
+    wrap.innerHTML = allStaffCache.filter(s => s.is_active).map(s => `
+      <label class="assignment-row">
+        <input type="checkbox" data-staff-id="${s.id}" ${assignedIds.has(s.id) ? 'checked' : ''} onchange="toggleChildAssignment(${childId}, ${s.id}, this.checked)">
+        <span>${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</span>
+      </label>
+    `).join('') || '<p class="field-hint">No active staff to assign.</p>';
+  }
+
+  async function toggleChildAssignment(childId, staffId, isChecked) {
+    try {
+      if (isChecked) {
+        await apiFetch('/children/' + childId + '/assign-staff', { method: 'POST', body: JSON.stringify({ staff_id: staffId }) });
+      } else {
+        await apiFetch('/children/' + childId + '/assign-staff/' + staffId, { method: 'DELETE' });
+      }
+      // Refresh the roster in the background so the "Assigned staff" column stays accurate
+      // next time the table renders, without blocking the checkbox toggle.
+      childrenCache = await apiFetch('/children?status=active');
+    } catch (err) {
+      alert('Could not update assignment: ' + err.message);
+    }
+  }
+
+  document.getElementById('child-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const childId = document.getElementById('child-id').value;
+    const errorBox = document.getElementById('child-modal-error');
+    const btn = document.getElementById('child-submit-btn');
+    errorBox.classList.remove('show');
+
+    if (!childId && !window.childSelectedFamily) {
+      errorBox.textContent = 'Select a family for this child.';
+      errorBox.classList.add('show');
+      return;
+    }
+
+    const payload = {
+      first_name: document.getElementById('child-first-name').value.trim(),
+      last_name: document.getElementById('child-last-name').value.trim(),
+      date_of_birth: document.getElementById('child-dob').value,
+      program: document.getElementById('child-program').value,
+      base_tuition_rate: document.getElementById('child-tuition').value || null,
+      allergies: document.getElementById('child-allergies').value.trim() || null,
+      medical_notes: document.getElementById('child-medical-notes').value.trim() || null,
+      emergency_contact_name: document.getElementById('child-emergency-name').value.trim() || null,
+      emergency_contact_phone: document.getElementById('child-emergency-phone').value.trim() || null,
+    };
+    if (!childId) {
+      payload.family_id = window.childSelectedFamily.id;
+      payload.enrollment_date = new Date().toISOString().slice(0, 10);
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    try {
+      if (childId) {
+        await apiFetch('/children/' + childId, { method: 'PUT', body: JSON.stringify(payload) });
+      } else {
+        await apiFetch('/children', { method: 'POST', body: JSON.stringify(payload) });
+      }
+      closeChildModal();
+      childrenCache = await apiFetch('/children?status=active');
+      renderChildrenTable();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = childId ? 'Save changes' : 'Add child';
+    }
+  });
 
   // ============================================================
   // FAMILIES VIEW
