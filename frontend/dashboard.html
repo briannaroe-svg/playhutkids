@@ -9,21 +9,21 @@
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --teal: #0F5C5C;
-    --teal-dark: #0A4444;
-    --cream: #FBF7F0;
-    --coral: #E8734A;
-    --coral-dark: #D4602F;
-    --charcoal: #2B3333;
-    --sage: #A8C4B8;
-    --sage-light: #DCE8E2;
+    --teal: #1B2E22;
+    --teal-dark: #12241A;
+    --cream: #F4EDE0;
+    --coral: #D9A441;
+    --coral-dark: #BF8A2E;
+    --charcoal: #3A2E22;
+    --sage: #8B5E34;
+    --sage-light: #EDE6D6;
     --white: #FFFFFF;
-    --error: #C0392B;
-    --error-bg: #FBEAE8;
-    --success: #3F7A5C;
-    --success-bg: #E7F3EC;
-    --shadow: 0 2px 8px rgba(15,92,92,0.06), 0 1px 2px rgba(15,92,92,0.08);
-    --shadow-lg: 0 20px 60px rgba(15,92,92,0.12), 0 2px 8px rgba(15,92,92,0.08);
+    --error: #B3462E;
+    --error-bg: #FBEAE4;
+    --success: #4A7A5C;
+    --success-bg: #E7F1EA;
+    --shadow: 0 2px 8px rgba(27,46,34,0.08), 0 1px 2px rgba(27,46,34,0.1);
+    --shadow-lg: 0 20px 60px rgba(27,46,34,0.18), 0 2px 8px rgba(27,46,34,0.12);
   }
 
   * { box-sizing: border-box; }
@@ -1068,7 +1068,7 @@
     document.getElementById('main-content').innerHTML = `
       <div class="placeholder-view">
         <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path d="M26 4L48 22V46C48 47.1 47.1 48 46 48H32V32H20V48H6C4.9 48 4 47.1 4 46V22L26 4Z" fill="#A8C4B8"/>
+          <path d="M26 4L48 22V46C48 47.1 47.1 48 46 48H32V32H20V48H6C4.9 48 4 47.1 4 46V22L26 4Z" fill="#C9BBA5"/>
         </svg>
         <h3>${title}</h3>
         <p>${message}</p>
@@ -2490,7 +2490,7 @@
     canvas.width = rect.width;
     canvas.height = rect.height;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = '#2B3333';
+    ctx.strokeStyle = '#3A2E22';
     ctx.lineWidth = 2.2;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
