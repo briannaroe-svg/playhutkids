@@ -2969,6 +2969,10 @@
     const today = localDateString();
     const todayLabel = new Date(today + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
+    const weekEnd = new Date();
+    weekEnd.setDate(weekEnd.getDate() + 6); // today + next 6 days = 7-day window
+    const weekEndStr = localDateString(weekEnd);
+
     const main = document.getElementById('main-content');
     main.innerHTML = `
       <div class="page-header">
@@ -2984,7 +2988,12 @@
       </div>
 
       <div class="page-header" style="margin-bottom:14px;"><div><h2 style="font-size:19px;">${isAdmin ? "Today's scheduled staff" : "Your shift today"}</h2></div></div>
-      <div class="card" id="home-shifts-wrap"></div>
+      <div class="card" id="home-shifts-wrap" style="margin-bottom:28px;"></div>
+
+      <div class="page-header" style="margin-bottom:14px;"><div><h2 style="font-size:19px;">Next 7 days</h2><p>Everything scheduled through ${new Date(weekEndStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.</p></div></div>
+      <div class="card" id="home-week-wrap">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
     `;
 
     try {
@@ -2998,6 +3007,63 @@
     } catch (err) {
       document.getElementById('home-events-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load today's schedule</h3><p>${err.message}</p></div>`;
     }
+
+    try {
+      const weekParams = new URLSearchParams({ start: today, end: weekEndStr });
+      const [weekEvents, weekShifts] = await Promise.all([
+        apiFetch('/schedule-events?' + weekParams.toString()),
+        apiFetch((isAdmin ? '/shifts?' : '/shifts/my-schedule?') + weekParams.toString()),
+      ]);
+      renderHomeWeek(weekEvents, weekShifts, isAdmin);
+    } catch (err) {
+      document.getElementById('home-week-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load this week's schedule</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  // Read-only week-ahead preview — same day-by-day grouping as the Scheduling
+  // tab's calendar list, minus the admin edit/delete actions, since Home is a
+  // glance-and-go view, not where scheduling changes are made.
+  function renderHomeWeek(events, shifts, isAdmin) {
+    const wrap = document.getElementById('home-week-wrap');
+
+    const byDate = {};
+    const addToDate = (date, item, kind) => {
+      if (!byDate[date]) byDate[date] = { shifts: [], events: [] };
+      byDate[date][kind].push(item);
+    };
+    shifts.forEach(s => addToDate(s.shift_date.slice(0, 10), s, 'shifts'));
+    events.forEach(e => addToDate(e.event_date.slice(0, 10), e, 'events'));
+
+    const dates = Object.keys(byDate).sort();
+
+    if (dates.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>Nothing scheduled this week</h3></div>`;
+      return;
+    }
+
+    wrap.innerHTML = dates.map(date => {
+      const day = byDate[date];
+      const dateLabel = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+      return `
+        <div class="sched-day-row">
+          <div class="sched-day-label">${dateLabel}</div>
+          <div class="sched-day-items">
+            ${day.events.map(e => `
+              <div class="sched-item sched-item-event">
+                <span class="sched-item-dot" style="background:var(--coral);"></span>
+                <span class="sched-item-text"><strong>${escapeHtml(e.title)}</strong>${e.start_time ? ` — ${formatShiftTime(e.start_time)}${e.end_time ? '–' + formatShiftTime(e.end_time) : ''}` : ''}</span>
+              </div>
+            `).join('')}
+            ${day.shifts.map(s => `
+              <div class="sched-item sched-item-shift">
+                <span class="sched-item-dot" style="background:var(--teal);"></span>
+                <span class="sched-item-text">${isAdmin ? `<strong>${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</strong> — ` : ''}${formatShiftTime(s.start_time)}–${formatShiftTime(s.end_time)}${s.notes ? ` <span style="color:#8A9490;">(${escapeHtml(s.notes)})</span>` : ''}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 
   function renderHomeEvents(events) {
