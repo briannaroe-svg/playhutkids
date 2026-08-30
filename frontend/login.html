@@ -10,7 +10,9 @@
 <style>
   :root {
     --forest-deep: #1B2E22;
-    --forest-shadow: #0F1B14;
+    --forest-mid: #3F5A46;
+    --sage-light: #E4EBDE;
+    --meadow: #CFDCC3;
     --birch: #F4EDE0;
     --wood: #8B5E34;
     --wood-dark: #6E4A28;
@@ -28,7 +30,7 @@
   body {
     margin: 0;
     font-family: 'Inter', sans-serif;
-    background: radial-gradient(ellipse 120% 90% at 50% 0%, var(--forest-deep) 0%, var(--forest-shadow) 100%);
+    background: linear-gradient(160deg, var(--sage-light) 0%, var(--meadow) 100%);
     color: var(--bark);
     min-height: 100vh;
     display: flex;
@@ -39,19 +41,19 @@
     overflow: hidden;
   }
 
-  /* Ambient forest-canopy motif: layered, softly overlapping circles suggesting
-     tree foliage against the dark forest background. Decorative only. */
+  /* Ambient forest-canopy motif: soft, warm overlapping glows suggesting
+     dappled light through leaves. Light and airy, decorative only. */
   .canopy { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
   .canopy span {
     position: absolute;
     border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, rgba(120,150,110,0.30), rgba(27,46,34,0) 70%);
+    background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.55), rgba(255,255,255,0) 70%);
   }
   .canopy span:nth-child(1) { width: 46vw; height: 46vw; top: -14vw; left: -10vw; }
-  .canopy span:nth-child(2) { width: 34vw; height: 34vw; top: -8vw; right: -8vw; background: radial-gradient(circle at 40% 35%, rgba(139,94,52,0.22), rgba(27,46,34,0) 70%); }
-  .canopy span:nth-child(3) { width: 52vw; height: 52vw; bottom: -22vw; left: 50%; transform: translateX(-50%); background: radial-gradient(circle at 50% 20%, rgba(217,164,65,0.10), rgba(27,46,34,0) 65%); }
-  .canopy span:nth-child(4) { width: 22vw; height: 22vw; bottom: 6vw; left: 4vw; background: radial-gradient(circle at 40% 40%, rgba(120,150,110,0.20), rgba(27,46,34,0) 70%); }
-  .canopy span:nth-child(5) { width: 18vw; height: 18vw; top: 14vw; right: 12vw; background: radial-gradient(circle at 40% 40%, rgba(217,164,65,0.14), rgba(27,46,34,0) 70%); }
+  .canopy span:nth-child(2) { width: 34vw; height: 34vw; top: -8vw; right: -8vw; background: radial-gradient(circle at 40% 35%, rgba(217,164,65,0.20), rgba(255,255,255,0) 70%); }
+  .canopy span:nth-child(3) { width: 52vw; height: 52vw; bottom: -22vw; left: 50%; transform: translateX(-50%); background: radial-gradient(circle at 50% 20%, rgba(63,90,70,0.12), rgba(255,255,255,0) 65%); }
+  .canopy span:nth-child(4) { width: 22vw; height: 22vw; bottom: 6vw; left: 4vw; background: radial-gradient(circle at 40% 40%, rgba(255,255,255,0.45), rgba(255,255,255,0) 70%); }
+  .canopy span:nth-child(5) { width: 18vw; height: 18vw; top: 14vw; right: 12vw; background: radial-gradient(circle at 40% 40%, rgba(217,164,65,0.18), rgba(255,255,255,0) 70%); }
 
   .login-card {
     position: relative;
@@ -143,7 +145,7 @@
   }
 
   button[type="submit"]:hover {
-    background: var(--forest-shadow);
+    background: #12241A;
   }
 
   button[type="submit"]:active {
