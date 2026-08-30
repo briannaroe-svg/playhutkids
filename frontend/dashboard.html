@@ -651,6 +651,29 @@
   </div>
 </div>
 
+<!-- ============ PORTAL QR SCREEN (shown right after a registration is signed) ============ -->
+<div class="modal-overlay" id="portal-qr-modal-overlay">
+  <div class="modal" style="max-width:420px;">
+    <h3>Registration complete</h3>
+    <p class="modal-sub"><strong id="portal-qr-child-name">—</strong> is enrolled. Signed by <span id="portal-qr-signer-name">—</span>.</p>
+
+    <div style="text-align:center; padding:10px 0 18px;">
+      <img id="portal-qr-image" src="" alt="QR code to the family portal" style="border-radius:12px; border:1px solid var(--sage-light); width:260px; height:260px;">
+      <p style="font-size:13px; color:#8A9490; margin-top:14px;">Scan to open the Family Portal</p>
+      <p id="portal-qr-url-text" style="font-size:12.5px; word-break:break-all; color:var(--wood);"></p>
+    </div>
+
+    <div class="note" id="portal-qr-next-step" style="text-align:left; display:none;">
+      <strong>Next step:</strong> the family needs a portal password before they can sign in. Set one now from the Families tab, or use the "Set portal password" option next to this registration.
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="printPortalQr()">Print</button>
+      <button type="button" class="btn btn-teal" onclick="closePortalQrScreen()">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ ADD HANDBOOK VERSION MODAL (admin only) ============ -->
 <div class="modal-overlay" id="handbook-template-modal-overlay">
   <div class="modal">
@@ -2943,13 +2966,14 @@
 
     try {
       const signatureDataUri = regSignaturePad.canvas.toDataURL('image/png');
-      await apiFetch('/registrations/' + regCurrentSignatureTarget + '/sign-in-person', {
+      const completed = await apiFetch('/registrations/' + regCurrentSignatureTarget + '/sign-in-person', {
         method: 'POST',
         body: JSON.stringify({ signer_name: signerName, signature_data: signatureDataUri }),
       });
-      closeSignatureCanvas();
       registrationsCache = await apiFetch('/registrations');
       renderRegistrationsTable();
+      document.getElementById('sig-canvas-modal-overlay').classList.remove('show');
+      showPortalQrScreen(completed, signerName);
     } catch (err) {
       errorBox.textContent = err.message;
       errorBox.classList.add('show');
@@ -2957,6 +2981,32 @@
       btn.disabled = false;
       btn.textContent = 'Complete registration';
     }
+  }
+
+  // Shown right after a registration is signed — a QR code straight to the
+  // parent portal login, so the family can scan it on the spot rather than
+  // being handed a URL to type in later. This is its OWN modal, separate from
+  // the signature canvas modal — never write into sig-canvas-modal-overlay
+  // here, since that would destroy the reusable signing form inside it.
+  function showPortalQrScreen(registration, signerName) {
+    const portalUrl = window.location.origin + '/portal.html';
+    const qrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=' + encodeURIComponent(portalUrl);
+
+    document.getElementById('portal-qr-child-name').textContent = `${registration.child_first_name} ${registration.child_last_name}`;
+    document.getElementById('portal-qr-signer-name').textContent = signerName;
+    document.getElementById('portal-qr-image').src = qrImageUrl;
+    document.getElementById('portal-qr-url-text').textContent = portalUrl;
+    document.getElementById('portal-qr-next-step').style.display = registration.resulting_family_id ? 'block' : 'none';
+
+    document.getElementById('portal-qr-modal-overlay').classList.add('show');
+  }
+
+  function closePortalQrScreen() {
+    document.getElementById('portal-qr-modal-overlay').classList.remove('show');
+  }
+
+  function printPortalQr() {
+    window.print();
   }
 
   // ============================================================
