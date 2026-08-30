@@ -3,51 +3,31 @@ const router = express.Router();
 const pool = require('../db/pool');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 
-// GET /attendance/today — today's check-in status for every child the requester can see.
-// Admin: every enrolled child. Staff: only children assigned to them.
+// GET /attendance/today — today's check-in status for every active child.
+// Everyone (admin and staff) sees every child — children are grouped by room
+// now, not assigned to individual staff, and staff currently "float" across
+// rooms, so there's no per-user filtering here yet.
 // A child is "checked in" if they have an attendance_records row for today with no checked_out_at.
 router.get('/today', requireAuth, async (req, res) => {
-  const isAdmin = req.staff.access_level === 'admin';
   try {
-    let query;
-    const params = [];
-
-    // Uses DISTINCT ON to pick only the MOST RECENT attendance_records row per
-    // child for today. Without this, a child checked in/out more than once in
-    // one day (leaves early, comes back, etc.) would return multiple rows for
-    // the same child, and the frontend could end up displaying a stale record
-    // instead of the current one.
-    if (isAdmin) {
-      query = `
-        SELECT c.id AS child_id, c.first_name, c.last_name, c.program,
-               ar.id AS attendance_id, ar.checked_in_at, ar.checked_out_at
-        FROM children c
-        LEFT JOIN LATERAL (
-          SELECT * FROM attendance_records
-          WHERE child_id = c.id AND checked_in_at::date = CURRENT_DATE
-          ORDER BY checked_in_at DESC
-          LIMIT 1
-        ) ar ON true
-        WHERE c.enrollment_status = 'active'
-        ORDER BY c.last_name, c.first_name`;
-    } else {
-      params.push(req.staff.staff_id);
-      query = `
-        SELECT c.id AS child_id, c.first_name, c.last_name, c.program,
-               ar.id AS attendance_id, ar.checked_in_at, ar.checked_out_at
-        FROM children c
-        JOIN child_staff_assignments csa ON csa.child_id = c.id AND csa.staff_id = $1
-        LEFT JOIN LATERAL (
-          SELECT * FROM attendance_records
-          WHERE child_id = c.id AND checked_in_at::date = CURRENT_DATE
-          ORDER BY checked_in_at DESC
-          LIMIT 1
-        ) ar ON true
-        WHERE c.enrollment_status = 'active'
-        ORDER BY c.last_name, c.first_name`;
-    }
-
-    const result = await pool.query(query, params);
+    // Uses LEFT JOIN LATERAL to pick only the MOST RECENT attendance_records row
+    // per child for today. Without this, a child checked in/out more than once
+    // in one day (leaves early, comes back, etc.) would return multiple rows
+    // for the same child, and the frontend could end up displaying a stale
+    // record instead of the current one.
+    const result = await pool.query(
+      `SELECT c.id AS child_id, c.first_name, c.last_name, c.program, c.room,
+              ar.id AS attendance_id, ar.checked_in_at, ar.checked_out_at
+       FROM children c
+       LEFT JOIN LATERAL (
+         SELECT * FROM attendance_records
+         WHERE child_id = c.id AND checked_in_at::date = CURRENT_DATE
+         ORDER BY checked_in_at DESC
+         LIMIT 1
+       ) ar ON true
+       WHERE c.enrollment_status = 'active'
+       ORDER BY c.room, c.last_name, c.first_name`
+    );
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -55,21 +35,10 @@ router.get('/today', requireAuth, async (req, res) => {
   }
 });
 
-// POST /attendance/:childId/check-in
+// POST /attendance/:childId/check-in — any authenticated staff member can check in any child
 router.post('/:childId(\\d+)/check-in', requireAuth, async (req, res) => {
   const { childId } = req.params;
   try {
-    // Non-admins can only check in children assigned to them.
-    if (req.staff.access_level !== 'admin') {
-      const assigned = await pool.query(
-        `SELECT 1 FROM child_staff_assignments WHERE child_id = $1 AND staff_id = $2`,
-        [childId, req.staff.staff_id]
-      );
-      if (assigned.rows.length === 0) {
-        return res.status(403).json({ error: 'This child is not assigned to you' });
-      }
-    }
-
     const openToday = await pool.query(
       `SELECT * FROM attendance_records
        WHERE child_id = $1 AND checked_in_at::date = CURRENT_DATE AND checked_out_at IS NULL`,
@@ -91,20 +60,10 @@ router.post('/:childId(\\d+)/check-in', requireAuth, async (req, res) => {
   }
 });
 
-// POST /attendance/:childId/check-out
+// POST /attendance/:childId/check-out — any authenticated staff member can check out any child
 router.post('/:childId(\\d+)/check-out', requireAuth, async (req, res) => {
   const { childId } = req.params;
   try {
-    if (req.staff.access_level !== 'admin') {
-      const assigned = await pool.query(
-        `SELECT 1 FROM child_staff_assignments WHERE child_id = $1 AND staff_id = $2`,
-        [childId, req.staff.staff_id]
-      );
-      if (assigned.rows.length === 0) {
-        return res.status(403).json({ error: 'This child is not assigned to you' });
-      }
-    }
-
     const openToday = await pool.query(
       `SELECT * FROM attendance_records
        WHERE child_id = $1 AND checked_in_at::date = CURRENT_DATE AND checked_out_at IS NULL

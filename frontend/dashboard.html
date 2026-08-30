@@ -677,6 +677,21 @@
       </div>
 
       <div class="field">
+        <label for="child-room">Room <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <select id="child-room">
+          <option value="">Unassigned</option>
+          <option value="Little Bunnies">Little Bunnies (Infant &amp; 1 year olds)</option>
+          <option value="Little Raccoons">Little Raccoons (2 year olds)</option>
+          <option value="Little Cubs">Little Cubs (3 &amp; 4 year olds)</option>
+          <option value="3 Year Old Preschool-AM">3 Year Old Preschool-AM</option>
+          <option value="3 Year Old Preschool-PM">3 Year Old Preschool-PM</option>
+          <option value="4 Year Old Preschool-AM">4 Year Old Preschool-AM</option>
+          <option value="4 Year Old Preschool-PM">4 Year Old Preschool-PM</option>
+          <option value="Wolf Den">Wolf Den (School Age Kids)</option>
+        </select>
+      </div>
+
+      <div class="field">
         <label for="child-tuition">Base tuition rate <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
         <input type="number" id="child-tuition" step="0.01" min="0" placeholder="0.00">
       </div>
@@ -699,11 +714,6 @@
           <label for="child-emergency-phone">Emergency phone</label>
           <input type="text" id="child-emergency-phone">
         </div>
-      </div>
-
-      <div class="field" id="child-assignments-section" style="display:none;">
-        <label>Assigned staff</label>
-        <div id="child-assignments-list" class="assignments-box"></div>
       </div>
 
       <div class="modal-actions">
@@ -1646,11 +1656,10 @@
 
   // ============================================================
   // CHILDREN VIEW
-  // Admin: full roster, add/edit, staff assignment, everyone's check-in status.
-  // Staff: only their assigned children, with check-in/check-out buttons.
+  // Admin: full roster, add/edit, room assignment, everyone's check-in status.
+  // Staff: full roster too (everyone floats across rooms for now), check-in/out buttons.
   // ============================================================
   let childrenCache = [];
-  let allStaffCache = []; // for the assignment picker (admins only)
   let attendanceToday = []; // keyed by matching child_id, from GET /attendance/today
 
   async function renderChildrenView() {
@@ -1661,7 +1670,7 @@
       <div class="page-header">
         <div>
           <h2>Children</h2>
-          <p>${isAdmin ? 'Enrolled children, their families, and who\'s checked in today.' : 'Children assigned to you — check them in when they arrive.'}</p>
+          <p>${isAdmin ? 'Enrolled children, their rooms, and who\'s checked in today.' : 'Enrolled children — check them in when they arrive.'}</p>
         </div>
         ${isAdmin ? '<button class="btn btn-coral" onclick="openChildModal()">+ Add child</button>' : ''}
       </div>
@@ -1672,15 +1681,11 @@
 
     try {
       const [children, attendance] = await Promise.all([
-        apiFetch(isAdmin ? '/children?status=active' : '/children/my-assigned'),
+        apiFetch('/children?status=active'),
         apiFetch('/attendance/today'),
       ]);
       childrenCache = children;
       attendanceToday = attendance;
-
-      if (isAdmin) {
-        allStaffCache = await apiFetch('/staff');
-      }
 
       renderChildrenTable();
     } catch (err) {
@@ -1699,8 +1704,8 @@
     if (childrenCache.length === 0) {
       wrap.innerHTML = `
         <div class="empty-state">
-          <h3>${isAdmin ? 'No children enrolled yet' : 'No children assigned to you yet'}</h3>
-          <p>${isAdmin ? 'Add your first enrolled child.' : 'Ask an admin to assign children to your account.'}</p>
+          <h3>No children enrolled yet</h3>
+          <p>${isAdmin ? 'Add your first enrolled child.' : 'Check back once children are enrolled.'}</p>
           ${isAdmin ? '<button class="btn btn-coral" onclick="openChildModal()">+ Add child</button>' : ''}
         </div>
       `;
@@ -1711,8 +1716,7 @@
       <table>
         <thead>
           <tr>
-            <th>Child</th><th>Program</th>
-            ${isAdmin ? '<th>Assigned staff</th>' : ''}
+            <th>Child</th><th>Program</th><th>Room</th>
             <th>Status</th><th></th>
           </tr>
         </thead>
@@ -1727,15 +1731,11 @@
                 ? `<span class="badge badge-inactive">Checked out ${formatTime(att.checked_out_at)}</span>`
                 : `<span class="badge badge-staff">Not checked in</span>`;
 
-            const assignedNames = isAdmin && c.assigned_staff
-              ? (c.assigned_staff.length ? c.assigned_staff.map(s => escapeHtml(s.first_name + ' ' + s.last_name)).join(', ') : '<span style="color:#8A9490;">Unassigned</span>')
-              : '';
-
             return `
               <tr>
                 <td><strong>${isAdmin ? '' : `<a href="#" class="child-name-link" onclick="event.preventDefault(); openChildDetailModal(${c.id});">`}${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}${isAdmin ? '' : '</a>'}</strong></td>
                 <td>${escapeHtml(c.program)}</td>
-                ${isAdmin ? `<td>${assignedNames}</td>` : ''}
+                <td>${c.room ? escapeHtml(c.room) : '<span style="color:#8A9490;">Unassigned</span>'}</td>
                 <td>${statusBadge}</td>
                 <td>
                   ${isAdmin ? `<button class="icon-btn" onclick="openChildModal(${c.id})">Edit</button>` : ''}
@@ -1843,7 +1843,6 @@
     document.getElementById('child-form').reset();
     document.getElementById('child-modal-error').classList.remove('show');
     document.getElementById('child-id').value = childId || '';
-    document.getElementById('child-assignments-section').style.display = childId ? 'block' : 'none';
 
     // Family picker reuses the same search-as-you-type pattern as invoices.
     document.getElementById('child-family-search').value = '';
@@ -1858,6 +1857,7 @@
       document.getElementById('child-last-name').value = c.last_name;
       document.getElementById('child-dob').value = c.date_of_birth ? c.date_of_birth.slice(0, 10) : '';
       document.getElementById('child-program').value = c.program;
+      document.getElementById('child-room').value = c.room || '';
       document.getElementById('child-tuition').value = c.base_tuition_rate || '';
       document.getElementById('child-allergies').value = c.allergies || '';
       document.getElementById('child-medical-notes').value = c.medical_notes || '';
@@ -1867,7 +1867,6 @@
       document.getElementById('child-selected-family').style.display = 'flex';
       document.getElementById('child-selected-family-name').textContent = '(current family kept unless changed)';
       document.getElementById('child-submit-btn').textContent = 'Save changes';
-      renderChildAssignments(c.id);
     } else {
       document.getElementById('child-modal-title').textContent = 'Add child';
       document.getElementById('child-submit-btn').textContent = 'Add child';
@@ -1911,34 +1910,6 @@
     document.getElementById('child-selected-family').style.display = 'none';
   }
 
-  async function renderChildAssignments(childId) {
-    const wrap = document.getElementById('child-assignments-list');
-    const c = childrenCache.find(x => x.id === childId);
-    const assignedIds = new Set((c.assigned_staff || []).map(s => s.id));
-
-    wrap.innerHTML = allStaffCache.filter(s => s.is_active).map(s => `
-      <label class="assignment-row">
-        <input type="checkbox" data-staff-id="${s.id}" ${assignedIds.has(s.id) ? 'checked' : ''} onchange="toggleChildAssignment(${childId}, ${s.id}, this.checked)">
-        <span>${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</span>
-      </label>
-    `).join('') || '<p class="field-hint">No active staff to assign.</p>';
-  }
-
-  async function toggleChildAssignment(childId, staffId, isChecked) {
-    try {
-      if (isChecked) {
-        await apiFetch('/children/' + childId + '/assign-staff', { method: 'POST', body: JSON.stringify({ staff_id: staffId }) });
-      } else {
-        await apiFetch('/children/' + childId + '/assign-staff/' + staffId, { method: 'DELETE' });
-      }
-      // Refresh the roster in the background so the "Assigned staff" column stays accurate
-      // next time the table renders, without blocking the checkbox toggle.
-      childrenCache = await apiFetch('/children?status=active');
-    } catch (err) {
-      alert('Could not update assignment: ' + err.message);
-    }
-  }
-
   document.getElementById('child-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const childId = document.getElementById('child-id').value;
@@ -1957,6 +1928,7 @@
       last_name: document.getElementById('child-last-name').value.trim(),
       date_of_birth: document.getElementById('child-dob').value,
       program: document.getElementById('child-program').value,
+      room: document.getElementById('child-room').value || null,
       base_tuition_rate: document.getElementById('child-tuition').value || null,
       allergies: document.getElementById('child-allergies').value.trim() || null,
       medical_notes: document.getElementById('child-medical-notes').value.trim() || null,
