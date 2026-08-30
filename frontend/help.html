@@ -142,6 +142,7 @@
       <li><a href="#home">Home</a></li>
       <li><a href="#families">Families</a></li>
       <li><a href="#children">Children</a></li>
+      <li><a href="#waitlist">Waitlist</a></li>
       <li><a href="#registration">Registration</a></li>
       <li><a href="#documents">Documents</a></li>
       <li><a href="#services">Services</a></li>
@@ -165,14 +166,14 @@
 
     <section id="overview">
       <h2 class="section-title">Overview</h2>
-      <p>The sidebar, top to bottom: Home, Families, Children, Registration, Documents, Services, Billing, Scheduling, Timesheets, and Staff Accounts. Below the tab list is a standing clock-in card, always visible, separate from the tabs above it.</p>
-      <p>A staff account only sees tabs relevant to them — Home, Children, Documents, Scheduling, and Timesheets — plus the clock-in card. Admin accounts see every tab.</p>
+      <p>The sidebar, top to bottom: Home, Families, Children, Waitlist, Registration, Documents, Messages, Services, Billing, Scheduling, Timesheets, and Staff Accounts. Below the tab list is a standing clock-in card, always visible, separate from the tabs above it.</p>
+      <p>A staff account only sees tabs relevant to them — Home, Children, Documents, Messages, Scheduling, and Timesheets — plus the clock-in card. Admin accounts see every tab.</p>
     </section>
 
     <section id="home">
       <h2 class="section-title">Home <span class="badge badge-everyone">Everyone</span></h2>
       <p class="section-sub">Lands here right after logging in.</p>
-      <p>A quick daily briefing: today's date, today's posted events, who's scheduled to work today (admins see everyone, staff see their own shift), and a preview of everything scheduled — events and shifts — over the next 7 days. It's read-only; making changes still happens on Scheduling.</p>
+      <p>A quick daily briefing: today's date, room ratio status and documents expiring soon (both admin-only), today's posted events, who's scheduled to work today (admins see everyone, staff see their own shift), and a preview of everything scheduled — events and shifts — over the next 7 days. It's read-only; making changes still happens on Scheduling, Children, or the relevant tab.</p>
     </section>
 
     <section id="families">
@@ -223,6 +224,16 @@
       <h3 class="sub-heading">Daily Reports</h3>
       <p>Everyone — admin and staff — can fill out or update a child's report for today: a meal checklist (Breakfast, Lunch, PM Snack, each with optional notes), nap start and end time, a tap-to-select mood, free-text notes, and a photo. Filling it out again later in the day updates the same report rather than creating a second one — add a nap time after lunch was already logged, for instance, without losing what was entered earlier.</p>
       <p>These are what parents see in the <a href="#family-portal">Family Portal</a>, so this is the one place in the dashboard that's genuinely parent-facing content, even though it's filled out from the staff side.</p>
+
+      <h3 class="sub-heading">Documents on file <span class="badge badge-admin" style="font-size:10.5px; padding:2px 8px;">Admin</span></h3>
+      <p>Each child also has a <strong>Documents</strong> button covering three fixed types: Immunizations, Physical/Health Form, and Emergency Contact Form. Each shows whether it's on file, valid through a date, or expired, with <strong>Upload</strong> or <strong>Replace</strong> to add a PDF or photo and an optional expiration date — leave the date blank for a document that doesn't expire. Uploading a new one keeps the old one on record rather than deleting it. Anything expired or expiring within 30 days shows up in a dedicated panel on <a href="#home">Home</a>.</p>
+    </section>
+
+    <section id="waitlist">
+      <h2 class="section-title">Waitlist <span class="badge badge-admin">Admin</span></h2>
+      <p class="section-sub">Enrollment inquiries — the step before Registration.</p>
+      <p>Log a family here when they call or ask about openings, even before you know their exact enrollment plans. Parent contact info is required; the child's name, birthdate, and room of interest are all optional, since not every inquiry has those details yet. Birthdate shows as a computed age in the list, useful for a quick sense of room fit.</p>
+      <div class="note"><strong>Automatic conversion:</strong> When a Registration is later created using the same parent email, the matching waitlist entry is automatically marked <strong>Enrolled</strong> and linked to that registration — no manual cleanup needed. An enrolled entry can no longer be edited or removed from this tab.</div>
     </section>
 
     <section id="registration">
