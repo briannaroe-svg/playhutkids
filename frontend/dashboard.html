@@ -578,6 +578,51 @@
   </div>
 </div>
 
+<!-- ============ ADD HANDBOOK VERSION MODAL (admin only) ============ -->
+<div class="modal-overlay" id="handbook-template-modal-overlay">
+  <div class="modal">
+    <h3>Add handbook version</h3>
+    <p class="modal-sub">Every active staff member will get a pending agreement to sign.</p>
+    <div class="error-banner" id="handbook-template-modal-error"></div>
+    <form id="handbook-template-form">
+      <div class="field">
+        <label for="handbook-title">Title</label>
+        <input type="text" id="handbook-title" placeholder="Employee Handbook" required>
+      </div>
+      <div class="field">
+        <label for="handbook-version">Version</label>
+        <input type="text" id="handbook-version" placeholder="2026.1" required>
+      </div>
+      <div class="field">
+        <label for="handbook-content-url">Handbook document link <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="handbook-content-url" placeholder="Link to the full handbook text">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeHandbookTemplateModal()">Cancel</button>
+        <button type="submit" class="btn btn-teal" id="handbook-template-submit-btn">Add handbook version</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ STAFF SIGNATURE MODAL (sign own handbook, everyone) ============ -->
+<div class="modal-overlay" id="staff-sig-modal-overlay">
+  <div class="modal" style="max-width:460px;">
+    <h3>Sign document</h3>
+    <p class="modal-sub">Sign below to acknowledge you've read and agree to this document.</p>
+    <div class="error-banner" id="staff-sig-error"></div>
+    <div class="field">
+      <label>Signature</label>
+      <canvas id="staff-sig-canvas" class="signature-canvas"></canvas>
+      <button type="button" class="btn btn-ghost" style="margin-top:8px; padding:7px 14px; font-size:13px;" onclick="clearStaffSignaturePad()">Clear</button>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeStaffSignatureCanvas()">Cancel</button>
+      <button type="button" class="btn btn-teal" id="staff-sig-submit-btn" onclick="submitStaffSignature()">Sign document</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ ADD/EDIT CHILD MODAL ============ -->
 <div class="modal-overlay" id="child-modal-overlay">
   <div class="modal" style="max-width:520px;">
@@ -991,7 +1036,7 @@
     { id: 'families',   label: 'Families',       adminOnly: true,  icon: 'family' },
     { id: 'children',   label: 'Children',       adminOnly: false, icon: 'child' },
     { id: 'registrations', label: 'Registration', adminOnly: true, icon: 'registration' },
-    { id: 'agreements', label: 'Agreements',     adminOnly: true,  icon: 'doc' },
+    { id: 'agreements', label: 'Documents',      adminOnly: false, icon: 'doc' },
     { id: 'services',   label: 'Services',       adminOnly: true,  icon: 'services' },
     { id: 'invoices',   label: 'Billing',        adminOnly: true,  icon: 'billing' },
     { id: 'scheduling', label: 'Scheduling',     adminOnly: false, icon: 'calendar' },
@@ -1059,7 +1104,7 @@
       scheduling: renderSchedulingView,
       registrations: renderRegistrationsView,
       children: renderChildrenView,
-      agreements: () => renderPlaceholder('Agreements', 'Signed handbook agreements will show up here.'),
+      agreements: renderDocumentsView,
     };
     (renderers[viewId] || renderers.staff)();
   }
@@ -2570,6 +2615,257 @@
     } finally {
       btn.disabled = false;
       btn.textContent = 'Complete registration';
+    }
+  }
+
+  // ============================================================
+  // DOCUMENTS VIEW (formerly "Agreements") — everyone has access.
+  // Staff/employee handbook agreements that STAFF sign for themselves —
+  // distinct from the parent-facing daycare/preschool agreements elsewhere.
+  // ============================================================
+  let myAgreementsCache = [];
+  let staffSignatureTargetId = null; // staff_agreements row id currently being signed
+  let staffSignaturePad = null;
+
+  async function renderDocumentsView() {
+    const isAdmin = currentUser.access_level === 'admin';
+    const main = document.getElementById('main-content');
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h2>Documents</h2>
+          <p>Employee handbook agreements you've signed, or need to sign.</p>
+        </div>
+        ${isAdmin ? '<button class="btn btn-coral" onclick="openHandbookTemplateModal()">+ Add handbook version</button>' : ''}
+      </div>
+      <div class="card" id="my-agreements-wrap">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+      ${isAdmin ? `
+        <div class="page-header" style="margin: 28px 0 14px;"><div><h2 style="font-size:19px;">Staff signing status</h2></div></div>
+        <div class="card" id="agreement-templates-wrap"></div>
+      ` : ''}
+    `;
+
+    try {
+      myAgreementsCache = await apiFetch('/staff-agreements/my');
+      renderMyAgreements();
+    } catch (err) {
+      document.getElementById('my-agreements-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load your documents</h3><p>${err.message}</p></div>`;
+    }
+
+    if (isAdmin) {
+      try {
+        const templates = await apiFetch('/staff-agreements/templates');
+        renderHandbookTemplates(templates);
+      } catch (err) {
+        document.getElementById('agreement-templates-wrap').innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+      }
+    }
+  }
+
+  function renderMyAgreements() {
+    const wrap = document.getElementById('my-agreements-wrap');
+    if (myAgreementsCache.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>Nothing to sign yet</h3><p>Handbook agreements will show up here once one is posted.</p></div>`;
+      return;
+    }
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Document</th><th>Version</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${myAgreementsCache.map(a => `
+            <tr>
+              <td><strong>${escapeHtml(a.title)}</strong></td>
+              <td>${escapeHtml(a.version)}</td>
+              <td><span class="badge ${a.status === 'signed' ? 'badge-active' : 'badge-staff'}">${a.status}</span></td>
+              <td>
+                ${a.status === 'pending'
+                  ? `<button class="btn btn-sm btn-coral" onclick="openStaffSignatureCanvas(${a.id})">Sign</button>`
+                  : (a.signed_pdf_url ? `<a href="${a.signed_pdf_url}" target="_blank" class="icon-btn" style="text-decoration:none;">View signed PDF</a>` : '<span style="color:#8A9490; font-size:13px;">Signed</span>')}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // ---- Admin: handbook template management ----
+  function openHandbookTemplateModal() {
+    document.getElementById('handbook-template-form').reset();
+    document.getElementById('handbook-template-modal-error').classList.remove('show');
+    document.getElementById('handbook-template-modal-overlay').classList.add('show');
+  }
+
+  function closeHandbookTemplateModal() {
+    document.getElementById('handbook-template-modal-overlay').classList.remove('show');
+  }
+
+  document.getElementById('handbook-template-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorBox = document.getElementById('handbook-template-modal-error');
+    const btn = document.getElementById('handbook-template-submit-btn');
+    errorBox.classList.remove('show');
+
+    const payload = {
+      title: document.getElementById('handbook-title').value.trim(),
+      version: document.getElementById('handbook-version').value.trim(),
+      content_url: document.getElementById('handbook-content-url').value.trim() || null,
+    };
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      await apiFetch('/staff-agreements/templates', { method: 'POST', body: JSON.stringify(payload) });
+      closeHandbookTemplateModal();
+      await renderDocumentsView();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Add handbook version';
+    }
+  });
+
+  function renderHandbookTemplates(templates) {
+    const wrap = document.getElementById('agreement-templates-wrap');
+    if (templates.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>No handbook posted yet</h3><p>Add one above — every active staff member will get a pending agreement to sign.</p></div>`;
+      return;
+    }
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Title</th><th>Version</th><th></th></tr></thead>
+        <tbody>
+          ${templates.map(t => `
+            <tr>
+              <td><strong>${escapeHtml(t.title)}</strong></td>
+              <td>${escapeHtml(t.version)}</td>
+              <td><button class="icon-btn" onclick="viewHandbookSigningStatus(${t.id}, '${escapeHtml(t.title).replace(/'/g, "\\'")}')">Who's signed?</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function viewHandbookSigningStatus(templateId, title) {
+    document.getElementById('ack-status-title').textContent = title;
+    document.getElementById('ack-status-body').innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+    document.getElementById('ack-status-modal-overlay').classList.add('show');
+    try {
+      const statuses = await apiFetch('/staff-agreements/' + templateId + '/status');
+      document.getElementById('ack-status-body').innerHTML = `
+        <div class="assignments-box" style="max-height:260px;">
+          ${statuses.map(s => `
+            <div class="assignment-row" style="cursor:default;">
+              <span style="width:8px; height:8px; border-radius:50%; flex-shrink:0; background:${s.status === 'signed' ? 'var(--success)' : 'var(--sand)'};"></span>
+              <span style="flex:1;">${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</span>
+              <span style="font-size:12px; color:#8A9490;">${s.status === 'signed' ? 'Signed' : 'Not yet'}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } catch (err) {
+      document.getElementById('ack-status-body').innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+    }
+  }
+
+  // ---- Staff: sign their own agreement (simple canvas, no name field needed) ----
+  function openStaffSignatureCanvas(agreementId) {
+    staffSignatureTargetId = agreementId;
+    document.getElementById('staff-sig-error').classList.remove('show');
+    document.getElementById('staff-sig-modal-overlay').classList.add('show');
+    requestAnimationFrame(initStaffSignaturePad);
+  }
+
+  function closeStaffSignatureCanvas() {
+    document.getElementById('staff-sig-modal-overlay').classList.remove('show');
+    staffSignatureTargetId = null;
+  }
+
+  function initStaffSignaturePad() {
+    const canvas = document.getElementById('staff-sig-canvas');
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#3A2E22';
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    staffSignaturePad = { canvas, ctx, drawing: false, hasStroke: false };
+
+    const getPos = (e) => {
+      const r = canvas.getBoundingClientRect();
+      const point = e.touches ? e.touches[0] : e;
+      return { x: point.clientX - r.left, y: point.clientY - r.top };
+    };
+    const start = (e) => {
+      e.preventDefault();
+      staffSignaturePad.drawing = true;
+      const { x, y } = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    };
+    const move = (e) => {
+      if (!staffSignaturePad.drawing) return;
+      e.preventDefault();
+      const { x, y } = getPos(e);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      staffSignaturePad.hasStroke = true;
+    };
+    const end = () => { staffSignaturePad.drawing = false; };
+
+    canvas.onmousedown = start;
+    canvas.onmousemove = move;
+    canvas.onmouseup = end;
+    canvas.onmouseleave = end;
+    canvas.ontouchstart = start;
+    canvas.ontouchmove = move;
+    canvas.ontouchend = end;
+  }
+
+  function clearStaffSignaturePad() {
+    if (!staffSignaturePad) return;
+    staffSignaturePad.ctx.clearRect(0, 0, staffSignaturePad.canvas.width, staffSignaturePad.canvas.height);
+    staffSignaturePad.hasStroke = false;
+  }
+
+  async function submitStaffSignature() {
+    const errorBox = document.getElementById('staff-sig-error');
+    errorBox.classList.remove('show');
+
+    if (!staffSignaturePad || !staffSignaturePad.hasStroke) {
+      errorBox.textContent = 'Please sign in the box above.';
+      errorBox.classList.add('show');
+      return;
+    }
+
+    const btn = document.getElementById('staff-sig-submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+
+    try {
+      const signatureDataUri = staffSignaturePad.canvas.toDataURL('image/png');
+      await apiFetch('/staff-agreements/' + staffSignatureTargetId + '/sign', {
+        method: 'POST',
+        body: JSON.stringify({ signature_data: signatureDataUri }),
+      });
+      closeStaffSignatureCanvas();
+      myAgreementsCache = await apiFetch('/staff-agreements/my');
+      renderMyAgreements();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Sign document';
     }
   }
 
