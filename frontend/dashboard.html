@@ -1298,7 +1298,7 @@
               <td>${formatTime(e.clock_in)}</td>
               <td>${e.clock_out ? formatTime(e.clock_out) : '<span style="color:var(--success); font-weight:600;">Active</span>'}</td>
               <td>${e.total_hours != null ? Number(e.total_hours).toFixed(2) : '—'}</td>
-              ${isAdmin ? `<td><button class="icon-btn" onclick="openTimesheetEditModal(${e.id})">Edit</button></td>` : ''}
+              ${isAdmin ? `<td><button class="icon-btn" onclick="openTimesheetEditModal(${e.id})">Edit</button><button class="icon-btn" style="color:var(--error);" onclick="deleteTimesheetEntry(${e.id})">Delete</button></td>` : ''}
             </tr>
           `).join('')}
         </tbody>
@@ -1336,6 +1336,16 @@
 
   function closeTimesheetEditModal() {
     document.getElementById('ts-edit-modal-overlay').classList.remove('show');
+  }
+
+  async function deleteTimesheetEntry(entryId) {
+    if (!confirm('Delete this timesheet entry? This cannot be undone.')) return;
+    try {
+      await apiFetch('/timesheets/' + entryId, { method: 'DELETE' });
+      await loadTimesheetEntries();
+    } catch (err) {
+      alert('Could not delete entry: ' + err.message);
+    }
   }
 
   document.getElementById('ts-edit-form').addEventListener('submit', async (e) => {

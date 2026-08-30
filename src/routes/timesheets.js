@@ -163,4 +163,17 @@ router.put('/:id(\\d+)', requireAdmin, async (req, res) => {
   }
 });
 
+// DELETE /timesheets/:id — admin only, permanently removes a timesheet entry.
+// Use with care — this is a real payroll record, not a soft-delete/deactivation.
+router.delete('/:id(\\d+)', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`DELETE FROM timesheet_entries WHERE id = $1 RETURNING id`, [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Entry not found' });
+    res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete timesheet entry' });
+  }
+});
+
 module.exports = router;
