@@ -173,6 +173,32 @@
   .placeholder-view svg { width: 44px; height: 44px; margin-bottom: 14px; opacity: 0.5; }
   .placeholder-view h3 { color: var(--teal-dark); font-size: 18px; margin: 0 0 8px; }
 
+  /* ---------- Family search results (invoice modal) ---------- */
+  .family-result {
+    padding: 9px 12px; border: 1px solid var(--sage-light); border-top: none;
+    font-size: 13.5px; cursor: pointer; background: #fff;
+  }
+  .family-result:hover { background: var(--sage-light); }
+  .family-result:first-of-type { border-top: 1px solid var(--sage-light); border-radius: 0 0 0 0; }
+  .family-result-empty { padding: 10px 12px; font-size: 13px; color: #8A9490; }
+  .family-result-empty a { color: var(--teal); font-weight: 600; }
+
+  .selected-family-chip {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--sage-light); border-radius: 9px; padding: 10px 14px; margin-top: 8px; font-size: 13.5px;
+  }
+
+  /* ---------- Invoice line items ---------- */
+  .line-item-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .line-item-row input {
+    padding: 9px 11px; border: 1.5px solid var(--sage-light); border-radius: 8px;
+    font-family: inherit; font-size: 13.5px; background: var(--cream);
+  }
+  .line-item-row input[type="text"] { flex: 1; }
+  .line-item-row input:focus { outline: none; border-color: var(--teal); background: #fff; }
+  .btn-add-line { width: 100%; padding: 9px; font-size: 13px; margin-top: 4px; }
+  .invoice-subtotal { text-align: right; font-size: 14px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--sage-light); }
+
   @media (max-width: 760px) {
     #app-shell.show { flex-direction: column; }
     .sidebar { width: 100%; padding: 14px 0; }
@@ -290,6 +316,94 @@
   </div>
 </div>
 
+<!-- ============ ADD/EDIT FAMILY MODAL ============ -->
+<div class="modal-overlay" id="family-modal-overlay">
+  <div class="modal">
+    <h3 id="family-modal-title">Add family</h3>
+    <p class="modal-sub">Parent and guardian contact info for billing.</p>
+
+    <div class="error-banner" id="family-modal-error"></div>
+
+    <form id="family-form">
+      <input type="hidden" id="family-id">
+      <div class="field">
+        <label for="family-primary-name">Primary parent name</label>
+        <input type="text" id="family-primary-name" required>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="family-primary-email">Email</label>
+          <input type="email" id="family-primary-email" required>
+        </div>
+        <div class="field">
+          <label for="family-primary-phone">Phone</label>
+          <input type="text" id="family-primary-phone">
+        </div>
+      </div>
+      <div class="field">
+        <label for="family-secondary-name">Secondary parent name <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="family-secondary-name">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="family-secondary-email">Secondary email</label>
+          <input type="email" id="family-secondary-email">
+        </div>
+        <div class="field">
+          <label for="family-secondary-phone">Secondary phone</label>
+          <input type="text" id="family-secondary-phone">
+        </div>
+      </div>
+      <div class="field">
+        <label for="family-address">Mailing address</label>
+        <input type="text" id="family-address">
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeFamilyModal()">Cancel</button>
+        <button type="submit" class="btn btn-teal" id="family-submit-btn">Add family</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ NEW INVOICE MODAL ============ -->
+<div class="modal-overlay" id="invoice-modal-overlay">
+  <div class="modal" style="max-width:540px;">
+    <h3>New invoice</h3>
+    <p class="modal-sub">Bill a family for tuition or fees.</p>
+
+    <div class="error-banner" id="invoice-modal-error"></div>
+
+    <form id="invoice-form">
+      <div class="field">
+        <label for="invoice-family-search">Family</label>
+        <input type="text" id="invoice-family-search" placeholder="Search by parent name or email…">
+        <div id="invoice-family-results"></div>
+        <div id="invoice-selected-family" class="selected-family-chip" style="display:none;">
+          <span>Billing: <strong id="invoice-selected-family-name"></strong></span>
+          <button type="button" class="icon-btn" onclick="clearInvoiceFamily()">Change</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="invoice-due-date">Due date <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="date" id="invoice-due-date">
+      </div>
+
+      <div class="field">
+        <label>Line items</label>
+        <div id="invoice-line-items"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeInvoiceModal()">Cancel</button>
+        <button type="submit" class="btn btn-teal" id="invoice-submit-btn">Create invoice</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
   // Update this to the live Render URL if it ever changes — must match login.html.
   const API_BASE = 'https://little-playhut-backend.onrender.com';
@@ -348,6 +462,7 @@
   const NAV_ITEMS = [
     { id: 'timesheets', label: 'My Timesheet', adminOnly: false, icon: 'clock' },
     { id: 'children',   label: 'Children',      adminOnly: true,  icon: 'child' },
+    { id: 'families',   label: 'Families',       adminOnly: true,  icon: 'family' },
     { id: 'invoices',   label: 'Billing',        adminOnly: true,  icon: 'billing' },
     { id: 'agreements', label: 'Agreements',     adminOnly: true,  icon: 'doc' },
     { id: 'staff',      label: 'Staff Accounts', adminOnly: true,  icon: 'staff' },
@@ -356,6 +471,7 @@
   const ICONS = {
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg>',
     child: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-4 3-6.5 7-6.5s7 2.5 7 6.5" stroke-linecap="round"/></svg>',
+    family: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="2.6"/><circle cx="17" cy="9" r="2.2"/><path d="M3 20c0-3 2.2-5.4 5-5.4s5 2.4 5 5.4M14 20c0-2.4 1.7-4.4 4-4.4s4 2 4 4.4" stroke-linecap="round"/></svg>',
     billing: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4" stroke-linecap="round"/></svg>',
     doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M9 13h6M9 17h6" stroke-linecap="round"/></svg>',
     staff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke-linecap="round"/><path d="M16 8a3 3 0 110-6M17 14c2.3.4 4 2.3 4 6" stroke-linecap="round"/></svg>',
@@ -380,9 +496,10 @@
     });
     const renderers = {
       staff: renderStaffView,
+      families: renderFamiliesView,
+      invoices: renderInvoicesView,
       timesheets: () => renderPlaceholder('My Timesheet', 'Clock-in history and hours will show up here.'),
       children: () => renderPlaceholder('Children', 'Enrollment and roster management is coming next.'),
-      invoices: () => renderPlaceholder('Billing', 'Invoices and payment links are coming next.'),
       agreements: () => renderPlaceholder('Agreements', 'Signed handbook agreements will show up here.'),
     };
     (renderers[viewId] || renderers.staff)();
@@ -555,6 +672,393 @@
       btn.textContent = staffId ? 'Save changes' : 'Add account';
     }
   });
+
+  // ============================================================
+  // FAMILIES VIEW
+  // ============================================================
+  let familiesCache = [];
+  let familySearchTerm = '';
+
+  async function renderFamiliesView() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h2>Families</h2>
+          <p>Parent and guardian contact records — the billing address book.</p>
+        </div>
+        <button class="btn btn-coral" onclick="openFamilyModal()">+ Add family</button>
+      </div>
+      <div class="field" style="max-width:320px; margin-bottom:18px;">
+        <input type="text" id="family-search-input" placeholder="Search by parent name or email…" value="${escapeHtml(familySearchTerm)}">
+      </div>
+      <div class="card" id="families-table-wrap">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+    `;
+
+    document.getElementById('family-search-input').addEventListener('input', debounce((e) => {
+      familySearchTerm = e.target.value;
+      loadFamilies();
+    }, 300));
+
+    await loadFamilies();
+  }
+
+  async function loadFamilies() {
+    const wrap = document.getElementById('families-table-wrap');
+    try {
+      const path = familySearchTerm.trim()
+        ? '/families/search?q=' + encodeURIComponent(familySearchTerm.trim())
+        : '/families';
+      familiesCache = await apiFetch(path);
+      renderFamiliesTable();
+    } catch (err) {
+      wrap.innerHTML = `<div class="empty-state"><h3>Couldn't load families</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function renderFamiliesTable() {
+    const wrap = document.getElementById('families-table-wrap');
+    if (familiesCache.length === 0) {
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <h3>${familySearchTerm ? 'No families match that search' : 'No families yet'}</h3>
+          <p>${familySearchTerm ? 'Try a different name or email.' : 'Add your first family to start invoicing.'}</p>
+          ${familySearchTerm ? '' : '<button class="btn btn-coral" onclick="openFamilyModal()">+ Add family</button>'}
+        </div>
+      `;
+      return;
+    }
+
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Parent</th><th>Email</th><th>Phone</th><th></th></tr></thead>
+        <tbody>
+          ${familiesCache.map(f => `
+            <tr>
+              <td><strong>${escapeHtml(f.primary_parent_name)}</strong></td>
+              <td>${escapeHtml(f.primary_parent_email)}</td>
+              <td>${escapeHtml(f.primary_parent_phone || '—')}</td>
+              <td><button class="icon-btn" onclick="openFamilyModal(${f.id})">Edit</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function openFamilyModal(familyId) {
+    document.getElementById('family-form').reset();
+    document.getElementById('family-modal-error').classList.remove('show');
+    document.getElementById('family-id').value = familyId || '';
+
+    if (familyId) {
+      const f = familiesCache.find(x => x.id === familyId);
+      document.getElementById('family-modal-title').textContent = 'Edit family';
+      document.getElementById('family-primary-name').value = f.primary_parent_name;
+      document.getElementById('family-primary-email').value = f.primary_parent_email;
+      document.getElementById('family-primary-phone').value = f.primary_parent_phone || '';
+      document.getElementById('family-secondary-name').value = f.secondary_parent_name || '';
+      document.getElementById('family-secondary-email').value = f.secondary_parent_email || '';
+      document.getElementById('family-secondary-phone').value = f.secondary_parent_phone || '';
+      document.getElementById('family-address').value = f.mailing_address || '';
+      document.getElementById('family-submit-btn').textContent = 'Save changes';
+    } else {
+      document.getElementById('family-modal-title').textContent = 'Add family';
+      document.getElementById('family-submit-btn').textContent = 'Add family';
+    }
+
+    document.getElementById('family-modal-overlay').classList.add('show');
+  }
+
+  function closeFamilyModal() {
+    document.getElementById('family-modal-overlay').classList.remove('show');
+  }
+
+  document.getElementById('family-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const familyId = document.getElementById('family-id').value;
+    const errorBox = document.getElementById('family-modal-error');
+    const btn = document.getElementById('family-submit-btn');
+    errorBox.classList.remove('show');
+
+    const payload = {
+      primary_parent_name: document.getElementById('family-primary-name').value.trim(),
+      primary_parent_email: document.getElementById('family-primary-email').value.trim(),
+      primary_parent_phone: document.getElementById('family-primary-phone').value.trim() || null,
+      secondary_parent_name: document.getElementById('family-secondary-name').value.trim() || null,
+      secondary_parent_email: document.getElementById('family-secondary-email').value.trim() || null,
+      secondary_parent_phone: document.getElementById('family-secondary-phone').value.trim() || null,
+      mailing_address: document.getElementById('family-address').value.trim() || null,
+    };
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    try {
+      if (familyId) {
+        await apiFetch('/families/' + familyId, { method: 'PUT', body: JSON.stringify(payload) });
+      } else {
+        await apiFetch('/families', { method: 'POST', body: JSON.stringify(payload) });
+      }
+      closeFamilyModal();
+      await loadFamilies();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = familyId ? 'Save changes' : 'Add family';
+    }
+  });
+
+  // ============================================================
+  // INVOICES VIEW
+  // ============================================================
+  let invoicesCache = [];
+  let invoiceLineItems = []; // working line items while building a new invoice
+  let invoiceSelectedFamily = null; // { id, primary_parent_name, ... }
+
+  const STATUS_BADGE_CLASS = {
+    draft: 'badge-staff', sent: 'badge-admin', paid: 'badge-active', overdue: 'badge-inactive', void: 'badge-inactive',
+  };
+
+  async function renderInvoicesView() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h2>Billing</h2>
+          <p>Invoices and payment links for families.</p>
+        </div>
+        <button class="btn btn-coral" onclick="openInvoiceModal()">+ New invoice</button>
+      </div>
+      <div class="card" id="invoices-table-wrap">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+    `;
+
+    try {
+      invoicesCache = await apiFetch('/invoices');
+      renderInvoicesTable();
+    } catch (err) {
+      document.getElementById('invoices-table-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load invoices</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function renderInvoicesTable() {
+    const wrap = document.getElementById('invoices-table-wrap');
+    if (invoicesCache.length === 0) {
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <h3>No invoices yet</h3>
+          <p>Create your first invoice for a family.</p>
+          <button class="btn btn-coral" onclick="openInvoiceModal()">+ New invoice</button>
+        </div>
+      `;
+      return;
+    }
+
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Invoice #</th><th>Date</th><th>Total</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${invoicesCache.map(inv => `
+            <tr>
+              <td><strong>${escapeHtml(inv.invoice_number)}</strong></td>
+              <td>${formatDate(inv.invoice_date)}</td>
+              <td>${formatCurrency(inv.grand_total)}</td>
+              <td><span class="badge ${STATUS_BADGE_CLASS[inv.status] || 'badge-staff'}">${escapeHtml(inv.status)}</span></td>
+              <td>
+                ${inv.status !== 'paid' && inv.status !== 'void' ? `<button class="icon-btn" onclick="createPaymentLink(${inv.id})">Get payment link</button>` : ''}
+                ${inv.stripe_payment_link_url ? `<button class="icon-btn" onclick="copyPaymentLink('${inv.stripe_payment_link_url}')">Copy link</button>` : ''}
+                ${inv.status !== 'paid' && inv.status !== 'void' ? `<button class="icon-btn" onclick="markInvoicePaid(${inv.id})">Mark paid</button>` : ''}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function formatCurrency(n) {
+    return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function formatDate(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  async function createPaymentLink(invoiceId) {
+    try {
+      const result = await apiFetch('/invoices/' + invoiceId + '/payment-link', { method: 'POST' });
+      await copyPaymentLink(result.payment_link_url);
+      invoicesCache = await apiFetch('/invoices');
+      renderInvoicesTable();
+    } catch (err) {
+      alert('Could not create payment link: ' + err.message);
+    }
+  }
+
+  async function copyPaymentLink(url) {
+    try {
+      await navigator.clipboard.writeText(url);
+      alert('Payment link copied to clipboard:\n' + url);
+    } catch (e) {
+      prompt('Payment link (copy manually):', url);
+    }
+  }
+
+  async function markInvoicePaid(invoiceId) {
+    const method = prompt('Mark this invoice paid. Payment method? (cash / check / card / ach)', 'cash');
+    if (!method) return;
+    try {
+      await apiFetch('/invoices/' + invoiceId + '/mark-paid', { method: 'POST', body: JSON.stringify({ payment_method: method }) });
+      invoicesCache = await apiFetch('/invoices');
+      renderInvoicesTable();
+    } catch (err) {
+      alert('Could not mark invoice paid: ' + err.message);
+    }
+  }
+
+  // ---- New Invoice Modal ----
+  async function openInvoiceModal() {
+    invoiceLineItems = [];
+    invoiceSelectedFamily = null;
+    document.getElementById('invoice-modal-error').classList.remove('show');
+    document.getElementById('invoice-family-search').value = '';
+    document.getElementById('invoice-family-results').innerHTML = '';
+    document.getElementById('invoice-selected-family').style.display = 'none';
+    document.getElementById('invoice-due-date').value = '';
+    renderInvoiceLineItems();
+    document.getElementById('invoice-modal-overlay').classList.add('show');
+  }
+
+  function closeInvoiceModal() {
+    document.getElementById('invoice-modal-overlay').classList.remove('show');
+  }
+
+  document.getElementById('invoice-family-search').addEventListener('input', debounce(async (e) => {
+    const term = e.target.value.trim();
+    const resultsBox = document.getElementById('invoice-family-results');
+    if (!term) { resultsBox.innerHTML = ''; return; }
+    try {
+      const results = await apiFetch('/families/search?q=' + encodeURIComponent(term));
+      resultsBox.innerHTML = results.length
+        ? results.map(f => `
+            <div class="family-result" onclick="selectInvoiceFamily(${f.id}, '${escapeHtml(f.primary_parent_name).replace(/'/g, "\\'")}')">
+              <strong>${escapeHtml(f.primary_parent_name)}</strong> — ${escapeHtml(f.primary_parent_email)}
+            </div>
+          `).join('')
+        : '<div class="family-result-empty">No matches. <a href="#" onclick="event.preventDefault(); closeInvoiceModal(); openFamilyModal();">Add a new family</a> first.</div>';
+    } catch (err) {
+      resultsBox.innerHTML = `<div class="family-result-empty">${err.message}</div>`;
+    }
+  }, 300));
+
+  function selectInvoiceFamily(id, name) {
+    invoiceSelectedFamily = { id, name };
+    document.getElementById('invoice-family-results').innerHTML = '';
+    document.getElementById('invoice-family-search').value = '';
+    document.getElementById('invoice-selected-family').style.display = 'flex';
+    document.getElementById('invoice-selected-family-name').textContent = name;
+  }
+
+  function clearInvoiceFamily() {
+    invoiceSelectedFamily = null;
+    document.getElementById('invoice-selected-family').style.display = 'none';
+  }
+
+  function addInvoiceLineItem() {
+    invoiceLineItems.push({ description: '', item_type: 'tuition', quantity: 1, unit_price: 0 });
+    renderInvoiceLineItems();
+  }
+
+  function removeInvoiceLineItem(index) {
+    invoiceLineItems.splice(index, 1);
+    renderInvoiceLineItems();
+  }
+
+  function updateInvoiceLineItem(index, field, value) {
+    invoiceLineItems[index][field] = field === 'description' || field === 'item_type' ? value : Number(value) || 0;
+    renderInvoiceLineItems();
+  }
+
+  function renderInvoiceLineItems() {
+    const wrap = document.getElementById('invoice-line-items');
+    const subtotal = invoiceLineItems.reduce((sum, li) => sum + (Number(li.quantity) * Number(li.unit_price)), 0);
+
+    wrap.innerHTML = `
+      ${invoiceLineItems.map((li, i) => `
+        <div class="line-item-row">
+          <input type="text" placeholder="Description" value="${escapeHtml(li.description)}" oninput="updateInvoiceLineItem(${i}, 'description', this.value)">
+          <input type="number" min="1" step="1" value="${li.quantity}" oninput="updateInvoiceLineItem(${i}, 'quantity', this.value)" style="width:60px;">
+          <input type="number" min="0" step="0.01" placeholder="0.00" value="${li.unit_price || ''}" oninput="updateInvoiceLineItem(${i}, 'unit_price', this.value)" style="width:90px;">
+          <button type="button" class="icon-btn" onclick="removeInvoiceLineItem(${i})">✕</button>
+        </div>
+      `).join('')}
+      <button type="button" class="btn btn-ghost btn-add-line" onclick="addInvoiceLineItem()">+ Add line item</button>
+      <div class="invoice-subtotal">Subtotal: <strong>${formatCurrency(subtotal)}</strong></div>
+    `;
+  }
+
+  document.getElementById('invoice-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorBox = document.getElementById('invoice-modal-error');
+    const btn = document.getElementById('invoice-submit-btn');
+    errorBox.classList.remove('show');
+
+    if (!invoiceSelectedFamily) {
+      errorBox.textContent = 'Select a family for this invoice first.';
+      errorBox.classList.add('show');
+      return;
+    }
+    if (invoiceLineItems.length === 0 || invoiceLineItems.some(li => !li.description || li.unit_price <= 0)) {
+      errorBox.textContent = 'Add at least one line item with a description and an amount.';
+      errorBox.classList.add('show');
+      return;
+    }
+
+    const payload = {
+      family_id: invoiceSelectedFamily.id,
+      invoice_number: 'INV-' + Date.now(), // simple unique default; edit later if you want sequential numbering
+      due_date: document.getElementById('invoice-due-date').value || null,
+      tax_total: 0,
+      line_items: invoiceLineItems.map(li => ({
+        description: li.description,
+        item_type: li.item_type,
+        quantity: li.quantity,
+        unit_price: li.unit_price,
+        line_total: Number(li.quantity) * Number(li.unit_price),
+      })),
+    };
+
+    btn.disabled = true;
+    btn.textContent = 'Creating…';
+
+    try {
+      await apiFetch('/invoices', { method: 'POST', body: JSON.stringify(payload) });
+      closeInvoiceModal();
+      invoicesCache = await apiFetch('/invoices');
+      renderInvoicesTable();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Create invoice';
+    }
+  });
+
+  // ============================================================
+  // UTIL
+  // ============================================================
+  function debounce(fn, delay) {
+    let timer;
+    return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), delay); };
+  }
 
   // ============================================================
   // INIT
