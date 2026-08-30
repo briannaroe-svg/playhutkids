@@ -125,7 +125,40 @@ router.post('/break-end', requireAuth, async (req, res) => {
   }
 });
 
-// GET /timesheets/my-status — is the logged-in user currently clocked in, and on break?
+// POST /timesheets/set-room — the logged-in staff member indicates which room
+// they're currently working in, while clocked in. Used for licensing ratio
+// math (see /attendance/ratios) — staff "float" between rooms, so this is
+// tied to the current open shift, not a permanent field on the staff record.
+const VALID_TIMESHEET_ROOMS = [
+  'Little Bunnies', 'Little Raccoons', 'Little Cubs',
+  '3 Year Old Preschool-AM', '3 Year Old Preschool-PM',
+  '4 Year Old Preschool-AM', '4 Year Old Preschool-PM', 'Wolf Den',
+];
+
+router.post('/set-room', requireAuth, async (req, res) => {
+  const { room } = req.body;
+  if (room && !VALID_TIMESHEET_ROOMS.includes(room)) {
+    return res.status(400).json({ error: 'Invalid room' });
+  }
+  try {
+    const openEntry = await pool.query(
+      `SELECT id FROM timesheet_entries WHERE staff_id = $1 AND clock_out IS NULL ORDER BY clock_in DESC LIMIT 1`,
+      [req.staff.staff_id]
+    );
+    if (openEntry.rows.length === 0) return res.status(400).json({ error: 'Clock in before setting a room' });
+
+    const result = await pool.query(
+      `UPDATE timesheet_entries SET current_room = $2 WHERE id = $1 RETURNING *`,
+      [openEntry.rows[0].id, room || null]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to set room' });
+  }
+});
+
+
 router.get('/my-status', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(

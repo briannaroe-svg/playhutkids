@@ -35,7 +35,72 @@ router.get('/today', requireAuth, async (req, res) => {
   }
 });
 
-// POST /attendance/:childId/check-in — any authenticated staff member can check in any child
+// GET /attendance/ratios — live licensing ratio status per room, based on
+// Idaho's IDAPA 16.06.02 points system: each currently-checked-in child
+// contributes points based on their age today, and the room's total points
+// divide by 12 (max points per staff) to get required staff. That's compared
+// against how many currently-clocked-in staff have set this room as their
+// current_room (see POST /timesheets/set-room). This is informational only —
+// it does not block check-ins — admin reviews it and staffs accordingly.
+router.get('/ratios', requireAuth, async (req, res) => {
+  try {
+    const childrenResult = await pool.query(
+      `SELECT c.room, c.date_of_birth
+       FROM children c
+       JOIN attendance_records ar ON ar.child_id = c.id
+       WHERE ar.checked_in_at::date = CURRENT_DATE AND ar.checked_out_at IS NULL
+         AND c.enrollment_status = 'active' AND c.room IS NOT NULL`
+    );
+
+    const staffResult = await pool.query(
+      `SELECT current_room, COUNT(*) AS staff_count
+       FROM timesheet_entries
+       WHERE clock_out IS NULL AND current_room IS NOT NULL
+       GROUP BY current_room`
+    );
+    const staffByRoom = {};
+    staffResult.rows.forEach(r => { staffByRoom[r.current_room] = Number(r.staff_count); });
+
+    // IDAPA 16.06.02 points: under 24mo = 2, 24-36mo = 1.5, 36mo-5yr = 1, 5-13yr = 0.5.
+    // Verify against the current regulation text before relying on this for
+    // an actual inspection — ratios are compiled from a secondary source and
+    // should be double-checked against Idaho DHW directly.
+    const pointsForAge = (dob) => {
+      const ageMonths = (Date.now() - new Date(dob).getTime()) / (1000 * 60 * 60 * 24 * 30.4375);
+      if (ageMonths < 24) return 2;
+      if (ageMonths < 36) return 1.5;
+      if (ageMonths < 60) return 1;
+      return 0.5; // 5–13 years; children older than 13 are not expected in this system
+    };
+
+    const pointsByRoom = {};
+    childrenResult.rows.forEach(c => {
+      pointsByRoom[c.room] = (pointsByRoom[c.room] || 0) + pointsForAge(c.date_of_birth);
+    });
+
+    const MAX_POINTS_PER_STAFF = 12;
+    const rooms = new Set([...Object.keys(pointsByRoom), ...Object.keys(staffByRoom)]);
+    const ratios = [...rooms].map(room => {
+      const points = pointsByRoom[room] || 0;
+      const staffPresent = staffByRoom[room] || 0;
+      const staffRequired = Math.ceil(points / MAX_POINTS_PER_STAFF);
+      return {
+        room,
+        checked_in_points: Math.round(points * 100) / 100,
+        staff_present: staffPresent,
+        staff_required: staffRequired,
+        in_compliance: staffPresent >= staffRequired,
+      };
+    });
+
+    res.json(ratios);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to calculate ratios' });
+  }
+});
+
+
 router.post('/:childId(\\d+)/check-in', requireAuth, async (req, res) => {
   const { childId } = req.params;
   try {

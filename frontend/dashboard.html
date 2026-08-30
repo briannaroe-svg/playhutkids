@@ -92,6 +92,13 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .sidebar-clock-actions { display: flex; gap: 6px; }
+  .sidebar-room-select {
+    width: 100%; margin-top: 8px; padding: 7px 8px; border-radius: 7px; border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85); font-family: 'Inter', sans-serif;
+    font-size: 12px; font-weight: 500; cursor: pointer;
+  }
+  .sidebar-room-select:disabled { opacity: 0.35; cursor: not-allowed; }
+  .sidebar-room-select option { color: #000; }
   .sidebar-clock-btn {
     flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
     padding: 8px 6px; border-radius: 7px; border: none; cursor: pointer;
@@ -368,6 +375,17 @@
             <span id="sidebar-break-btn-label">Break</span>
           </button>
         </div>
+        <select id="sidebar-room-select" class="sidebar-room-select" onchange="handleSidebarRoomChange(this.value)" disabled>
+          <option value="">Which room are you in?</option>
+          <option value="Little Bunnies">Little Bunnies</option>
+          <option value="Little Raccoons">Little Raccoons</option>
+          <option value="Little Cubs">Little Cubs</option>
+          <option value="3 Year Old Preschool-AM">3yo Preschool-AM</option>
+          <option value="3 Year Old Preschool-PM">3yo Preschool-PM</option>
+          <option value="4 Year Old Preschool-AM">4yo Preschool-AM</option>
+          <option value="4 Year Old Preschool-PM">4yo Preschool-PM</option>
+          <option value="Wolf Den">Wolf Den</option>
+        </select>
       </div>
     </div>
 
@@ -1403,6 +1421,7 @@
     const btnLabel = document.getElementById('sidebar-clock-btn-label');
     const breakBtn = document.getElementById('sidebar-break-btn');
     const breakBtnLabel = document.getElementById('sidebar-break-btn-label');
+    const roomSelect = document.getElementById('sidebar-room-select');
 
     try {
       currentClockStatus = await apiFetch('/timesheets/my-status');
@@ -1416,6 +1435,8 @@
       const sinceTime = clockInTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
       breakBtn.disabled = false;
+      roomSelect.disabled = false;
+      roomSelect.value = currentClockStatus.entry.current_room || '';
       if (currentClockStatus.on_break) {
         const breakStartTime = new Date(currentClockStatus.break.break_start);
         const breakSince = breakStartTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -1442,6 +1463,20 @@
       breakBtn.disabled = true;
       breakBtn.classList.remove('on-break');
       breakBtnLabel.textContent = 'Break';
+      roomSelect.disabled = true;
+      roomSelect.value = '';
+    }
+  }
+
+  async function handleSidebarRoomChange(room) {
+    const roomSelect = document.getElementById('sidebar-room-select');
+    roomSelect.disabled = true;
+    try {
+      await apiFetch('/timesheets/set-room', { method: 'POST', body: JSON.stringify({ room: room || null }) });
+      await renderSidebarClockButton();
+    } catch (err) {
+      alert('Could not update room: ' + err.message);
+      roomSelect.disabled = false;
     }
   }
 
@@ -3232,6 +3267,13 @@
         </div>
       </div>
 
+      ${isAdmin ? `
+        <div class="page-header" style="margin-bottom:14px;"><div><h2 style="font-size:19px;">Room ratios right now</h2><p>Based on Idaho's IDAPA 16.06.02 points system. Verify against current state regulations — not a substitute for knowing the actual rule.</p></div></div>
+        <div class="card" id="home-ratios-wrap" style="margin-bottom:28px;">
+          <div class="empty-state"><p>Loading…</p></div>
+        </div>
+      ` : ''}
+
       <div class="page-header" style="margin-bottom:14px;"><div><h2 style="font-size:19px;">Today's events</h2></div></div>
       <div class="card" id="home-events-wrap" style="margin-bottom:28px;">
         <div class="empty-state"><p>Loading…</p></div>
@@ -3245,6 +3287,15 @@
         <div class="empty-state"><p>Loading…</p></div>
       </div>
     `;
+
+    if (isAdmin) {
+      try {
+        const ratios = await apiFetch('/attendance/ratios');
+        renderHomeRatios(ratios);
+      } catch (err) {
+        document.getElementById('home-ratios-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load ratios</h3><p>${err.message}</p></div>`;
+      }
+    }
 
     try {
       const params = new URLSearchParams({ start: today, end: today });
@@ -3268,6 +3319,32 @@
     } catch (err) {
       document.getElementById('home-week-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load this week's schedule</h3><p>${err.message}</p></div>`;
     }
+  }
+
+  function renderHomeRatios(ratios) {
+    const wrap = document.getElementById('home-ratios-wrap');
+    const withChildren = ratios.filter(r => r.checked_in_points > 0);
+
+    if (withChildren.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>No one checked in yet</h3><p>Ratios will show up here once children are checked in.</p></div>`;
+      return;
+    }
+
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Room</th><th>Staff present</th><th>Staff required</th><th>Status</th></tr></thead>
+        <tbody>
+          ${withChildren.map(r => `
+            <tr>
+              <td><strong>${escapeHtml(r.room)}</strong></td>
+              <td>${r.staff_present}</td>
+              <td>${r.staff_required}</td>
+              <td><span class="badge ${r.in_compliance ? 'badge-active' : 'badge-inactive'}">${r.in_compliance ? 'In ratio' : 'Understaffed'}</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
   }
 
   // Read-only week-ahead preview — same day-by-day grouping as the Scheduling

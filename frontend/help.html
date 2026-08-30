@@ -150,6 +150,7 @@
       <li><a href="#timesheets">Timesheets</a></li>
       <li><a href="#staff-accounts">Staff Accounts</a></li>
       <li><a href="#clock">Clock In / Break</a></li>
+      <li><a href="#family-portal">Family Portal</a></li>
     </ul>
   </nav>
 
@@ -208,14 +209,20 @@
         <li><strong>+ Add child</strong> for a quick roster entry (for a formal signed enrollment, use Registration instead)</li>
         <li><strong>Edit</strong> a child to update their info or change their room</li>
         <li>Check any child in or out</li>
+        <li><strong>Daily Report</strong> — fill out today's report for that child (see below)</li>
       </ul>
       <h3 class="sub-heading">For staff</h3>
       <ul>
         <li>See the full roster, grouped by room, with today's status</li>
         <li>Click a child's name to view their allergies, medical notes, and emergency contact — read-only, and parent contact info is intentionally left out of this view</li>
         <li>Check a child in when they arrive, check them out when they leave</li>
+        <li><strong>Daily Report</strong> — fill out today's report for that child (see below)</li>
       </ul>
       <div class="note"><strong>Allergy safety check:</strong> If a child has an allergy on file, checking them in shows a red confirmation popup with the exact allergy text. The check-in doesn't complete until <strong>I understand</strong> is clicked. Children with no allergies on file check in instantly with no popup.</div>
+
+      <h3 class="sub-heading">Daily Reports</h3>
+      <p>Everyone — admin and staff — can fill out or update a child's report for today: a meal checklist (Breakfast, Lunch, PM Snack, each with optional notes), nap start and end time, a tap-to-select mood, free-text notes, and a photo. Filling it out again later in the day updates the same report rather than creating a second one — add a nap time after lunch was already logged, for instance, without losing what was entered earlier.</p>
+      <p>These are what parents see in the <a href="#family-portal">Family Portal</a>, so this is the one place in the dashboard that's genuinely parent-facing content, even though it's filled out from the staff side.</p>
     </section>
 
     <section id="registration">
@@ -334,6 +341,25 @@
       <p class="section-sub">Not a tab — a standing card at the bottom of the sidebar, below the tab list.</p>
       <p>A status line shows whether you're clocked in (and since when), or on a break. Two small buttons below it handle the actions: <strong>Clock in / Clock out</strong>, and <strong>Break / End break</strong>. The break button is disabled until you're clocked in, and Clock out is disabled while you're on a break — end the break first.</p>
       <p>No PIN is needed for any of this — you're already identified by being logged in. Break and lunch time is automatically excluded from your paid hours; see <a href="#timesheets">Timesheets</a> for where that shows up.</p>
+    </section>
+
+    <section id="family-portal">
+      <h2 class="section-title">Family Portal <span class="badge badge-admin">Admin sets up access</span></h2>
+      <p class="section-sub">A separate, parent-facing page — not part of the staff dashboard.</p>
+      <p>Parents log in at <code>portal.html</code> with their own email and password to see their child's daily reports — meals, nap times, mood, notes, and photos. It has its own login screen, its own session, and its own identity type entirely separate from staff accounts: a parent's login can never be used to access anything in the staff dashboard, and a staff login can never get into the portal.</p>
+      <h3 class="sub-heading">Giving a family access</h3>
+      <p>No family has portal access by default — an admin has to set a password for them first, from either place:</p>
+      <ul>
+        <li><strong>Families</strong> tab — editing an existing family shows a <strong>Portal password</strong> field. Leave it blank to change nothing; enter a password to set or reset their access. The hint text says whether they already have access set up.</li>
+        <li><strong>Registration</strong> tab — once a registration is signed, its row gets a <strong>Set portal password</strong> action, so a new family can be given portal access right after enrolling.</li>
+      </ul>
+      <p>Give the family their email (whatever's on file as the primary parent email) and the password you set — that's all they need to sign in.</p>
+      <h3 class="sub-heading">What a parent sees</h3>
+      <ul>
+        <li>If they have more than one enrolled child, a row of name chips to switch between them</li>
+        <li>Every daily report for the selected child, most recent first — meals shown as eaten/skipped pills, nap time, a mood tag, any notes, and photos (tap one to view it larger)</li>
+      </ul>
+      <div class="note"><strong>View-only:</strong> Parents can't post anything, message staff, or edit their own info from the portal — it's strictly a window into what staff have already recorded.</div>
     </section>
 
     <a href="dashboard.html" class="back-link">← Back to Dashboard</a>
