@@ -1205,6 +1205,17 @@
     `;
   }
 
+  // Returns today's date (or any Date object's date) as YYYY-MM-DD using the
+  // BROWSER'S LOCAL timezone — never use toISOString().slice(0,10) for "today,"
+  // since toISOString() always converts to UTC first. For anyone west of UTC
+  // (including Mountain Time), that silently rolls the date forward once past
+  // early evening local time.
+  function localDateString(date) {
+    const d = date || new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
   function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str == null ? '' : String(str);
@@ -1404,7 +1415,7 @@
     const end = new Date();
     const start = new Date();
     start.setDate(start.getDate() - 13); // last 14 days, a reasonable default payroll window
-    return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+    return { start: localDateString(start), end: localDateString(end) };
   }
 
   async function renderTimesheetsView() {
@@ -1937,7 +1948,7 @@
     };
     if (!childId) {
       payload.family_id = window.childSelectedFamily.id;
-      payload.enrollment_date = new Date().toISOString().slice(0, 10);
+      payload.enrollment_date = localDateString();
     }
 
     btn.disabled = true;
@@ -1977,7 +1988,7 @@
     const start = new Date();
     const end = new Date();
     end.setDate(end.getDate() + 13); // today + next 2 weeks
-    return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+    return { start: localDateString(start), end: localDateString(end) };
   }
 
   async function renderSchedulingView() {
@@ -2955,7 +2966,7 @@
   // ============================================================
   async function renderHomeView() {
     const isAdmin = currentUser.access_level === 'admin';
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateString();
     const todayLabel = new Date(today + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
     const main = document.getElementById('main-content');
