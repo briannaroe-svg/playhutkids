@@ -179,7 +179,11 @@ router.get('/', requireAuth, async (req, res) => {
   const effectiveStaffId = req.staff.access_level === 'admin' ? req.query.staff_id : req.staff.staff_id;
   try {
     let query = `
-      SELECT te.*, s.first_name, s.last_name
+      SELECT te.*, s.first_name, s.last_name,
+        COALESCE(
+          (SELECT json_agg(json_build_object('break_start', bp.break_start, 'break_end', bp.break_end) ORDER BY bp.break_start)
+           FROM break_periods bp WHERE bp.timesheet_entry_id = te.id), '[]'
+        ) AS breaks
       FROM timesheet_entries te
       JOIN staff s ON te.staff_id = s.id
       WHERE 1=1`;

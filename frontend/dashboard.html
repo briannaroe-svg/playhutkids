@@ -1505,7 +1505,7 @@
         <thead>
           <tr>
             ${isAdmin ? '<th>Staff</th>' : ''}
-            <th>Date</th><th>Clock in</th><th>Clock out</th><th>Hours</th>
+            <th>Date</th><th>Clock in</th><th>Clock out</th><th>Breaks</th><th>Hours</th>
             ${isAdmin ? '<th></th>' : ''}
           </tr>
         </thead>
@@ -1516,6 +1516,7 @@
               <td>${formatDate(e.clock_in)}</td>
               <td>${formatTime(e.clock_in)}</td>
               <td>${e.clock_out ? formatTime(e.clock_out) : '<span style="color:var(--success); font-weight:600;">Active</span>'}</td>
+              <td>${formatBreaksCell(e.breaks)}</td>
               <td>${e.total_hours != null ? Number(e.total_hours).toFixed(2) : '—'}</td>
               ${isAdmin ? `<td><button class="icon-btn" onclick="openTimesheetEditModal(${e.id})">Edit</button><button class="icon-btn" style="color:var(--error);" onclick="deleteTimesheetEntry(${e.id})">Delete</button></td>` : ''}
             </tr>
@@ -1531,6 +1532,17 @@
   function formatTime(d) {
     if (!d) return '—';
     return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+
+  // Renders one line per break period: "10:15 AM – 10:30 AM", or "10:15 AM –
+  // (ongoing)" for a break that's still open. Empty/missing breaks show a dash.
+  function formatBreaksCell(breaks) {
+    if (!breaks || breaks.length === 0) return '<span style="color:#8A9490;">—</span>';
+    return breaks.map(b => {
+      const startLabel = formatTime(b.break_start);
+      const endLabel = b.break_end ? formatTime(b.break_end) : '<span style="color:var(--success); font-weight:600;">ongoing</span>';
+      return `<div style="white-space:nowrap;">${startLabel} – ${endLabel}</div>`;
+    }).join('');
   }
 
   // Convert a Date/ISO string to the value a <input type="datetime-local"> expects (local time, no timezone).
