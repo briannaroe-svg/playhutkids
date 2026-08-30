@@ -837,8 +837,8 @@
     <div id="daily-report-body"></div>
 
     <div class="field">
-      <label for="daily-report-photo-input">Add a photo <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
-      <input type="file" id="daily-report-photo-input" accept="image/*">
+      <label for="daily-report-photo-input">Add photos <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+      <input type="file" id="daily-report-photo-input" accept="image/*" multiple>
       <div id="daily-report-photo-preview" class="daily-report-photo-grid"></div>
     </div>
 
@@ -1986,7 +1986,7 @@
   let dailyReportChildId = null;
   let dailyReportData = null; // the current report object, or null if none exists yet today
   let dailyReportMealsState = []; // [{ label, ate, notes }]
-  let dailyReportPendingPhoto = null; // base64 data URI staged for upload on save
+  let dailyReportPendingPhotos = []; // array of base64 data URIs staged for upload on save
 
   async function openDailyReportModal(childId) {
     dailyReportChildId = childId;
@@ -1995,8 +1995,8 @@
     document.getElementById('daily-report-date-label').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
     document.getElementById('daily-report-error').classList.remove('show');
     document.getElementById('daily-report-photo-input').value = '';
-    dailyReportPendingPhoto = null;
-    document.getElementById('daily-report-photo-preview').innerHTML = '';
+    dailyReportPendingPhotos = [];
+    renderPendingPhotoPreviews();
 
     document.getElementById('daily-report-modal-overlay').classList.add('show');
     document.getElementById('daily-report-body').innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
@@ -2086,15 +2086,37 @@
   }
 
   document.getElementById('daily-report-photo-input').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      dailyReportPendingPhoto = reader.result; // base64 data URI
-      document.getElementById('daily-report-photo-preview').innerHTML = `<img src="${reader.result}" alt="New photo">`;
-    };
-    reader.readAsDataURL(file);
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        dailyReportPendingPhotos.push(reader.result); // base64 data URI
+        renderPendingPhotoPreviews();
+      };
+      reader.readAsDataURL(file);
+    });
+
+    e.target.value = ''; // allow adding more photos later without needing to re-select a different file
   });
+
+  function renderPendingPhotoPreviews() {
+    const wrap = document.getElementById('daily-report-photo-preview');
+    wrap.innerHTML = dailyReportPendingPhotos.map((dataUri, i) => `
+      <div style="position:relative;">
+        <img src="${dataUri}" alt="New photo ${i + 1}">
+        <button type="button" onclick="removePendingPhoto(${i})"
+          style="position:absolute; top:-6px; right:-6px; width:20px; height:20px; border-radius:50%; border:none;
+          background:var(--error); color:#fff; font-size:12px; font-weight:700; line-height:1; cursor:pointer;">✕</button>
+      </div>
+    `).join('');
+  }
+
+  function removePendingPhoto(index) {
+    dailyReportPendingPhotos.splice(index, 1);
+    renderPendingPhotoPreviews();
+  }
 
   async function saveDailyReport() {
     const errorBox = document.getElementById('daily-report-error');
@@ -2112,15 +2134,19 @@
     };
 
     btn.disabled = true;
-    btn.textContent = 'Saving…';
 
     try {
       const saved = await apiFetch('/daily-reports', { method: 'POST', body: JSON.stringify(payload) });
 
-      if (dailyReportPendingPhoto) {
+      // Uploaded one at a time, in sequence — the backend accepts a single
+      // photo per call, and sequential (not parallel) keeps the progress
+      // label accurate and avoids hammering Cloudinary with a burst of
+      // simultaneous uploads from one save action.
+      for (let i = 0; i < dailyReportPendingPhotos.length; i++) {
+        btn.textContent = `Uploading photo ${i + 1} of ${dailyReportPendingPhotos.length}…`;
         await apiFetch('/daily-reports/' + saved.id + '/photos', {
           method: 'POST',
-          body: JSON.stringify({ photo_data: dailyReportPendingPhoto }),
+          body: JSON.stringify({ photo_data: dailyReportPendingPhotos[i] }),
         });
       }
 
