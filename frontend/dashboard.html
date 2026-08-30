@@ -190,12 +190,12 @@
 
   /* ---------- Invoice line items ---------- */
   .line-item-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
-  .line-item-row input {
+  .line-item-row input, .line-item-row select {
     padding: 9px 11px; border: 1.5px solid var(--sage-light); border-radius: 8px;
     font-family: inherit; font-size: 13.5px; background: var(--cream);
   }
   .line-item-row input[type="text"] { flex: 1; }
-  .line-item-row input:focus { outline: none; border-color: var(--teal); background: #fff; }
+  .line-item-row input:focus, .line-item-row select:focus { outline: none; border-color: var(--teal); background: #fff; }
   .btn-add-line { width: 100%; padding: 9px; font-size: 13px; margin-top: 4px; }
   .invoice-subtotal { text-align: right; font-size: 14px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--sage-light); }
 
@@ -367,6 +367,48 @@
   </div>
 </div>
 
+<!-- ============ ADD/EDIT SERVICE MODAL ============ -->
+<div class="modal-overlay" id="service-modal-overlay">
+  <div class="modal">
+    <h3 id="service-modal-title">Add service</h3>
+    <p class="modal-sub">A reusable line item for invoices — tuition, fees, registration.</p>
+
+    <div class="error-banner" id="service-modal-error"></div>
+
+    <form id="service-form">
+      <input type="hidden" id="service-id">
+      <div class="field">
+        <label for="service-name">Name</label>
+        <input type="text" id="service-name" placeholder="Monthly Tuition" required>
+      </div>
+      <div class="field">
+        <label for="service-description">Description <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="service-description" placeholder="Shown to families on the invoice">
+      </div>
+      <div class="field">
+        <label for="service-price">Default price</label>
+        <input type="number" id="service-price" step="0.01" min="0" placeholder="0.00">
+      </div>
+
+      <div class="toggle-row" id="service-active-row" style="display:none;">
+        <div class="field-copy">
+          <strong>Active</strong>
+          <span>Inactive services won't show up when building a new invoice</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="service-is-active" checked>
+          <span class="switch-track"></span>
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeServiceModal()">Cancel</button>
+        <button type="submit" class="btn btn-teal" id="service-submit-btn">Add service</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- ============ NEW INVOICE MODAL ============ -->
 <div class="modal-overlay" id="invoice-modal-overlay">
   <div class="modal" style="max-width:540px;">
@@ -463,6 +505,7 @@
     { id: 'timesheets', label: 'My Timesheet', adminOnly: false, icon: 'clock' },
     { id: 'children',   label: 'Children',      adminOnly: true,  icon: 'child' },
     { id: 'families',   label: 'Families',       adminOnly: true,  icon: 'family' },
+    { id: 'services',   label: 'Services',       adminOnly: true,  icon: 'services' },
     { id: 'invoices',   label: 'Billing',        adminOnly: true,  icon: 'billing' },
     { id: 'agreements', label: 'Agreements',     adminOnly: true,  icon: 'doc' },
     { id: 'staff',      label: 'Staff Accounts', adminOnly: true,  icon: 'staff' },
@@ -472,6 +515,7 @@
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg>',
     child: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-4 3-6.5 7-6.5s7 2.5 7 6.5" stroke-linecap="round"/></svg>',
     family: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="2.6"/><circle cx="17" cy="9" r="2.2"/><path d="M3 20c0-3 2.2-5.4 5-5.4s5 2.4 5 5.4M14 20c0-2.4 1.7-4.4 4-4.4s4 2 4 4.4" stroke-linecap="round"/></svg>',
+    services: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7l8-4 8 4-8 4-8-4z"/><path d="M4 7v10l8 4 8-4V7M12 11v10" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     billing: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4" stroke-linecap="round"/></svg>',
     doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M9 13h6M9 17h6" stroke-linecap="round"/></svg>',
     staff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke-linecap="round"/><path d="M16 8a3 3 0 110-6M17 14c2.3.4 4 2.3 4 6" stroke-linecap="round"/></svg>',
@@ -497,6 +541,7 @@
     const renderers = {
       staff: renderStaffView,
       families: renderFamiliesView,
+      services: renderServicesView,
       invoices: renderInvoicesView,
       timesheets: () => renderPlaceholder('My Timesheet', 'Clock-in history and hours will show up here.'),
       children: () => renderPlaceholder('Children', 'Enrollment and roster management is coming next.'),
@@ -814,6 +859,127 @@
   });
 
   // ============================================================
+  // SERVICES VIEW (catalog: tuition, fees, etc. reusable on invoices)
+  // ============================================================
+  let servicesCache = [];
+
+  async function renderServicesView() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h2>Services</h2>
+          <p>Reusable line items for invoices — tuition, registration, late fees.</p>
+        </div>
+        <button class="btn btn-coral" onclick="openServiceModal()">+ Add service</button>
+      </div>
+      <div class="card" id="services-table-wrap">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+    `;
+
+    try {
+      servicesCache = await apiFetch('/service-items');
+      renderServicesTable();
+    } catch (err) {
+      document.getElementById('services-table-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load services</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function renderServicesTable() {
+    const wrap = document.getElementById('services-table-wrap');
+    if (servicesCache.length === 0) {
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <h3>No services yet</h3>
+          <p>Add tuition, registration fees, or other recurring charges.</p>
+          <button class="btn btn-coral" onclick="openServiceModal()">+ Add service</button>
+        </div>
+      `;
+      return;
+    }
+
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Name</th><th>Description</th><th>Default price</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${servicesCache.map(s => `
+            <tr>
+              <td><strong>${escapeHtml(s.name)}</strong></td>
+              <td>${escapeHtml(s.description || '—')}</td>
+              <td>${formatCurrency(s.default_price)}</td>
+              <td><span class="badge ${s.is_active ? 'badge-active' : 'badge-inactive'}">${s.is_active ? 'Active' : 'Inactive'}</span></td>
+              <td><button class="icon-btn" onclick="openServiceModal(${s.id})">Edit</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function openServiceModal(serviceId) {
+    document.getElementById('service-form').reset();
+    document.getElementById('service-modal-error').classList.remove('show');
+    document.getElementById('service-id').value = serviceId || '';
+
+    if (serviceId) {
+      const s = servicesCache.find(x => x.id === serviceId);
+      document.getElementById('service-modal-title').textContent = 'Edit service';
+      document.getElementById('service-name').value = s.name;
+      document.getElementById('service-description').value = s.description || '';
+      document.getElementById('service-price').value = s.default_price;
+      document.getElementById('service-is-active').checked = s.is_active;
+      document.getElementById('service-active-row').style.display = 'flex';
+      document.getElementById('service-submit-btn').textContent = 'Save changes';
+    } else {
+      document.getElementById('service-modal-title').textContent = 'Add service';
+      document.getElementById('service-active-row').style.display = 'none';
+      document.getElementById('service-submit-btn').textContent = 'Add service';
+    }
+
+    document.getElementById('service-modal-overlay').classList.add('show');
+  }
+
+  function closeServiceModal() {
+    document.getElementById('service-modal-overlay').classList.remove('show');
+  }
+
+  document.getElementById('service-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const serviceId = document.getElementById('service-id').value;
+    const errorBox = document.getElementById('service-modal-error');
+    const btn = document.getElementById('service-submit-btn');
+    errorBox.classList.remove('show');
+
+    const payload = {
+      name: document.getElementById('service-name').value.trim(),
+      description: document.getElementById('service-description').value.trim() || null,
+      default_price: Number(document.getElementById('service-price').value) || 0,
+    };
+    if (serviceId) payload.is_active = document.getElementById('service-is-active').checked;
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    try {
+      if (serviceId) {
+        await apiFetch('/service-items/' + serviceId, { method: 'PUT', body: JSON.stringify(payload) });
+      } else {
+        await apiFetch('/service-items', { method: 'POST', body: JSON.stringify(payload) });
+      }
+      closeServiceModal();
+      servicesCache = await apiFetch('/service-items');
+      renderServicesTable();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = serviceId ? 'Save changes' : 'Add service';
+    }
+  });
+
+  // ============================================================
   // INVOICES VIEW
   // ============================================================
   let invoicesCache = [];
@@ -932,6 +1098,14 @@
     document.getElementById('invoice-family-results').innerHTML = '';
     document.getElementById('invoice-selected-family').style.display = 'none';
     document.getElementById('invoice-due-date').value = '';
+
+    // Load the services catalog fresh each time so newly added services show up.
+    try {
+      servicesCache = await apiFetch('/service-items?active=true');
+    } catch (err) {
+      servicesCache = []; // fall back to custom-only line items if this fails
+    }
+
     renderInvoiceLineItems();
     document.getElementById('invoice-modal-overlay').classList.add('show');
   }
@@ -972,7 +1146,8 @@
   }
 
   function addInvoiceLineItem() {
-    invoiceLineItems.push({ description: '', item_type: 'tuition', quantity: 1, unit_price: 0 });
+    // service_item_id: null means "Custom" (free-typed description).
+    invoiceLineItems.push({ service_item_id: '', description: '', item_type: 'custom', quantity: 1, unit_price: 0 });
     renderInvoiceLineItems();
   }
 
@@ -982,20 +1157,49 @@
   }
 
   function updateInvoiceLineItem(index, field, value) {
-    invoiceLineItems[index][field] = field === 'description' || field === 'item_type' ? value : Number(value) || 0;
+    if (field === 'description') {
+      invoiceLineItems[index].description = value;
+    } else if (field === 'quantity' || field === 'unit_price') {
+      invoiceLineItems[index][field] = Number(value) || 0;
+    }
+    renderInvoiceLineItems();
+  }
+
+  function selectInvoiceLineService(index, serviceItemId) {
+    const li = invoiceLineItems[index];
+    if (!serviceItemId) {
+      // "Custom" selected — clear the prefill, let them type their own description.
+      li.service_item_id = '';
+      li.description = '';
+      li.item_type = 'custom';
+      li.unit_price = 0;
+    } else {
+      const service = servicesCache.find(s => String(s.id) === String(serviceItemId));
+      li.service_item_id = serviceItemId;
+      li.description = service ? service.name : '';
+      li.item_type = 'service';
+      li.unit_price = service ? Number(service.default_price) : 0;
+    }
     renderInvoiceLineItems();
   }
 
   function renderInvoiceLineItems() {
     const wrap = document.getElementById('invoice-line-items');
     const subtotal = invoiceLineItems.reduce((sum, li) => sum + (Number(li.quantity) * Number(li.unit_price)), 0);
+    const serviceOptions = servicesCache.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
 
     wrap.innerHTML = `
       ${invoiceLineItems.map((li, i) => `
         <div class="line-item-row">
-          <input type="text" placeholder="Description" value="${escapeHtml(li.description)}" oninput="updateInvoiceLineItem(${i}, 'description', this.value)">
-          <input type="number" min="1" step="1" value="${li.quantity}" oninput="updateInvoiceLineItem(${i}, 'quantity', this.value)" style="width:60px;">
-          <input type="number" min="0" step="0.01" placeholder="0.00" value="${li.unit_price || ''}" oninput="updateInvoiceLineItem(${i}, 'unit_price', this.value)" style="width:90px;">
+          <select onchange="selectInvoiceLineService(${i}, this.value)" style="max-width:150px;">
+            <option value="" ${!li.service_item_id ? 'selected' : ''}>Custom…</option>
+            ${servicesCache.map(s => `<option value="${s.id}" ${String(li.service_item_id) === String(s.id) ? 'selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}
+          </select>
+          <input type="text" placeholder="Description" value="${escapeHtml(li.description)}"
+            ${li.service_item_id ? 'readonly style="background:#F1ECE3;"' : ''}
+            oninput="updateInvoiceLineItem(${i}, 'description', this.value)">
+          <input type="number" min="1" step="1" value="${li.quantity}" oninput="updateInvoiceLineItem(${i}, 'quantity', this.value)" style="width:52px;">
+          <input type="number" min="0" step="0.01" placeholder="0.00" value="${li.unit_price || ''}" oninput="updateInvoiceLineItem(${i}, 'unit_price', this.value)" style="width:80px;">
           <button type="button" class="icon-btn" onclick="removeInvoiceLineItem(${i})">✕</button>
         </div>
       `).join('')}

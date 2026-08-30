@@ -12,6 +12,7 @@ const timesheetsRoutes = require('./routes/timesheets');
 const agreementsRoutes = require('./routes/agreements');
 const authRoutes = require('./routes/auth');
 const webhooksRoutes = require('./routes/webhooks');
+const serviceItemsRoutes = require('./routes/serviceItems');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -62,6 +63,7 @@ app.use('/fee-adjustments', feeAdjustmentsRoutes);
 app.use('/staff', staffRoutes);
 app.use('/timesheets', timesheetsRoutes);
 app.use('/agreements', agreementsRoutes);
+app.use('/service-items', serviceItemsRoutes);
 
 app.get('/', (req, res) => {
   res.json({ status: 'Little Playhut backend is running' });
