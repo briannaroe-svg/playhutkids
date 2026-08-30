@@ -501,6 +501,12 @@
         <input type="text" id="family-address">
       </div>
 
+      <div class="field" id="family-portal-section" style="display:none;">
+        <label for="family-portal-password">Portal password <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="password" id="family-portal-password" autocomplete="new-password" placeholder="Leave blank to keep current access as-is">
+        <p class="field-hint" id="family-portal-hint">Setting this gives the family access to the parent portal at <code>portal.html</code>.</p>
+      </div>
+
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="closeFamilyModal()">Cancel</button>
         <button type="submit" class="btn btn-teal" id="family-submit-btn">Add family</button>
@@ -2694,6 +2700,7 @@
                   <button class="icon-btn" onclick="sendRegistrationLink(${r.id})">${r.remote_link_token ? 'Resend link' : 'Send link'}</button>
                 ` : `
                   ${r.signed_pdf_url ? `<a href="${r.signed_pdf_url}" target="_blank" class="icon-btn" style="text-decoration:none;">View signed PDF</a>` : '<span style="color:#8A9490; font-size:13px;">Signed</span>'}
+                  ${r.resulting_family_id ? `<button class="icon-btn" onclick="setPortalPasswordFromRegistration(${r.resulting_family_id})">Set portal password</button>` : ''}
                 `}
               </td>
             </tr>
@@ -2701,6 +2708,20 @@
         </tbody>
       </table>
     `;
+  }
+
+  async function setPortalPasswordFromRegistration(familyId) {
+    const password = prompt('Set a portal password for this family. They\'ll use their email and this password to sign in at portal.html:');
+    if (!password) return;
+    try {
+      await apiFetch('/family-auth/' + familyId + '/set-password', {
+        method: 'POST',
+        body: JSON.stringify({ password }),
+      });
+      alert('Portal password set.');
+    } catch (err) {
+      alert('Could not set portal password: ' + err.message);
+    }
   }
 
   // ---- Add new Registration modal ----
@@ -3425,9 +3446,15 @@
       document.getElementById('family-secondary-phone').value = f.secondary_parent_phone || '';
       document.getElementById('family-address').value = f.mailing_address || '';
       document.getElementById('family-submit-btn').textContent = 'Save changes';
+
+      document.getElementById('family-portal-section').style.display = 'block';
+      document.getElementById('family-portal-hint').textContent = f.has_portal_access
+        ? 'This family already has portal access. Enter a new password here to reset it, or leave blank to keep it as-is.'
+        : 'Setting this gives the family access to the parent portal at portal.html.';
     } else {
       document.getElementById('family-modal-title').textContent = 'Add family';
       document.getElementById('family-submit-btn').textContent = 'Add family';
+      document.getElementById('family-portal-section').style.display = 'none';
     }
 
     document.getElementById('family-modal-overlay').classList.add('show');
@@ -3453,6 +3480,7 @@
       secondary_parent_phone: document.getElementById('family-secondary-phone').value.trim() || null,
       mailing_address: document.getElementById('family-address').value.trim() || null,
     };
+    const portalPassword = document.getElementById('family-portal-password').value;
 
     btn.disabled = true;
     btn.textContent = 'Saving…';
@@ -3460,6 +3488,12 @@
     try {
       if (familyId) {
         await apiFetch('/families/' + familyId, { method: 'PUT', body: JSON.stringify(payload) });
+        if (portalPassword) {
+          await apiFetch('/family-auth/' + familyId + '/set-password', {
+            method: 'POST',
+            body: JSON.stringify({ password: portalPassword }),
+          });
+        }
       } else {
         await apiFetch('/families', { method: 'POST', body: JSON.stringify(payload) });
       }

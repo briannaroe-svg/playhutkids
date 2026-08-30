@@ -5,11 +5,22 @@ const { requireAdmin } = require('../middleware/auth');
 
 router.use(requireAdmin);
 
+// Column list shared by every read route below — explicitly excludes
+// password_hash (the parent portal login secret) and instead exposes a
+// derived boolean, has_portal_access, so the admin UI can show portal status
+// without ever receiving the hash itself.
+const FAMILY_COLUMNS = `
+  id, primary_parent_name, primary_parent_email, primary_parent_phone,
+  secondary_parent_name, secondary_parent_email, secondary_parent_phone,
+  mailing_address, stripe_customer_id, created_at, updated_at,
+  (password_hash IS NOT NULL) AS has_portal_access
+`;
+
 router.get('/search', async (req, res) => {
   const { q } = req.query;
   try {
     const result = await pool.query(
-      `SELECT * FROM families WHERE primary_parent_name ILIKE $1 OR primary_parent_email ILIKE $1`,
+      `SELECT ${FAMILY_COLUMNS} FROM families WHERE primary_parent_name ILIKE $1 OR primary_parent_email ILIKE $1`,
       [`%${q || ''}%`]
     );
     res.json(result.rows);
@@ -21,7 +32,7 @@ router.get('/search', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const result = await pool.query(`SELECT * FROM families ORDER BY primary_parent_name`);
+    const result = await pool.query(`SELECT ${FAMILY_COLUMNS} FROM families ORDER BY primary_parent_name`);
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -31,7 +42,7 @@ router.get('/', async (req, res) => {
 
 router.get('/:id(\\d+)', async (req, res) => {
   try {
-    const family = await pool.query(`SELECT * FROM families WHERE id = $1`, [req.params.id]);
+    const family = await pool.query(`SELECT ${FAMILY_COLUMNS} FROM families WHERE id = $1`, [req.params.id]);
     if (family.rows.length === 0) return res.status(404).json({ error: 'Family not found' });
     const children = await pool.query(`SELECT * FROM children WHERE family_id = $1`, [req.params.id]);
     res.json({ ...family.rows[0], children: children.rows });
