@@ -175,6 +175,11 @@
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .field-hint { font-size: 12px; color: #8A9490; margin-top: 5px; }
 
+  .signature-canvas {
+    width: 100%; height: 160px; border: 1.5px dashed var(--sage); border-radius: 9px;
+    background: #fff; cursor: crosshair; touch-action: none; display: block;
+  }
+
   .modal-actions { display: flex; gap: 10px; margin-top: 22px; }
   .modal-actions .btn { flex: 1; }
 
@@ -447,6 +452,124 @@
         <button type="submit" class="btn btn-teal" id="family-submit-btn">Add family</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ============ ADD REGISTRATION MODAL (admin only) ============ -->
+<div class="modal-overlay" id="registration-modal-overlay">
+  <div class="modal" style="max-width:560px;">
+    <h3>Add new Registration</h3>
+    <p class="modal-sub">Family and child info. Nothing is enrolled until it's signed.</p>
+    <div class="error-banner" id="registration-modal-error"></div>
+    <form id="registration-form">
+      <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:0 0 10px;">Parent / Guardian</p>
+      <div class="field">
+        <label for="reg-primary-name">Primary parent name</label>
+        <input type="text" id="reg-primary-name" required>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="reg-primary-email">Email</label>
+          <input type="email" id="reg-primary-email" required>
+        </div>
+        <div class="field">
+          <label for="reg-primary-phone">Phone</label>
+          <input type="text" id="reg-primary-phone">
+        </div>
+      </div>
+      <div class="field">
+        <label for="reg-secondary-name">Secondary parent name <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="reg-secondary-name">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="reg-secondary-email">Secondary email</label>
+          <input type="email" id="reg-secondary-email">
+        </div>
+        <div class="field">
+          <label for="reg-secondary-phone">Secondary phone</label>
+          <input type="text" id="reg-secondary-phone">
+        </div>
+      </div>
+      <div class="field">
+        <label for="reg-address">Mailing address</label>
+        <input type="text" id="reg-address">
+      </div>
+
+      <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:18px 0 10px;">Child</p>
+      <div class="field-row">
+        <div class="field">
+          <label for="reg-child-first-name">First name</label>
+          <input type="text" id="reg-child-first-name" required>
+        </div>
+        <div class="field">
+          <label for="reg-child-last-name">Last name</label>
+          <input type="text" id="reg-child-last-name" required>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="reg-child-dob">Date of birth</label>
+          <input type="date" id="reg-child-dob" required>
+        </div>
+        <div class="field">
+          <label for="reg-child-program">Program</label>
+          <select id="reg-child-program" required>
+            <option value="daycare">Daycare</option>
+            <option value="preschool">Preschool</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="reg-child-tuition">Base tuition rate <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="number" id="reg-child-tuition" step="0.01" min="0" placeholder="0.00">
+      </div>
+      <div class="field">
+        <label for="reg-child-allergies">Allergies <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="reg-child-allergies">
+      </div>
+      <div class="field">
+        <label for="reg-child-medical-notes">Medical notes <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="reg-child-medical-notes">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="reg-child-emergency-name">Emergency contact</label>
+          <input type="text" id="reg-child-emergency-name">
+        </div>
+        <div class="field">
+          <label for="reg-child-emergency-phone">Emergency phone</label>
+          <input type="text" id="reg-child-emergency-phone">
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeRegistrationModal()">Cancel</button>
+        <button type="submit" class="btn btn-teal" id="registration-submit-btn">Save registration</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ SIGNATURE CANVAS MODAL (in-person signing) ============ -->
+<div class="modal-overlay" id="sig-canvas-modal-overlay">
+  <div class="modal" style="max-width:480px;">
+    <h3>Sign registration</h3>
+    <p class="modal-sub">For <strong id="sig-canvas-child-name">—</strong>. Hand the device to the parent to sign below.</p>
+    <div class="error-banner" id="sig-canvas-error"></div>
+    <div class="field">
+      <label for="sig-canvas-signer-name">Signer's full name</label>
+      <input type="text" id="sig-canvas-signer-name" required>
+    </div>
+    <div class="field">
+      <label>Signature</label>
+      <canvas id="sig-canvas" class="signature-canvas"></canvas>
+      <button type="button" class="btn btn-ghost" style="margin-top:8px; padding:7px 14px; font-size:13px;" onclick="clearSignaturePad()">Clear</button>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeSignatureCanvas()">Cancel</button>
+      <button type="button" class="btn btn-teal" id="sig-canvas-submit-btn" onclick="submitSignature()">Complete registration</button>
+    </div>
   </div>
 </div>
 
@@ -862,6 +985,7 @@
     { id: 'timesheets', label: 'Timesheets',     adminOnly: false, icon: 'timesheets' },
     { id: 'scheduling', label: 'Scheduling',     adminOnly: false, icon: 'calendar' },
     { id: 'children',   label: 'Children',       adminOnly: false, icon: 'child' },
+    { id: 'registrations', label: 'Registration', adminOnly: true, icon: 'registration' },
     { id: 'families',   label: 'Families',       adminOnly: true,  icon: 'family' },
     { id: 'services',   label: 'Services',       adminOnly: true,  icon: 'services' },
     { id: 'invoices',   label: 'Billing',        adminOnly: true,  icon: 'billing' },
@@ -873,6 +997,7 @@
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg>',
     timesheets: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 3v3M16 3v3M4 10h16M8 14h2M8 17h2" stroke-linecap="round"/></svg>',
     calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18" stroke-linecap="round"/><circle cx="8" cy="14" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="14" r="1" fill="currentColor" stroke="none"/></svg>',
+    registration: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 3h6l3 3v15H6V3z" stroke-linejoin="round"/><path d="M9 3v15h9" opacity="0"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     child: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-4 3-6.5 7-6.5s7 2.5 7 6.5" stroke-linecap="round"/></svg>',
     family: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="2.6"/><circle cx="17" cy="9" r="2.2"/><path d="M3 20c0-3 2.2-5.4 5-5.4s5 2.4 5 5.4M14 20c0-2.4 1.7-4.4 4-4.4s4 2 4 4.4" stroke-linecap="round"/></svg>',
     services: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7l8-4 8 4-8 4-8-4z"/><path d="M4 7v10l8 4 8-4V7M12 11v10" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -924,6 +1049,7 @@
       invoices: renderInvoicesView,
       timesheets: renderTimesheetsView,
       scheduling: renderSchedulingView,
+      registrations: renderRegistrationsView,
       children: renderChildrenView,
       agreements: () => renderPlaceholder('Agreements', 'Signed handbook agreements will show up here.'),
     };
@@ -2188,6 +2314,255 @@
 
   function closeAckStatusModal() {
     document.getElementById('ack-status-modal-overlay').classList.remove('show');
+  }
+
+  // ============================================================
+  // REGISTRATIONS VIEW (admin only)
+  // Captures family + child info + a signature. Only creates the real
+  // family/child records once signed — see registrations.js for why.
+  // ============================================================
+  let registrationsCache = [];
+  let regCurrentSignatureTarget = null; // { registrationId, mode: 'in-person' | 'remote-preview' }
+  let regSignaturePad = null; // { canvas, ctx, drawing, hasStroke }
+
+  async function renderRegistrationsView() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h2>Registration</h2>
+          <p>Start a new enrollment — captures family and child info with a signature.</p>
+        </div>
+        <button class="btn btn-coral" onclick="openRegistrationModal()">+ Add new Registration</button>
+      </div>
+      <div class="card" id="registrations-table-wrap">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+    `;
+
+    try {
+      registrationsCache = await apiFetch('/registrations');
+      renderRegistrationsTable();
+    } catch (err) {
+      document.getElementById('registrations-table-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load registrations</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function renderRegistrationsTable() {
+    const wrap = document.getElementById('registrations-table-wrap');
+    if (registrationsCache.length === 0) {
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <h3>No registrations yet</h3>
+          <p>Start your first enrollment.</p>
+          <button class="btn btn-coral" onclick="openRegistrationModal()">+ Add new Registration</button>
+        </div>
+      `;
+      return;
+    }
+
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Child</th><th>Family</th><th>Started</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${registrationsCache.map(r => `
+            <tr>
+              <td><strong>${escapeHtml(r.child_first_name)} ${escapeHtml(r.child_last_name)}</strong></td>
+              <td>${escapeHtml(r.primary_parent_name)}</td>
+              <td>${formatDate(r.created_at)}</td>
+              <td><span class="badge ${r.status === 'signed' ? 'badge-active' : 'badge-staff'}">${r.status}</span></td>
+              <td>
+                ${r.status === 'pending' ? `
+                  <button class="icon-btn" onclick="openSignatureCanvas(${r.id})">Sign now</button>
+                  <button class="icon-btn" onclick="sendRegistrationLink(${r.id})">${r.remote_link_token ? 'Resend link' : 'Send link'}</button>
+                ` : `
+                  ${r.signed_pdf_url ? `<a href="${r.signed_pdf_url}" target="_blank" class="icon-btn" style="text-decoration:none;">View signed PDF</a>` : '<span style="color:#8A9490; font-size:13px;">Signed</span>'}
+                `}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // ---- Add new Registration modal ----
+  function openRegistrationModal() {
+    document.getElementById('registration-form').reset();
+    document.getElementById('registration-modal-error').classList.remove('show');
+    document.getElementById('registration-modal-overlay').classList.add('show');
+  }
+
+  function closeRegistrationModal() {
+    document.getElementById('registration-modal-overlay').classList.remove('show');
+  }
+
+  document.getElementById('registration-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorBox = document.getElementById('registration-modal-error');
+    const btn = document.getElementById('registration-submit-btn');
+    errorBox.classList.remove('show');
+
+    const payload = {
+      primary_parent_name: document.getElementById('reg-primary-name').value.trim(),
+      primary_parent_email: document.getElementById('reg-primary-email').value.trim(),
+      primary_parent_phone: document.getElementById('reg-primary-phone').value.trim() || null,
+      secondary_parent_name: document.getElementById('reg-secondary-name').value.trim() || null,
+      secondary_parent_email: document.getElementById('reg-secondary-email').value.trim() || null,
+      secondary_parent_phone: document.getElementById('reg-secondary-phone').value.trim() || null,
+      mailing_address: document.getElementById('reg-address').value.trim() || null,
+      child_first_name: document.getElementById('reg-child-first-name').value.trim(),
+      child_last_name: document.getElementById('reg-child-last-name').value.trim(),
+      child_date_of_birth: document.getElementById('reg-child-dob').value,
+      child_program: document.getElementById('reg-child-program').value,
+      child_allergies: document.getElementById('reg-child-allergies').value.trim() || null,
+      child_medical_notes: document.getElementById('reg-child-medical-notes').value.trim() || null,
+      child_emergency_contact_name: document.getElementById('reg-child-emergency-name').value.trim() || null,
+      child_emergency_contact_phone: document.getElementById('reg-child-emergency-phone').value.trim() || null,
+      child_base_tuition_rate: document.getElementById('reg-child-tuition').value || null,
+    };
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      await apiFetch('/registrations', { method: 'POST', body: JSON.stringify(payload) });
+      closeRegistrationModal();
+      registrationsCache = await apiFetch('/registrations');
+      renderRegistrationsTable();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save registration';
+    }
+  });
+
+  async function sendRegistrationLink(registrationId) {
+    try {
+      const result = await apiFetch('/registrations/' + registrationId + '/send-remote-link', { method: 'POST' });
+      try {
+        await navigator.clipboard.writeText(result.signing_url);
+        alert('Signing link copied to clipboard:\n' + result.signing_url);
+      } catch (e) {
+        prompt('Signing link (copy manually):', result.signing_url);
+      }
+      registrationsCache = await apiFetch('/registrations');
+      renderRegistrationsTable();
+    } catch (err) {
+      alert('Could not create signing link: ' + err.message);
+    }
+  }
+
+  // ---- Signature canvas (in-person signing) ----
+  function openSignatureCanvas(registrationId) {
+    const reg = registrationsCache.find(r => r.id === registrationId);
+    if (!reg) return;
+    regCurrentSignatureTarget = registrationId;
+
+    document.getElementById('sig-canvas-child-name').textContent = `${reg.child_first_name} ${reg.child_last_name}`;
+    document.getElementById('sig-canvas-signer-name').value = reg.primary_parent_name || '';
+    document.getElementById('sig-canvas-error').classList.remove('show');
+    document.getElementById('sig-canvas-modal-overlay').classList.add('show');
+
+    // Canvas must be set up after the modal is visible so its measured size is correct.
+    requestAnimationFrame(initSignaturePad);
+  }
+
+  function closeSignatureCanvas() {
+    document.getElementById('sig-canvas-modal-overlay').classList.remove('show');
+    regCurrentSignatureTarget = null;
+  }
+
+  function initSignaturePad() {
+    const canvas = document.getElementById('sig-canvas');
+    const ctx = canvas.getContext('2d');
+    // Match the canvas's internal resolution to its displayed size for crisp lines.
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#2B3333';
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    regSignaturePad = { canvas, ctx, drawing: false, hasStroke: false };
+
+    const getPos = (e) => {
+      const r = canvas.getBoundingClientRect();
+      const point = e.touches ? e.touches[0] : e;
+      return { x: point.clientX - r.left, y: point.clientY - r.top };
+    };
+
+    const start = (e) => {
+      e.preventDefault();
+      regSignaturePad.drawing = true;
+      const { x, y } = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    };
+    const move = (e) => {
+      if (!regSignaturePad.drawing) return;
+      e.preventDefault();
+      const { x, y } = getPos(e);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      regSignaturePad.hasStroke = true;
+    };
+    const end = () => { regSignaturePad.drawing = false; };
+
+    canvas.onmousedown = start;
+    canvas.onmousemove = move;
+    canvas.onmouseup = end;
+    canvas.onmouseleave = end;
+    canvas.ontouchstart = start;
+    canvas.ontouchmove = move;
+    canvas.ontouchend = end;
+  }
+
+  function clearSignaturePad() {
+    if (!regSignaturePad) return;
+    regSignaturePad.ctx.clearRect(0, 0, regSignaturePad.canvas.width, regSignaturePad.canvas.height);
+    regSignaturePad.hasStroke = false;
+  }
+
+  async function submitSignature() {
+    const errorBox = document.getElementById('sig-canvas-error');
+    errorBox.classList.remove('show');
+
+    const signerName = document.getElementById('sig-canvas-signer-name').value.trim();
+    if (!signerName) {
+      errorBox.textContent = 'Enter the signer\'s name.';
+      errorBox.classList.add('show');
+      return;
+    }
+    if (!regSignaturePad || !regSignaturePad.hasStroke) {
+      errorBox.textContent = 'Please sign in the box above.';
+      errorBox.classList.add('show');
+      return;
+    }
+
+    const btn = document.getElementById('sig-canvas-submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+
+    try {
+      const signatureDataUri = regSignaturePad.canvas.toDataURL('image/png');
+      await apiFetch('/registrations/' + regCurrentSignatureTarget + '/sign-in-person', {
+        method: 'POST',
+        body: JSON.stringify({ signer_name: signerName, signature_data: signatureDataUri }),
+      });
+      closeSignatureCanvas();
+      registrationsCache = await apiFetch('/registrations');
+      renderRegistrationsTable();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Complete registration';
+    }
   }
 
   // ============================================================
