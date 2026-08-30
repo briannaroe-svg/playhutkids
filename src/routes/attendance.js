@@ -12,13 +12,22 @@ router.get('/today', requireAuth, async (req, res) => {
     let query;
     const params = [];
 
+    // Uses DISTINCT ON to pick only the MOST RECENT attendance_records row per
+    // child for today. Without this, a child checked in/out more than once in
+    // one day (leaves early, comes back, etc.) would return multiple rows for
+    // the same child, and the frontend could end up displaying a stale record
+    // instead of the current one.
     if (isAdmin) {
       query = `
         SELECT c.id AS child_id, c.first_name, c.last_name, c.program,
                ar.id AS attendance_id, ar.checked_in_at, ar.checked_out_at
         FROM children c
-        LEFT JOIN attendance_records ar
-          ON ar.child_id = c.id AND ar.checked_in_at::date = CURRENT_DATE
+        LEFT JOIN LATERAL (
+          SELECT * FROM attendance_records
+          WHERE child_id = c.id AND checked_in_at::date = CURRENT_DATE
+          ORDER BY checked_in_at DESC
+          LIMIT 1
+        ) ar ON true
         WHERE c.enrollment_status = 'active'
         ORDER BY c.last_name, c.first_name`;
     } else {
@@ -28,8 +37,12 @@ router.get('/today', requireAuth, async (req, res) => {
                ar.id AS attendance_id, ar.checked_in_at, ar.checked_out_at
         FROM children c
         JOIN child_staff_assignments csa ON csa.child_id = c.id AND csa.staff_id = $1
-        LEFT JOIN attendance_records ar
-          ON ar.child_id = c.id AND ar.checked_in_at::date = CURRENT_DATE
+        LEFT JOIN LATERAL (
+          SELECT * FROM attendance_records
+          WHERE child_id = c.id AND checked_in_at::date = CURRENT_DATE
+          ORDER BY checked_in_at DESC
+          LIMIT 1
+        ) ar ON true
         WHERE c.enrollment_status = 'active'
         ORDER BY c.last_name, c.first_name`;
     }
