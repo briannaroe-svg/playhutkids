@@ -21,7 +21,8 @@ const PORT = process.env.PORT || 3000;
 const allowedOrigins = [
   'https://www.playhutkids.com',
   'https://playhutkids.com',
-  'https://little-playhut-backend.onrender.com', // update to actual Render URL once created
+  'https://little-playhut-backend.onrender.com',
+  'https://playhutkids.onrender.com', // Render Static Site hosting login.html / dashboard.html
 ];
 
 app.use(cors({
