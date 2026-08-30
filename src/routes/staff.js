@@ -10,11 +10,11 @@ router.get('/', async (req, res) => {
   const { active } = req.query;
   try {
     const query = active === 'true'
-      ? `SELECT id, first_name, last_name, email, phone, role, hourly_rate, is_active, hired_date FROM staff WHERE is_active = true ORDER BY last_name`
-      : `SELECT id, first_name, last_name, email, phone, role, hourly_rate, is_active, hired_date FROM staff ORDER BY last_name`;
+      ? `SELECT id, first_name, last_name, email, phone, role, hourly_rate, access_level, is_active, hired_date FROM staff WHERE is_active = true ORDER BY last_name`
+      : `SELECT id, first_name, last_name, email, phone, role, hourly_rate, access_level, is_active, hired_date FROM staff ORDER BY last_name`;
     const result = await pool.query(query);
     res.json(result.rows);
-    // Note: pin_code intentionally excluded from list responses
+    // Note: pin_code and password_hash intentionally excluded from list responses
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch staff' });
@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
 router.get('/:id(\\d+)', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, first_name, last_name, email, phone, role, hourly_rate, is_active, hired_date
+      `SELECT id, first_name, last_name, email, phone, role, hourly_rate, access_level, is_active, hired_date
        FROM staff WHERE id = $1`,
       [req.params.id]
     );
