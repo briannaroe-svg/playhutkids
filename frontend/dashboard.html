@@ -219,6 +219,35 @@
 
   .btn-sm { padding: 8px 14px; font-size: 13px; }
 
+  .child-name-link { color: var(--teal); text-decoration: none; }
+  .child-name-link:hover { text-decoration: underline; }
+
+  .detail-row { display: flex; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--sage-light); }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-row .detail-label { flex: 0 0 130px; font-size: 12.5px; font-weight: 600; color: #6B7A76; text-transform: uppercase; letter-spacing: 0.03em; padding-top: 1px; }
+  .detail-row .detail-value { flex: 1; font-size: 14.5px; color: var(--charcoal); }
+  .detail-value.empty { color: #ADB8B4; font-style: italic; }
+  .detail-alert { background: var(--error-bg); color: var(--error); border-radius: 8px; padding: 10px 14px; font-size: 13.5px; font-weight: 500; margin-bottom: 4px; }
+
+  /* ---------- Allergy confirmation gate (blocks check-in) ---------- */
+  .allergy-gate-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(60,20,15,0.55);
+    align-items: center; justify-content: center; padding: 24px; z-index: 200;
+  }
+  .allergy-gate-overlay.show { display: flex; }
+  .allergy-gate-card {
+    background: #fff; border-radius: 18px; box-shadow: var(--shadow-lg); width: 100%; max-width: 420px;
+    padding: 32px; text-align: center; border-top: 6px solid var(--error);
+  }
+  .allergy-gate-icon { width: 46px; height: 46px; margin: 0 auto 14px; color: var(--error); }
+  .allergy-gate-card h3 { font-size: 19px; color: var(--error); margin: 0 0 4px; }
+  .allergy-gate-card .allergy-gate-sub { font-size: 13.5px; color: #6B7A76; margin: 0 0 18px; }
+  .allergy-gate-box {
+    background: var(--error-bg); border-radius: 10px; padding: 16px 18px; margin-bottom: 22px;
+    font-size: 15px; font-weight: 600; color: var(--error); text-align: left;
+  }
+  .allergy-gate-card .btn { width: 100%; }
+
   /* ---------- Invoice line items ---------- */
   .line-item-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
   .line-item-row input, .line-item-row select {
@@ -487,6 +516,33 @@
         <button type="submit" class="btn btn-teal" id="child-submit-btn">Add child</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ============ CHILD DETAIL MODAL (staff, read-only) ============ -->
+<div class="modal-overlay" id="child-detail-modal-overlay">
+  <div class="modal" style="max-width:460px;">
+    <h3 id="child-detail-name">—</h3>
+    <p class="modal-sub" id="child-detail-program">—</p>
+    <div id="child-detail-body"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-teal" onclick="closeChildDetailModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ALLERGY CONFIRMATION GATE (blocks check-in, no click-outside dismiss) ============ -->
+<div class="allergy-gate-overlay" id="allergy-gate-overlay">
+  <div class="allergy-gate-card">
+    <svg class="allergy-gate-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 3L2 20h20L12 3z" stroke-linejoin="round"/>
+      <path d="M12 10v4" stroke-linecap="round"/>
+      <circle cx="12" cy="17" r="0.6" fill="currentColor"/>
+    </svg>
+    <h3>Allergy alert</h3>
+    <p class="allergy-gate-sub" id="allergy-gate-name">—</p>
+    <div class="allergy-gate-box" id="allergy-gate-text">—</div>
+    <button type="button" class="btn" style="background:var(--error); color:#fff;" onclick="confirmAllergyGate()">I understand</button>
   </div>
 </div>
 
@@ -1267,17 +1323,15 @@
 
             return `
               <tr>
-                <td><strong>${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</strong></td>
+                <td><strong>${isAdmin ? '' : `<a href="#" class="child-name-link" onclick="event.preventDefault(); openChildDetailModal(${c.id});">`}${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}${isAdmin ? '' : '</a>'}</strong></td>
                 <td>${escapeHtml(c.program)}</td>
                 ${isAdmin ? `<td>${assignedNames}</td>` : ''}
                 <td>${statusBadge}</td>
                 <td>
-                  ${isAdmin
-                    ? `<button class="icon-btn" onclick="openChildModal(${c.id})">Edit</button>`
-                    : (isCheckedIn
-                        ? `<button class="btn btn-sm" style="background:var(--error); color:#fff; padding:7px 14px; font-size:13px;" onclick="handleChildCheckOut(${c.id})">Check out</button>`
-                        : `<button class="btn btn-sm btn-coral" style="padding:7px 14px; font-size:13px;" onclick="handleChildCheckIn(${c.id})">Check in</button>`)
-                  }
+                  ${isAdmin ? `<button class="icon-btn" onclick="openChildModal(${c.id})">Edit</button>` : ''}
+                  ${isCheckedIn
+                    ? `<button class="btn btn-sm" style="background:var(--error); color:#fff; padding:7px 14px; font-size:13px;" onclick="handleChildCheckOut(${c.id})">Check out</button>`
+                    : `<button class="btn btn-sm btn-coral" style="padding:7px 14px; font-size:13px;" onclick="handleChildCheckIn(${c.id})">Check in</button>`}
                 </td>
               </tr>
             `;
@@ -1287,7 +1341,18 @@
     `;
   }
 
-  async function handleChildCheckIn(childId) {
+  function handleChildCheckIn(childId) {
+    const c = childrenCache.find(x => x.id === childId);
+    const hasAllergies = c && c.allergies && c.allergies.trim();
+
+    if (hasAllergies) {
+      showAllergyGate(c);
+    } else {
+      performCheckIn(childId);
+    }
+  }
+
+  async function performCheckIn(childId) {
     try {
       await apiFetch('/attendance/' + childId + '/check-in', { method: 'POST' });
       attendanceToday = await apiFetch('/attendance/today');
@@ -1295,6 +1360,19 @@
     } catch (err) {
       alert('Could not check in: ' + err.message);
     }
+  }
+
+  function showAllergyGate(child) {
+    document.getElementById('allergy-gate-name').textContent = `${child.first_name} ${child.last_name}`;
+    document.getElementById('allergy-gate-text').textContent = child.allergies;
+    document.getElementById('allergy-gate-overlay').dataset.childId = child.id;
+    document.getElementById('allergy-gate-overlay').classList.add('show');
+  }
+
+  function confirmAllergyGate() {
+    const childId = Number(document.getElementById('allergy-gate-overlay').dataset.childId);
+    document.getElementById('allergy-gate-overlay').classList.remove('show');
+    performCheckIn(childId);
   }
 
   async function handleChildCheckOut(childId) {
@@ -1305,6 +1383,49 @@
     } catch (err) {
       alert('Could not check out: ' + err.message);
     }
+  }
+
+  // ---- Child detail modal (staff, read-only — allergy/medical/emergency info only) ----
+  function openChildDetailModal(childId) {
+    const c = childrenCache.find(x => x.id === childId);
+    if (!c) return;
+
+    document.getElementById('child-detail-name').textContent = `${c.first_name} ${c.last_name}`;
+    document.getElementById('child-detail-program').textContent = c.program === 'preschool' ? 'Preschool' : 'Daycare';
+
+    const val = (v) => v ? escapeHtml(v) : '<span class="detail-value empty">None on file</span>';
+    const hasAllergies = c.allergies && c.allergies.trim();
+
+    document.getElementById('child-detail-body').innerHTML = `
+      ${hasAllergies ? `<div class="detail-alert">⚠ Allergies: ${escapeHtml(c.allergies)}</div>` : ''}
+      <div class="detail-row">
+        <div class="detail-label">Date of birth</div>
+        <div class="detail-value">${c.date_of_birth ? formatDate(c.date_of_birth) : val(null)}</div>
+      </div>
+      ${!hasAllergies ? `
+      <div class="detail-row">
+        <div class="detail-label">Allergies</div>
+        <div class="detail-value">${val(c.allergies)}</div>
+      </div>` : ''}
+      <div class="detail-row">
+        <div class="detail-label">Medical notes</div>
+        <div class="detail-value">${val(c.medical_notes)}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Emergency contact</div>
+        <div class="detail-value">${val(c.emergency_contact_name)}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Emergency phone</div>
+        <div class="detail-value">${val(c.emergency_contact_phone)}</div>
+      </div>
+    `;
+
+    document.getElementById('child-detail-modal-overlay').classList.add('show');
+  }
+
+  function closeChildDetailModal() {
+    document.getElementById('child-detail-modal-overlay').classList.remove('show');
   }
 
   // ---- Add/Edit Child modal (admin only) ----

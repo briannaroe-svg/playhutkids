@@ -6,10 +6,14 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 // GET /children/my-assigned — staff's own roster (must come before /:id).
 // Any authenticated staff member sees the children assigned to them; admins
 // calling this see nothing special (they should use GET / for the full roster).
+// Family/parent contact fields are excluded from the query entirely — staff
+// should not receive that data even in a list response.
 router.get('/my-assigned', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT c.* FROM children c
+      `SELECT c.id, c.first_name, c.last_name, c.date_of_birth, c.program, c.enrollment_status,
+              c.allergies, c.medical_notes, c.emergency_contact_name, c.emergency_contact_phone
+       FROM children c
        JOIN child_staff_assignments csa ON csa.child_id = c.id
        WHERE csa.staff_id = $1 AND c.enrollment_status = 'active'
        ORDER BY c.last_name, c.first_name`,
@@ -66,7 +70,10 @@ router.get('/', requireAdmin, async (req, res) => {
 });
 
 // GET /children/:id  — numeric guard so it doesn't shadow other routes.
-// Admin: any child. Staff: only if assigned to them.
+// Admin: any child, full record including family contact info.
+// Staff: only if assigned to them, and family/parent contact fields are excluded
+// entirely from the query — not just hidden client-side — so that data never
+// leaves the server for a non-admin request.
 router.get('/:id(\\d+)', requireAuth, async (req, res) => {
   try {
     if (req.staff.access_level !== 'admin') {
@@ -75,7 +82,17 @@ router.get('/:id(\\d+)', requireAuth, async (req, res) => {
         [req.params.id, req.staff.staff_id]
       );
       if (assigned.rows.length === 0) return res.status(403).json({ error: 'This child is not assigned to you' });
+
+      const result = await pool.query(
+        `SELECT id, first_name, last_name, date_of_birth, program, enrollment_status,
+                allergies, medical_notes, emergency_contact_name, emergency_contact_phone
+         FROM children WHERE id = $1`,
+        [req.params.id]
+      );
+      if (result.rows.length === 0) return res.status(404).json({ error: 'Child not found' });
+      return res.json(result.rows[0]);
     }
+
     const result = await pool.query(`SELECT * FROM children WHERE id = $1`, [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Child not found' });
     res.json(result.rows[0]);
