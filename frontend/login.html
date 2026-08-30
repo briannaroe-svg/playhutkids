@@ -66,10 +66,11 @@
   }
 
   .mark {
-    width: 52px;
-    height: 52px;
+    width: 128px;
+    height: 128px;
     margin: 0 auto 20px;
     display: block;
+    object-fit: contain;
   }
 
   h1 {
@@ -182,12 +183,8 @@
 <body>
 
   <div class="login-card">
-    <svg class="mark" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M26 4L48 22V46C48 47.1 47.1 48 46 48H32V32H20V48H6C4.9 48 4 47.1 4 46V22L26 4Z" fill="#0F5C5C"/>
-      <path d="M26 4L48 22H4L26 4Z" fill="#E8734A"/>
-    </svg>
+    <img class="mark" src="https://res.cloudinary.com/dhlymdlu/image/upload/v1788058962/Screenshot_2026-08-04_at_8.42.07_PM.png" alt="The Little Playhut — Preschool &amp; Daycare">
 
-    <h1>Little Playhut</h1>
     <p class="subtitle">Sign in to the staff dashboard</p>
 
     <div class="error-banner" id="errorBanner" role="alert"></div>
