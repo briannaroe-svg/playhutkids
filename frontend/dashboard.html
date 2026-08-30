@@ -188,6 +188,30 @@
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .field-hint { font-size: 12px; color: #8A9490; margin-top: 5px; }
 
+  /* ---------- Daily report form ---------- */
+  .daily-report-meals { display: flex; flex-direction: column; gap: 8px; }
+  .meal-row { display: flex; align-items: center; gap: 10px; }
+  .meal-check { display: flex; align-items: center; gap: 7px; font-size: 13.5px; flex: 0 0 130px; cursor: pointer; }
+  .meal-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--teal); cursor: pointer; }
+  .meal-row input[type="text"] {
+    flex: 1; padding: 8px 11px; border: 1.5px solid var(--sage-light); border-radius: 7px;
+    font-family: inherit; font-size: 13px; background: var(--cream);
+  }
+  .meal-row input[type="text"]:focus { outline: none; border-color: var(--teal); background: #fff; }
+
+  .mood-picker { display: flex; gap: 8px; flex-wrap: wrap; }
+  .mood-chip {
+    padding: 8px 16px; border-radius: 100px; border: 1.5px solid var(--sage-light);
+    background: #fff; font-family: inherit; font-size: 13px; font-weight: 600;
+    color: var(--charcoal); cursor: pointer; transition: all 0.15s ease;
+  }
+  .mood-chip:hover { border-color: var(--teal); }
+  .mood-chip.selected { background: var(--teal); border-color: var(--teal); color: #fff; }
+
+  .daily-report-photo-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .daily-report-photo-grid img { width: 76px; height: 76px; object-fit: cover; border-radius: 8px; border: 1px solid var(--sage-light); }
+
+
   .signature-canvas {
     width: 100%; height: 160px; border: 1.5px dashed var(--sage); border-radius: 9px;
     background: #fff; cursor: crosshair; touch-action: none; display: block;
@@ -739,6 +763,28 @@
         <button type="submit" class="btn btn-teal" id="child-submit-btn">Add child</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ============ DAILY REPORT MODAL (meals, nap, mood, notes, photos — everyone) ============ -->
+<div class="modal-overlay" id="daily-report-modal-overlay">
+  <div class="modal" style="max-width:520px;">
+    <h3>Daily report — <span id="daily-report-child-name">—</span></h3>
+    <p class="modal-sub" id="daily-report-date-label">—</p>
+    <div class="error-banner" id="daily-report-error"></div>
+
+    <div id="daily-report-body"></div>
+
+    <div class="field">
+      <label for="daily-report-photo-input">Add a photo <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+      <input type="file" id="daily-report-photo-input" accept="image/*">
+      <div id="daily-report-photo-preview" class="daily-report-photo-grid"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeDailyReportModal()">Cancel</button>
+      <button type="button" class="btn btn-teal" id="daily-report-save-btn" onclick="saveDailyReport()">Save report</button>
+    </div>
   </div>
 </div>
 
@@ -1779,6 +1825,7 @@
                 <td>${statusBadge}</td>
                 <td>
                   ${isAdmin ? `<button class="icon-btn" onclick="openChildModal(${c.id})">Edit</button>` : ''}
+                  <button class="icon-btn" onclick="openDailyReportModal(${c.id})">Daily Report</button>
                   ${isCheckedIn
                     ? `<button class="btn btn-sm" style="background:var(--error); color:#fff; padding:7px 14px; font-size:13px;" onclick="handleChildCheckOut(${c.id})">Check out</button>`
                     : `<button class="btn btn-sm btn-coral" style="padding:7px 14px; font-size:13px;" onclick="handleChildCheckIn(${c.id})">Check in</button>`}
@@ -1832,6 +1879,159 @@
       renderChildrenTable();
     } catch (err) {
       alert('Could not check out: ' + err.message);
+    }
+  }
+
+  // ---- Daily Report modal (meals, nap, mood, notes, photos — everyone) ----
+  const DAILY_REPORT_MEAL_SLOTS = ['Breakfast', 'Lunch', 'PM Snack'];
+  let dailyReportChildId = null;
+  let dailyReportData = null; // the current report object, or null if none exists yet today
+  let dailyReportMealsState = []; // [{ label, ate, notes }]
+  let dailyReportPendingPhoto = null; // base64 data URI staged for upload on save
+
+  async function openDailyReportModal(childId) {
+    dailyReportChildId = childId;
+    const c = childrenCache.find(x => x.id === childId);
+    document.getElementById('daily-report-child-name').textContent = `${c.first_name} ${c.last_name}`;
+    document.getElementById('daily-report-date-label').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    document.getElementById('daily-report-error').classList.remove('show');
+    document.getElementById('daily-report-photo-input').value = '';
+    dailyReportPendingPhoto = null;
+    document.getElementById('daily-report-photo-preview').innerHTML = '';
+
+    document.getElementById('daily-report-modal-overlay').classList.add('show');
+    document.getElementById('daily-report-body').innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+
+    try {
+      const today = localDateString();
+      dailyReportData = await apiFetch('/daily-reports?child_id=' + childId + '&date=' + today);
+      dailyReportMealsState = (dailyReportData && dailyReportData.meals && dailyReportData.meals.length)
+        ? dailyReportData.meals
+        : DAILY_REPORT_MEAL_SLOTS.map(label => ({ label, ate: false, notes: '' }));
+      renderDailyReportForm();
+    } catch (err) {
+      document.getElementById('daily-report-body').innerHTML = `<div class="empty-state"><h3>Couldn't load report</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function closeDailyReportModal() {
+    document.getElementById('daily-report-modal-overlay').classList.remove('show');
+    dailyReportChildId = null;
+    dailyReportData = null;
+  }
+
+  function renderDailyReportForm() {
+    const existingPhotos = (dailyReportData && dailyReportData.photos) || [];
+    const moods = ['Happy', 'Fussy', 'Tired', 'Sick', 'Quiet'];
+
+    document.getElementById('daily-report-body').innerHTML = `
+      <div class="field">
+        <label>Meals</label>
+        <div class="daily-report-meals">
+          ${dailyReportMealsState.map((m, i) => `
+            <div class="meal-row">
+              <label class="meal-check">
+                <input type="checkbox" ${m.ate ? 'checked' : ''} onchange="updateDailyReportMeal(${i}, 'ate', this.checked)">
+                <span>${escapeHtml(m.label)}</span>
+              </label>
+              <input type="text" placeholder="Notes (optional)" value="${escapeHtml(m.notes || '')}" oninput="updateDailyReportMeal(${i}, 'notes', this.value)">
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="daily-report-nap-start">Nap start</label>
+          <input type="time" id="daily-report-nap-start" value="${dailyReportData?.nap_start ? dailyReportData.nap_start.slice(0,5) : ''}">
+        </div>
+        <div class="field">
+          <label for="daily-report-nap-end">Nap end</label>
+          <input type="time" id="daily-report-nap-end" value="${dailyReportData?.nap_end ? dailyReportData.nap_end.slice(0,5) : ''}">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Mood</label>
+        <div class="mood-picker">
+          ${moods.map(m => `
+            <button type="button" class="mood-chip ${dailyReportData?.mood === m ? 'selected' : ''}" data-mood="${m}" onclick="selectDailyReportMood('${m}')">${m}</button>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="daily-report-notes">Notes <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="daily-report-notes" value="${escapeHtml(dailyReportData?.notes || '')}" placeholder="Anything else worth sharing with the family">
+      </div>
+
+      ${existingPhotos.length > 0 ? `
+        <div class="field">
+          <label>Photos already added</label>
+          <div class="daily-report-photo-grid">
+            ${existingPhotos.map(url => `<img src="${url}" alt="Daily report photo">`).join('')}
+          </div>
+        </div>
+      ` : ''}
+    `;
+  }
+
+  function updateDailyReportMeal(index, field, value) {
+    dailyReportMealsState[index][field] = value;
+  }
+
+  function selectDailyReportMood(mood) {
+    dailyReportData = dailyReportData || {};
+    dailyReportData.mood = dailyReportData.mood === mood ? null : mood; // click again to clear
+    renderDailyReportForm();
+  }
+
+  document.getElementById('daily-report-photo-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      dailyReportPendingPhoto = reader.result; // base64 data URI
+      document.getElementById('daily-report-photo-preview').innerHTML = `<img src="${reader.result}" alt="New photo">`;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  async function saveDailyReport() {
+    const errorBox = document.getElementById('daily-report-error');
+    const btn = document.getElementById('daily-report-save-btn');
+    errorBox.classList.remove('show');
+
+    const payload = {
+      child_id: dailyReportChildId,
+      report_date: localDateString(),
+      meals: dailyReportMealsState,
+      nap_start: document.getElementById('daily-report-nap-start').value || null,
+      nap_end: document.getElementById('daily-report-nap-end').value || null,
+      mood: dailyReportData?.mood || null,
+      notes: document.getElementById('daily-report-notes').value.trim() || null,
+    };
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    try {
+      const saved = await apiFetch('/daily-reports', { method: 'POST', body: JSON.stringify(payload) });
+
+      if (dailyReportPendingPhoto) {
+        await apiFetch('/daily-reports/' + saved.id + '/photos', {
+          method: 'POST',
+          body: JSON.stringify({ photo_data: dailyReportPendingPhoto }),
+        });
+      }
+
+      closeDailyReportModal();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save report';
     }
   }
 
