@@ -502,7 +502,7 @@
   // NAV
   // ============================================================
   const NAV_ITEMS = [
-    { id: 'timesheets', label: 'My Timesheet', adminOnly: false, icon: 'clock' },
+    { id: 'timesheets', label: 'Timesheets',    adminOnly: false, icon: 'clock' },
     { id: 'children',   label: 'Children',      adminOnly: true,  icon: 'child' },
     { id: 'families',   label: 'Families',       adminOnly: true,  icon: 'family' },
     { id: 'services',   label: 'Services',       adminOnly: true,  icon: 'services' },
@@ -543,7 +543,7 @@
       families: renderFamiliesView,
       services: renderServicesView,
       invoices: renderInvoicesView,
-      timesheets: () => renderPlaceholder('My Timesheet', 'Clock-in history and hours will show up here.'),
+      timesheets: renderTimesheetsView,
       children: () => renderPlaceholder('Children', 'Enrollment and roster management is coming next.'),
       agreements: () => renderPlaceholder('Agreements', 'Signed handbook agreements will show up here.'),
     };
@@ -717,6 +717,246 @@
       btn.textContent = staffId ? 'Save changes' : 'Add account';
     }
   });
+
+  // ============================================================
+  // TIMESHEETS VIEW
+  // ============================================================
+  let timesheetEntries = [];
+  let currentClockStatus = null; // { clocked_in, entry }
+  let timesheetRangeStart = '';
+  let timesheetRangeEnd = '';
+
+  function defaultDateRange() {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 13); // last 14 days, a reasonable default payroll window
+    return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+  }
+
+  async function renderTimesheetsView() {
+    const isAdmin = currentUser.access_level === 'admin';
+    const range = defaultDateRange();
+    timesheetRangeStart = range.start;
+    timesheetRangeEnd = range.end;
+
+    const main = document.getElementById('main-content');
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h2>Timesheets</h2>
+          <p>${isAdmin ? 'Everyone\'s hours, and who\'s clocked in right now.' : 'Your clock-in history and hours.'}</p>
+        </div>
+      </div>
+
+      <div class="card" id="clock-card" style="padding:22px 24px; margin-bottom:22px;">
+        <div class="empty-state" style="padding:20px;"><p>Loading…</p></div>
+      </div>
+
+      ${isAdmin ? `
+        <div id="currently-clocked-in-wrap" style="margin-bottom:22px;"></div>
+      ` : ''}
+
+      <div class="page-header" style="margin-bottom:16px; align-items:center;">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <div class="field" style="margin-bottom:0;">
+            <input type="date" id="ts-range-start" value="${range.start}" style="padding:9px 12px;">
+          </div>
+          <span style="color:#8A9490; font-size:13px;">to</span>
+          <div class="field" style="margin-bottom:0;">
+            <input type="date" id="ts-range-end" value="${range.end}" style="padding:9px 12px;">
+          </div>
+          <button class="btn btn-ghost" id="ts-filter-btn">Filter</button>
+        </div>
+        ${isAdmin ? '<button class="btn btn-teal" id="ts-download-pdf-btn">Download PDF</button>' : ''}
+      </div>
+
+      <div class="card" id="timesheets-table-wrap">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+    `;
+
+    document.getElementById('ts-filter-btn').addEventListener('click', () => {
+      timesheetRangeStart = document.getElementById('ts-range-start').value;
+      timesheetRangeEnd = document.getElementById('ts-range-end').value;
+      loadTimesheetEntries();
+    });
+
+    if (isAdmin) {
+      document.getElementById('ts-download-pdf-btn').addEventListener('click', downloadTimesheetPdf);
+    }
+
+    await renderClockCard();
+    if (isAdmin) await renderCurrentlyClockedIn();
+    await loadTimesheetEntries();
+  }
+
+  async function renderClockCard() {
+    const card = document.getElementById('clock-card');
+    try {
+      currentClockStatus = await apiFetch('/timesheets/my-status');
+    } catch (err) {
+      card.innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+      return;
+    }
+
+    if (currentClockStatus.clocked_in) {
+      const clockInTime = new Date(currentClockStatus.entry.clock_in);
+      card.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px;">
+          <div>
+            <div style="font-size:12px; font-weight:600; color:var(--success); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px;">● Clocked in</div>
+            <div style="font-size:15px;">Since ${clockInTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} on ${clockInTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+          </div>
+          <button class="btn" style="background:var(--error); color:#fff;" onclick="handleClockOut()">Clock out</button>
+        </div>
+      `;
+    } else {
+      card.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px;">
+          <div>
+            <div style="font-size:12px; font-weight:600; color:#8A9490; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px;">Not clocked in</div>
+            <div style="font-size:15px; color:#6B7A76;">Clock in when you start your shift.</div>
+          </div>
+          <button class="btn btn-coral" onclick="handleClockIn()">Clock in</button>
+        </div>
+      `;
+    }
+  }
+
+  async function handleClockIn() {
+    try {
+      await apiFetch('/timesheets/clock-in', { method: 'POST' });
+      await renderClockCard();
+      if (currentUser.access_level === 'admin') await renderCurrentlyClockedIn();
+      await loadTimesheetEntries();
+    } catch (err) {
+      alert('Could not clock in: ' + err.message);
+    }
+  }
+
+  async function handleClockOut() {
+    try {
+      await apiFetch('/timesheets/clock-out', { method: 'POST' });
+      await renderClockCard();
+      if (currentUser.access_level === 'admin') await renderCurrentlyClockedIn();
+      await loadTimesheetEntries();
+    } catch (err) {
+      alert('Could not clock out: ' + err.message);
+    }
+  }
+
+  async function renderCurrentlyClockedIn() {
+    const wrap = document.getElementById('currently-clocked-in-wrap');
+    try {
+      const clockedIn = await apiFetch('/timesheets/currently-clocked-in');
+      if (clockedIn.length === 0) {
+        wrap.innerHTML = '';
+        return;
+      }
+      wrap.innerHTML = `
+        <div class="card" style="padding:18px 24px;">
+          <div style="font-size:12px; font-weight:600; color:#6B7A76; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:10px;">Currently clocked in (${clockedIn.length})</div>
+          <div style="display:flex; flex-wrap:wrap; gap:10px;">
+            ${clockedIn.map(e => `
+              <div style="background:var(--success-bg); color:var(--success); padding:7px 14px; border-radius:100px; font-size:13px; font-weight:600;">
+                ${escapeHtml(e.first_name)} ${escapeHtml(e.last_name)} — since ${new Date(e.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      wrap.innerHTML = '';
+    }
+  }
+
+  async function loadTimesheetEntries() {
+    const wrap = document.getElementById('timesheets-table-wrap');
+    wrap.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+    try {
+      const params = new URLSearchParams();
+      if (timesheetRangeStart) params.set('start', timesheetRangeStart);
+      if (timesheetRangeEnd) params.set('end', timesheetRangeEnd + 'T23:59:59');
+      timesheetEntries = await apiFetch('/timesheets?' + params.toString());
+      renderTimesheetsTable();
+    } catch (err) {
+      wrap.innerHTML = `<div class="empty-state"><h3>Couldn't load timesheets</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function renderTimesheetsTable() {
+    const wrap = document.getElementById('timesheets-table-wrap');
+    const isAdmin = currentUser.access_level === 'admin';
+
+    if (timesheetEntries.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>No entries in this range</h3><p>Try a different date range.</p></div>`;
+      return;
+    }
+
+    const totalHours = timesheetEntries.reduce((sum, e) => sum + (Number(e.total_hours) || 0), 0);
+
+    wrap.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            ${isAdmin ? '<th>Staff</th>' : ''}
+            <th>Date</th><th>Clock in</th><th>Clock out</th><th>Hours</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${timesheetEntries.map(e => `
+            <tr>
+              ${isAdmin ? `<td><strong>${escapeHtml(e.first_name)} ${escapeHtml(e.last_name)}</strong></td>` : ''}
+              <td>${formatDate(e.clock_in)}</td>
+              <td>${formatTime(e.clock_in)}</td>
+              <td>${e.clock_out ? formatTime(e.clock_out) : '<span style="color:var(--success); font-weight:600;">Active</span>'}</td>
+              <td>${e.total_hours != null ? Number(e.total_hours).toFixed(2) : '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="padding:14px 20px; border-top:1px solid var(--sage-light); text-align:right; font-size:14px;">
+        Total: <strong>${totalHours.toFixed(2)} hours</strong>
+      </div>
+    `;
+  }
+
+  function formatTime(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+
+  async function downloadTimesheetPdf() {
+    const btn = document.getElementById('ts-download-pdf-btn');
+    btn.disabled = true;
+    btn.textContent = 'Preparing…';
+    try {
+      const params = new URLSearchParams();
+      params.set('start', timesheetRangeStart);
+      params.set('end', timesheetRangeEnd + 'T23:59:59');
+      const res = await fetch(API_BASE + '/timesheets/pdf?' + params.toString(), {
+        headers: { 'Authorization': 'Bearer ' + authToken },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to generate PDF');
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `timesheets_${timesheetRangeStart}_to_${timesheetRangeEnd}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Could not download PDF: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Download PDF';
+    }
+  }
 
   // ============================================================
   // FAMILIES VIEW
