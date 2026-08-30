@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Little Playhut — Family Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --forest-deep: #1B2E22;
+    --forest-mid: #3F5A46;
+    --sage-light: #E4EBDE;
+    --meadow: #CFDCC3;
+    --birch: #F4EDE0;
+    --wood: #8B5E34;
+    --wood-dark: #6E4A28;
+    --gold: #D9A441;
+    --gold-dark: #BF8A2E;
+    --bark: #3A2E22;
+    --moss: #6B7A5E;
+    --white: #FFFFFF;
+    --error: #B3462E;
+    --error-bg: #FBEAE4;
+    --sand-light: #EDE6D6;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(160deg, var(--sage-light) 0%, var(--meadow) 100%);
+    color: var(--bark);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 { font-family: 'Fredoka', sans-serif; font-weight: 600; letter-spacing: -0.01em; }
+
+  /* ---------- Login screen ---------- */
+  #login-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 24px; position: relative; overflow: hidden;
+  }
+  .canopy { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+  .canopy span { position: absolute; border-radius: 50%; background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.55), rgba(255,255,255,0) 70%); }
+  .canopy span:nth-child(1) { width: 46vw; height: 46vw; top: -14vw; left: -10vw; }
+  .canopy span:nth-child(2) { width: 34vw; height: 34vw; top: -8vw; right: -8vw; background: radial-gradient(circle at 40% 35%, rgba(217,164,65,0.20), rgba(255,255,255,0) 70%); }
+  .canopy span:nth-child(3) { width: 52vw; height: 52vw; bottom: -22vw; left: 50%; transform: translateX(-50%); background: radial-gradient(circle at 50% 20%, rgba(63,90,70,0.12), rgba(255,255,255,0) 65%); }
+
+  .login-card {
+    position: relative; z-index: 1; background: var(--birch); border: 1px solid rgba(139,94,52,0.18);
+    border-radius: 20px; padding: 48px 40px 40px; width: 100%; max-width: 400px;
+    box-shadow: 0 24px 64px rgba(15,27,20,0.30), 0 2px 8px rgba(15,27,20,0.18);
+  }
+  .login-card img.mark { width: 128px; height: 128px; margin: 0 auto 20px; display: block; object-fit: contain; }
+  .login-card h1 { font-size: 24px; text-align: center; color: var(--forest-deep); margin: 0 0 4px; }
+  .login-sub { text-align: center; font-size: 14px; color: var(--moss); margin: 4px 0 30px; }
+
+  .field { margin-bottom: 18px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--bark); margin-bottom: 6px; }
+  .field input {
+    width: 100%; padding: 12px 14px; border: 1.5px solid rgba(139,94,52,0.25); border-radius: 10px;
+    font-family: 'Inter', sans-serif; font-size: 15px; color: var(--bark); background: #FFFDF8;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .field input:focus { outline: none; border-color: var(--gold); background: #fff; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 12px 20px; border-radius: 10px; border: none; font-family: 'Inter', sans-serif;
+    font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary { background: var(--forest-deep); color: var(--birch); width: 100%; padding: 13px; }
+  .btn-primary:hover { background: #12241A; }
+  .btn-primary:disabled { background: #B9BFB2; cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--wood); border: 1.5px solid rgba(139,94,52,0.25); }
+  .btn-ghost:hover { border-color: var(--wood); }
+
+  .error-banner {
+    display: none; background: var(--error-bg); color: var(--error); font-size: 13px; font-weight: 500;
+    padding: 10px 14px; border-radius: 8px; margin-bottom: 18px;
+  }
+  .error-banner.visible { display: block; }
+
+  /* ---------- Portal (authenticated) screen ---------- */
+  #portal-screen { display: none; min-height: 100vh; }
+  #portal-screen.show { display: block; }
+
+  .portal-header {
+    background: var(--forest-deep); color: #fff; padding: 20px 24px;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  }
+  .portal-header-brand { display: flex; align-items: center; gap: 10px; }
+  .portal-header-brand img { width: 34px; height: 34px; object-fit: contain; }
+  .portal-header-brand span { font-family: 'Fredoka', sans-serif; font-size: 17px; font-weight: 600; }
+  .portal-header-right { display: flex; align-items: center; gap: 16px; font-size: 13px; }
+  .portal-header-right strong { font-weight: 600; }
+  .sign-out-link { color: rgba(255,255,255,0.65); cursor: pointer; text-decoration: none; }
+  .sign-out-link:hover { color: #fff; }
+
+  .portal-main { max-width: 640px; margin: 0 auto; padding: 32px 20px 60px; }
+
+  .child-picker { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 26px; }
+  .child-chip {
+    padding: 9px 18px; border-radius: 100px; border: 1.5px solid var(--sand-light);
+    background: #fff; font-family: inherit; font-size: 13.5px; font-weight: 600;
+    color: var(--bark); cursor: pointer; transition: all 0.15s ease;
+  }
+  .child-chip:hover { border-color: var(--forest-deep); }
+  .child-chip.selected { background: var(--forest-deep); border-color: var(--forest-deep); color: #fff; }
+
+  .report-card {
+    background: #fff; border: 1px solid var(--sand-light); border-radius: 14px;
+    padding: 22px 24px; margin-bottom: 18px;
+  }
+  .report-date { font-family: 'Fredoka', sans-serif; font-size: 17px; color: var(--forest-deep); margin: 0 0 14px; }
+
+  .report-row { display: flex; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--sand-light); }
+  .report-row:last-of-type { border-bottom: none; }
+  .report-row .report-label { flex: 0 0 90px; font-size: 12px; font-weight: 600; color: var(--moss); text-transform: uppercase; letter-spacing: 0.03em; padding-top: 1px; }
+  .report-row .report-value { flex: 1; font-size: 14px; color: var(--bark); }
+
+  .meal-pill-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .meal-pill { padding: 3px 11px; border-radius: 100px; font-size: 12px; font-weight: 600; }
+  .meal-pill.ate { background: rgba(63,90,70,0.14); color: var(--forest-mid); }
+  .meal-pill.not-ate { background: var(--sand-light); color: var(--moss); }
+
+  .mood-tag {
+    display: inline-block; padding: 3px 12px; border-radius: 100px; font-size: 13px;
+    font-weight: 600; background: rgba(217,164,65,0.18); color: var(--gold-dark);
+  }
+
+  .report-photos { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .report-photos img { width: 88px; height: 88px; object-fit: cover; border-radius: 10px; border: 1px solid var(--sand-light); cursor: pointer; }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--moss); }
+  .empty-state h3 { color: var(--bark); margin: 0 0 8px; font-size: 17px; }
+  .empty-state p { font-size: 14px; margin: 0; }
+
+  /* Simple lightbox for tapping a photo */
+  .lightbox-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(15,27,20,0.85);
+    align-items: center; justify-content: center; padding: 24px; z-index: 200; cursor: zoom-out;
+  }
+  .lightbox-overlay.show { display: flex; }
+  .lightbox-overlay img { max-width: 100%; max-height: 90vh; border-radius: 10px; }
+
+  @media (prefers-reduced-motion: reduce) { .btn, .field input, .child-chip { transition: none; } }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="login-screen">
+  <div class="canopy" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="login-card">
+    <img class="mark" src="https://res.cloudinary.com/dhlymdlu/image/upload/v1788058962/Screenshot_2026-08-04_at_8.42.07_PM.png" alt="The Little Playhut">
+    <h1>Family Portal</h1>
+    <p class="login-sub">Sign in to see your child's daily reports.</p>
+
+    <div class="error-banner" id="login-error" role="alert"></div>
+
+    <form id="login-form">
+      <div class="field">
+        <label for="portal-email">Email</label>
+        <input type="email" id="portal-email" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="portal-password">Password</label>
+        <input type="password" id="portal-password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary" id="login-submit-btn">Sign in</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ PORTAL (AUTHENTICATED) SCREEN ============ -->
+<div id="portal-screen">
+  <div class="portal-header">
+    <div class="portal-header-brand">
+      <img src="https://res.cloudinary.com/dhlymdlu/image/upload/v1788058962/Screenshot_2026-08-04_at_8.42.07_PM.png" alt="The Little Playhut">
+      <span>Family Portal</span>
+    </div>
+    <div class="portal-header-right">
+      <strong id="portal-family-name">—</strong>
+      <span class="sign-out-link" id="portal-signout-btn">Sign out</span>
+    </div>
+  </div>
+
+  <main class="portal-main">
+    <div class="child-picker" id="child-picker"></div>
+    <div id="reports-wrap">
+      <div class="empty-state"><p>Loading…</p></div>
+    </div>
+  </main>
+</div>
+
+<div class="lightbox-overlay" id="lightbox-overlay" onclick="closeLightbox()">
+  <img id="lightbox-img" src="" alt="Daily report photo, enlarged">
+</div>
+
+<script>
+  const API_BASE = 'https://little-playhut-backend.onrender.com';
+
+  let familyToken = null;
+  let familyInfo = null;
+  let myChildren = [];
+  let selectedChildId = null;
+
+  // ============================================================
+  // AUTH — deliberately separate sessionStorage keys from the staff
+  // dashboard (lp_token / lp_staff), so a family session and a staff
+  // session can never collide or be confused in the same browser.
+  // ============================================================
+  function storeFamilyAuth(token, family) {
+    sessionStorage.setItem('lp_family_token', token);
+    sessionStorage.setItem('lp_family_info', JSON.stringify(family));
+  }
+
+  function loadFamilyAuth() {
+    const token = sessionStorage.getItem('lp_family_token');
+    const infoJson = sessionStorage.getItem('lp_family_info');
+    if (!token || !infoJson) return false;
+    try {
+      familyToken = token;
+      familyInfo = JSON.parse(infoJson);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function signOut() {
+    sessionStorage.removeItem('lp_family_token');
+    sessionStorage.removeItem('lp_family_info');
+    familyToken = null;
+    familyInfo = null;
+    showLogin();
+  }
+
+  async function familyApiFetch(path, options = {}) {
+    const headers = Object.assign(
+      { 'Content-Type': 'application/json' },
+      options.headers || {},
+      familyToken ? { 'Authorization': 'Bearer ' + familyToken } : {}
+    );
+    const res = await fetch(API_BASE + path, Object.assign({}, options, { headers }));
+    if (res.status === 401) {
+      signOut();
+      throw new Error('Session expired — please sign in again.');
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+    return data;
+  }
+
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('portal-email').value.trim();
+    const password = document.getElementById('portal-password').value;
+    const errorBox = document.getElementById('login-error');
+    const btn = document.getElementById('login-submit-btn');
+    errorBox.classList.remove('visible');
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+
+    try {
+      const res = await fetch(API_BASE + '/family-auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Sign in failed. Check your email and password.');
+
+      familyToken = data.token;
+      familyInfo = data.family;
+      storeFamilyAuth(familyToken, familyInfo);
+      showPortal();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('visible');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Sign in';
+    }
+  });
+
+  document.getElementById('portal-signout-btn').addEventListener('click', signOut);
+
+  function showLogin() {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('portal-screen').classList.remove('show');
+    document.getElementById('portal-password').value = '';
+  }
+
+  async function showPortal() {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('portal-screen').classList.add('show');
+    document.getElementById('portal-family-name').textContent = familyInfo.primary_parent_name;
+
+    try {
+      myChildren = await familyApiFetch('/family-auth/my-children');
+      renderChildPicker();
+      if (myChildren.length > 0) {
+        selectedChildId = myChildren[0].id;
+        await loadReportsForSelectedChild();
+      } else {
+        document.getElementById('reports-wrap').innerHTML = `
+          <div class="empty-state"><h3>No children on file yet</h3><p>Check back once your child is enrolled.</p></div>
+        `;
+      }
+    } catch (err) {
+      document.getElementById('reports-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load your children</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function renderChildPicker() {
+    const wrap = document.getElementById('child-picker');
+    if (myChildren.length <= 1) { wrap.innerHTML = ''; return; } // no picker needed for a single child
+    wrap.innerHTML = myChildren.map(c => `
+      <button type="button" class="child-chip ${c.id === selectedChildId ? 'selected' : ''}" onclick="selectChild(${c.id})">
+        ${escapeHtml(c.first_name)}
+      </button>
+    `).join('');
+  }
+
+  async function selectChild(childId) {
+    selectedChildId = childId;
+    renderChildPicker();
+    await loadReportsForSelectedChild();
+  }
+
+  async function loadReportsForSelectedChild() {
+    const wrap = document.getElementById('reports-wrap');
+    wrap.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+    try {
+      const reports = await familyApiFetch('/family-auth/reports?child_id=' + selectedChildId);
+      renderReports(reports);
+    } catch (err) {
+      wrap.innerHTML = `<div class="empty-state"><h3>Couldn't load reports</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function renderReports(reports) {
+    const wrap = document.getElementById('reports-wrap');
+    if (reports.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>No reports yet</h3><p>Daily reports will show up here once one is posted.</p></div>`;
+      return;
+    }
+
+    wrap.innerHTML = reports.map(r => {
+      const dateLabel = new Date(r.report_date.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+      const meals = r.meals || [];
+      const napText = (r.nap_start || r.nap_end)
+        ? `${r.nap_start ? formatTime12(r.nap_start) : '—'} to ${r.nap_end ? formatTime12(r.nap_end) : '—'}`
+        : null;
+      const photos = r.photos || [];
+
+      return `
+        <div class="report-card">
+          <h3 class="report-date">${dateLabel}</h3>
+
+          ${meals.length ? `
+            <div class="report-row">
+              <div class="report-label">Meals</div>
+              <div class="report-value">
+                <div class="meal-pill-row">
+                  ${meals.map(m => `<span class="meal-pill ${m.ate ? 'ate' : 'not-ate'}">${escapeHtml(m.label)}${m.ate ? '' : ' — skipped'}</span>`).join('')}
+                </div>
+                ${meals.filter(m => m.notes).map(m => `<div style="font-size:12.5px; color:var(--moss); margin-top:6px;">${escapeHtml(m.label)}: ${escapeHtml(m.notes)}</div>`).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          ${napText ? `
+            <div class="report-row">
+              <div class="report-label">Nap</div>
+              <div class="report-value">${napText}</div>
+            </div>
+          ` : ''}
+
+          ${r.mood ? `
+            <div class="report-row">
+              <div class="report-label">Mood</div>
+              <div class="report-value"><span class="mood-tag">${escapeHtml(r.mood)}</span></div>
+            </div>
+          ` : ''}
+
+          ${r.notes ? `
+            <div class="report-row">
+              <div class="report-label">Notes</div>
+              <div class="report-value">${escapeHtml(r.notes)}</div>
+            </div>
+          ` : ''}
+
+          ${photos.length ? `
+            <div class="report-photos">
+              ${photos.map(url => `<img src="${url}" alt="Photo from ${dateLabel}" onclick="openLightbox('${url}')">`).join('')}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+  }
+
+  function formatTime12(t) {
+    const [h, m] = t.split(':');
+    const hour = Number(h);
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+    return `${displayHour}:${m} ${period}`;
+  }
+
+  function openLightbox(url) {
+    document.getElementById('lightbox-img').src = url;
+    document.getElementById('lightbox-overlay').classList.add('show');
+  }
+  function closeLightbox() {
+    document.getElementById('lightbox-overlay').classList.remove('show');
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  // ============================================================
+  // INIT
+  // ============================================================
+  (function init() {
+    if (loadFamilyAuth()) {
+      showPortal();
+    } else {
+      showLogin();
+    }
+  })();
+</script>
+
+</body>
+</html>
