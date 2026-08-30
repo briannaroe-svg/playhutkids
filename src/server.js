@@ -95,6 +95,13 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Publishable key is safe to expose publicly — it's designed to be used
+// client-side (this is how Stripe Elements/Stripe.js is meant to be
+// configured). The SECRET key never leaves the backend's own env vars.
+app.get('/config/stripe-key', (req, res) => {
+  res.json({ publishable_key: process.env.STRIPE_PUBLISHABLE_KEY });
+});
+
 app.listen(PORT, () => {
   console.log(`Little Playhut backend listening on port ${PORT}`);
 });

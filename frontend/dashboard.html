@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://js.stripe.com/v3/"></script>
 <style>
   :root {
     --teal: #1B2E22;
@@ -545,6 +546,17 @@
         <label for="family-portal-password">Portal password <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
         <input type="password" id="family-portal-password" autocomplete="new-password" placeholder="Leave blank to keep current access as-is">
         <p class="field-hint" id="family-portal-hint">Setting this gives the family access to the parent portal at <code>portal.html</code>.</p>
+      </div>
+
+      <div class="field" id="family-card-section" style="display:none;">
+        <label>Saved card</label>
+        <div id="family-card-current" style="margin-bottom:10px;"></div>
+        <div id="family-card-form-wrap" style="display:none;">
+          <div id="stripe-card-element" style="padding:12px 14px; border:1.5px solid var(--sage-light); border-radius:9px; background:#fff;"></div>
+          <div class="error-banner" id="family-card-error" style="margin-top:10px;"></div>
+          <button type="button" class="btn btn-coral" id="family-card-save-btn" style="margin-top:10px; padding:9px 16px; font-size:13px; width:auto;" onclick="saveFamilyCard()">Save card</button>
+          <button type="button" class="btn btn-ghost" style="margin-top:10px; padding:9px 16px; font-size:13px; width:auto;" onclick="cancelFamilyCardForm()">Cancel</button>
+        </div>
       </div>
 
       <div class="modal-actions">
@@ -4213,13 +4225,136 @@
       document.getElementById('family-portal-hint').textContent = f.has_portal_access
         ? 'This family already has portal access. Enter a new password here to reset it, or leave blank to keep it as-is.'
         : 'Setting this gives the family access to the parent portal at portal.html.';
+
+      document.getElementById('family-card-section').style.display = 'block';
+      renderFamilyCardStatus(f);
     } else {
       document.getElementById('family-modal-title').textContent = 'Add family';
       document.getElementById('family-submit-btn').textContent = 'Add family';
       document.getElementById('family-portal-section').style.display = 'none';
+      document.getElementById('family-card-section').style.display = 'none';
     }
 
     document.getElementById('family-modal-overlay').classList.add('show');
+  }
+
+  // ============================================================
+  // SAVED CARD (Stripe Elements) — the card number is typed directly into
+  // Stripe's own embedded iframe and sent straight to Stripe from the
+  // browser. It NEVER touches this app's JavaScript or backend — only a
+  // resulting setup_intent_id (a reference, not card data) comes back.
+  // ============================================================
+  let stripeInstance = null;
+  let stripeElements = null;
+  let stripeCardElement = null;
+  let familyCardTargetId = null;
+
+  async function getStripeInstance() {
+    if (stripeInstance) return stripeInstance;
+    const { publishable_key } = await apiFetch('/config/stripe-key');
+    if (!publishable_key) throw new Error('Stripe is not configured on the server yet.');
+    stripeInstance = Stripe(publishable_key);
+    return stripeInstance;
+  }
+
+  function renderFamilyCardStatus(family) {
+    familyCardTargetId = family.id;
+    const wrap = document.getElementById('family-card-current');
+    if (family.card_brand && family.card_last4) {
+      wrap.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:var(--cream); border-radius:8px; font-size:13.5px;">
+          <span>${escapeHtml(family.card_brand.charAt(0).toUpperCase() + family.card_brand.slice(1))} ending in ${escapeHtml(family.card_last4)}</span>
+          <span>
+            <button type="button" class="icon-btn" onclick="showFamilyCardForm()">Replace</button>
+            <button type="button" class="icon-btn" style="color:var(--error);" onclick="removeFamilyCard()">Remove</button>
+          </span>
+        </div>
+      `;
+    } else {
+      wrap.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:var(--cream); border-radius:8px; font-size:13.5px; color:#8A9490;">
+          <span>No card on file</span>
+          <button type="button" class="icon-btn" onclick="showFamilyCardForm()">+ Add card</button>
+        </div>
+      `;
+    }
+    document.getElementById('family-card-form-wrap').style.display = 'none';
+  }
+
+  async function showFamilyCardForm() {
+    const errorBox = document.getElementById('family-card-error');
+    errorBox.classList.remove('show');
+    document.getElementById('family-card-form-wrap').style.display = 'block';
+
+    try {
+      const stripe = await getStripeInstance();
+      stripeElements = stripe.elements();
+      if (stripeCardElement) stripeCardElement.unmount();
+      stripeCardElement = stripeElements.create('card', {
+        style: { base: { fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#3A2E22' } },
+      });
+      stripeCardElement.mount('#stripe-card-element');
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    }
+  }
+
+  function cancelFamilyCardForm() {
+    document.getElementById('family-card-form-wrap').style.display = 'none';
+    if (stripeCardElement) { stripeCardElement.unmount(); stripeCardElement = null; }
+  }
+
+  async function saveFamilyCard() {
+    const errorBox = document.getElementById('family-card-error');
+    const btn = document.getElementById('family-card-save-btn');
+    errorBox.classList.remove('show');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    try {
+      const stripe = await getStripeInstance();
+      const { client_secret } = await apiFetch('/families/' + familyCardTargetId + '/setup-intent', { method: 'POST' });
+
+      const result = await stripe.confirmCardSetup(client_secret, {
+        payment_method: { card: stripeCardElement },
+      });
+
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+
+      const updatedFamily = await apiFetch('/families/' + familyCardTargetId + '/confirm-card', {
+        method: 'POST',
+        body: JSON.stringify({ setup_intent_id: result.setupIntent.id }),
+      });
+
+      // Keep the in-memory cache consistent so re-opening this modal (or the
+      // Families table) reflects the new card without a full reload.
+      const idx = familiesCache.findIndex(f => f.id === familyCardTargetId);
+      if (idx !== -1) familiesCache[idx] = updatedFamily;
+
+      cancelFamilyCardForm();
+      renderFamilyCardStatus(updatedFamily);
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save card';
+    }
+  }
+
+  async function removeFamilyCard() {
+    if (!confirm('Remove this saved card?')) return;
+    try {
+      await apiFetch('/families/' + familyCardTargetId + '/payment-method', { method: 'DELETE' });
+      const idx = familiesCache.findIndex(f => f.id === familyCardTargetId);
+      if (idx !== -1) { familiesCache[idx].card_brand = null; familiesCache[idx].card_last4 = null; }
+      renderFamilyCardStatus(familiesCache[idx] || { id: familyCardTargetId });
+    } catch (err) {
+      alert('Could not remove card: ' + err.message);
+    }
   }
 
   function closeFamilyModal() {
