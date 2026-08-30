@@ -3030,7 +3030,12 @@
   // here, since that would destroy the reusable signing form inside it.
   function showPortalQrScreen(registration, signerName) {
     const portalUrl = window.location.origin + '/portal.html';
-    const qrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=' + encodeURIComponent(portalUrl);
+    // Static, pre-branded QR code (Little Playhut logo centered in the code
+    // itself) hosted on Cloudinary — replaces the plain auto-generated QR
+    // that used to be built here via api.qrserver.com. If the portal URL
+    // ever changes, this image needs to be regenerated and re-uploaded to
+    // match — it's a fixed image, not derived from portalUrl below.
+    const qrImageUrl = 'https://res.cloudinary.com/dhlymdlu/image/upload/v1788105089/ParentPortal_QR.png';
 
     document.getElementById('portal-qr-child-name').textContent = `${registration.child_first_name} ${registration.child_last_name}`;
     document.getElementById('portal-qr-signer-name').textContent = signerName;
