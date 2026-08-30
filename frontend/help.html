@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Help — The Little Playhut Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --forest-deep: #1B2E22;
+    --forest-shadow: #0F1B14;
+    --birch: #F4EDE0;
+    --wood: #8B5E34;
+    --gold: #D9A441;
+    --gold-dark: #BF8A2E;
+    --bark: #3A2E22;
+    --moss: #6B7A5E;
+    --white: #FFFFFF;
+    --sand-line: rgba(139,94,52,0.18);
+    --admin-badge-bg: rgba(217,164,65,0.18);
+    --admin-badge-text: #8A6218;
+    --everyone-badge-bg: rgba(107,122,94,0.16);
+    --everyone-badge-text: #4E5C42;
+    --gap-bg: #FBEAE4;
+    --gap-text: #A5452C;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: var(--birch);
+    color: var(--bark);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 { font-family: 'Fredoka', sans-serif; font-weight: 600; letter-spacing: -0.01em; }
+
+  a { color: var(--wood); }
+
+  .layout { display: flex; min-height: 100vh; }
+
+  /* ---------- Sidebar TOC ---------- */
+  .toc {
+    width: 240px; flex-shrink: 0; background: var(--forest-deep); color: rgba(255,255,255,0.85);
+    padding: 28px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  .toc-brand { padding: 0 22px 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.12); margin-bottom: 16px; }
+  .toc-brand img { width: 32px; height: 32px; object-fit: contain; flex-shrink: 0; }
+  .toc-brand span { font-family: 'Fredoka', sans-serif; font-size: 15px; font-weight: 600; color: #fff; line-height: 1.2; }
+  .toc-list { list-style: none; padding: 0 12px; margin: 0; }
+  .toc-list a {
+    display: block; padding: 8px 12px; border-radius: 8px; font-size: 13.5px; font-weight: 500;
+    color: rgba(255,255,255,0.7); text-decoration: none; margin-bottom: 1px;
+  }
+  .toc-list a:hover { background: rgba(255,255,255,0.07); color: #fff; }
+
+  /* ---------- Main content ---------- */
+  .main { flex: 1; padding: 48px 56px; max-width: 760px; }
+
+  .page-title { font-size: 32px; color: var(--forest-deep); margin: 0 0 8px; }
+  .page-sub { font-size: 15px; color: var(--moss); margin: 0 0 40px; }
+
+  section { margin-bottom: 44px; scroll-margin-top: 24px; }
+
+  h2.section-title {
+    font-size: 22px; color: var(--forest-deep); margin: 0 0 6px;
+    padding-bottom: 10px; border-bottom: 2px solid var(--sand-line);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: 100px; font-size: 11.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .badge-admin { background: var(--admin-badge-bg); color: var(--admin-badge-text); }
+  .badge-everyone { background: var(--everyone-badge-bg); color: var(--everyone-badge-text); }
+
+  .section-sub { font-size: 14.5px; color: var(--moss); margin: 10px 0 18px; }
+
+  h3.sub-heading { font-size: 15.5px; color: var(--bark); margin: 22px 0 8px; }
+
+  p { font-size: 14.5px; line-height: 1.65; margin: 0 0 12px; }
+
+  ul, ol { font-size: 14.5px; line-height: 1.65; margin: 0 0 12px; padding-left: 22px; }
+  li { margin-bottom: 4px; }
+
+  .note {
+    background: #fff; border: 1px solid var(--sand-line); border-left: 3px solid var(--gold);
+    border-radius: 8px; padding: 12px 16px; font-size: 13.5px; margin: 14px 0;
+  }
+  .note strong { color: var(--gold-dark); }
+
+  .gap-note {
+    background: var(--gap-bg); color: var(--gap-text); border-radius: 8px;
+    padding: 12px 16px; font-size: 13.5px; margin: 14px 0; font-weight: 500;
+  }
+  .gap-note strong { display: block; margin-bottom: 3px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+
+  code {
+    background: rgba(139,94,52,0.10); padding: 1px 6px; border-radius: 5px;
+    font-size: 13px; font-family: 'SF Mono', Consolas, monospace; color: var(--wood);
+  }
+
+  .top-note {
+    background: #fff; border: 1px solid var(--sand-line); border-radius: 12px;
+    padding: 18px 22px; margin-bottom: 36px; font-size: 14px;
+  }
+  .top-note strong { color: var(--forest-deep); }
+
+  @media (max-width: 760px) {
+    .layout { flex-direction: column; }
+    .toc { width: 100%; height: auto; position: relative; padding: 16px 0; }
+    .toc-list { display: flex; overflow-x: auto; gap: 4px; padding: 0 14px; }
+    .toc-list a { white-space: nowrap; }
+    .main { padding: 28px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <nav class="toc">
+    <div class="toc-brand">
+      <img src="https://res.cloudinary.com/dhlymdlu/image/upload/v1788058962/Screenshot_2026-08-04_at_8.42.07_PM.png" alt="The Little Playhut">
+      <span>Dashboard Help</span>
+    </div>
+    <ul class="toc-list">
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#families">Families</a></li>
+      <li><a href="#children">Children</a></li>
+      <li><a href="#registration">Registration</a></li>
+      <li><a href="#agreements">Agreements</a></li>
+      <li><a href="#services">Services</a></li>
+      <li><a href="#billing">Billing</a></li>
+      <li><a href="#scheduling">Scheduling</a></li>
+      <li><a href="#timesheets">Timesheets</a></li>
+      <li><a href="#staff-accounts">Staff Accounts</a></li>
+      <li><a href="#clock">Clock In/Out</a></li>
+    </ul>
+  </nav>
+
+  <main class="main">
+    <h1 class="page-title">Dashboard Help</h1>
+    <p class="page-sub">What each tab does, and who can see it.</p>
+
+    <div class="top-note">
+      <strong>Two access levels:</strong> <span class="badge badge-admin">Admin</span> can see and do everything below. <span class="badge badge-everyone">Everyone</span> means both admin and regular staff accounts can access that tab, though what they see inside it often differs — noted in each section.
+    </div>
+
+    <section id="overview">
+      <h2 class="section-title">Overview</h2>
+      <p>The sidebar is organized in a fixed order: Families, Children, Registration, Agreements, Services, Billing, Scheduling, Timesheets, and Staff Accounts. Below the tab list is a standing <strong>Clock In/Out</strong> button, always visible, separate from the tabs above it.</p>
+      <p>A staff account only sees tabs relevant to them — Children, Scheduling, and Timesheets — plus the Clock In/Out button. Admin accounts see every tab.</p>
+    </section>
+
+    <section id="families">
+      <h2 class="section-title">Families <span class="badge badge-admin">Admin</span></h2>
+      <p class="section-sub">The parent/guardian contact address book.</p>
+      <p>Every family record holds a primary parent's name, email, phone, and mailing address, plus an optional secondary parent. This is where billing contact info lives — invoices are always addressed to a family, not directly to a child.</p>
+      <h3 class="sub-heading">What you can do here</h3>
+      <ul>
+        <li>Search existing families by parent name or email</li>
+        <li><strong>+ Add family</strong> to create a new record by hand</li>
+        <li>Click <strong>Edit</strong> on any row to update contact details</li>
+      </ul>
+      <div class="note"><strong>Note:</strong> Families don't need to be created here one-by-one — the Registration tab creates a family and a child together in one signed step. Use Families directly when you just need to update contact info, or add a family without going through a full registration.</div>
+    </section>
+
+    <section id="children">
+      <h2 class="section-title">Children <span class="badge badge-everyone">Everyone</span></h2>
+      <p class="section-sub">Enrollment roster and daily check-in/check-out.</p>
+      <h3 class="sub-heading">For admins</h3>
+      <ul>
+        <li>See every actively enrolled child, with their assigned staff and today's check-in status</li>
+        <li><strong>+ Add child</strong> for a quick roster entry (for a formal signed enrollment, use Registration instead)</li>
+        <li><strong>Edit</strong> a child to update their info, or manage which staff members are assigned to them</li>
+        <li>Check any child in or out — admins aren't limited to their own assigned children</li>
+      </ul>
+      <h3 class="sub-heading">For staff</h3>
+      <ul>
+        <li>See only the children assigned to you by an admin</li>
+        <li>Click a child's name to view their allergies, medical notes, and emergency contact — read-only, and parent contact info is intentionally left out of this view</li>
+        <li>Check a child in when they arrive, check them out when they leave</li>
+      </ul>
+      <div class="note"><strong>Allergy safety check:</strong> If a child has an allergy on file, checking them in shows a red confirmation popup with the exact allergy text. The check-in doesn't complete until <strong>I understand</strong> is clicked. Children with no allergies on file check in instantly with no popup.</div>
+    </section>
+
+    <section id="registration">
+      <h2 class="section-title">Registration <span class="badge badge-admin">Admin</span></h2>
+      <p class="section-sub">Formal, signed enrollment — creates the family and child records together.</p>
+      <p>This is the intended way to enroll a new family: one form captures both the parent/guardian info and the child's info, and nothing is created in the system until a signature is collected. A registration sits as <strong>pending</strong> until it's signed, at which point the family and child records are created automatically and a signed PDF is generated.</p>
+      <h3 class="sub-heading">How to use it</h3>
+      <ol>
+        <li>Click <strong>+ Add new Registration</strong> and fill out the family and child sections</li>
+        <li>Save it — it now shows as <strong>pending</strong> in the list, nothing enrolled yet</li>
+        <li>Choose how it gets signed: <strong>Sign now</strong> opens a signature pad for the parent to sign in person on your screen, or <strong>Send link</strong> generates a remote signing link</li>
+        <li>Once signed, the family and child are created automatically, and a signed PDF is attached to the record</li>
+      </ol>
+      <div class="gap-note"><strong>Known gap</strong>The "Send link" button generates a real, working link, but there isn't a page yet for a parent to actually open it and sign remotely. Until that page is built, use "Sign now" (in-person) for registrations.</div>
+    </section>
+
+    <section id="agreements">
+      <h2 class="section-title">Agreements <span class="badge badge-admin">Admin</span></h2>
+      <p class="section-sub">Daycare and preschool handbook e-signing.</p>
+      <p>Built to track signed handbook agreements per family — daycare and preschool versions, with a full remote-signing flow (a 72-hour link a parent can open and sign from home) and an in-person canvas signing option, the same pattern as Registration above.</p>
+      <div class="gap-note"><strong>Known gap</strong>The backend for this is fully built, but the tab itself doesn't have a working screen yet — clicking it currently shows a placeholder. This is next in line to build out.</div>
+    </section>
+
+    <section id="services">
+      <h2 class="section-title">Services <span class="badge badge-admin">Admin</span></h2>
+      <p class="section-sub">A reusable catalog of billable line items.</p>
+      <p>Rather than typing "Monthly Tuition" or "Late Pickup Fee" from scratch on every invoice, add them here once with a default price. When building an invoice, picking a service auto-fills its name and price onto the line — still editable per invoice if the amount needs to change.</p>
+      <h3 class="sub-heading">What you can do here</h3>
+      <ul>
+        <li><strong>+ Add service</strong> — name, optional description, default price</li>
+        <li><strong>Edit</strong> a service, including marking it inactive so it stops showing up as an option on new invoices (past invoices that already used it are unaffected)</li>
+      </ul>
+    </section>
+
+    <section id="billing">
+      <h2 class="section-title">Billing <span class="badge badge-admin">Admin</span></h2>
+      <p class="section-sub">Invoices, payment links, and payment status.</p>
+      <h3 class="sub-heading">Creating an invoice</h3>
+      <ol>
+        <li>Click <strong>+ New invoice</strong></li>
+        <li>Search for the family it's billing</li>
+        <li>Add line items — pick from the Services catalog (auto-fills price) or choose <strong>Custom…</strong> to type a one-off item</li>
+        <li>Save — the invoice starts in <strong>draft</strong> status</li>
+      </ol>
+      <h3 class="sub-heading">Getting paid</h3>
+      <ul>
+        <li><strong>Get payment link</strong> creates a real Stripe payment link and copies it to your clipboard — this uses live Stripe, so it charges real money</li>
+        <li><strong>Copy link</strong> re-copies a link that already exists for that invoice</li>
+        <li><strong>Mark paid</strong> manually flips an invoice to paid — useful for cash or check payments, or any payment collected outside Stripe</li>
+      </ul>
+      <div class="note"><strong>Note:</strong> There's no automatic sync between a Stripe payment and this dashboard yet — even if a family pays through the link, an admin still needs to click <strong>Mark paid</strong> to reflect that here. Automatic syncing is built on the backend but not turned on.</div>
+    </section>
+
+    <section id="scheduling">
+      <h2 class="section-title">Scheduling <span class="badge badge-everyone">Everyone</span></h2>
+      <p class="section-sub">Shifts, school-wide events, and time-off requests.</p>
+      <h3 class="sub-heading">For admins</h3>
+      <ul>
+        <li><strong>+ Add shift</strong> — assign a staff member to a specific date and time</li>
+        <li><strong>+ Add event</strong> — post something everyone should see, like a staff meeting or a closure day</li>
+        <li>Review time-off requests below the calendar — <strong>Approve</strong> or <strong>Deny</strong> each one. A small badge on the Scheduling tab itself shows how many requests are waiting</li>
+        <li>Click <strong>Who's seen this?</strong> on any event to see which staff have acknowledged it</li>
+      </ul>
+      <h3 class="sub-heading">For staff</h3>
+      <ul>
+        <li>See your own upcoming shifts, plus every event admin has posted</li>
+        <li><strong>Request time off</strong> — submit dates and an optional reason; it shows up for admins to review, along with your own request history and its status</li>
+      </ul>
+      <div class="note"><strong>Event popups:</strong> When admin posts a new event, every staff member sees a one-time popup the next time they log in, describing the event. They must click <strong>I understand</strong> to dismiss it — this is what admin is checking in "Who's seen this?"</div>
+    </section>
+
+    <section id="timesheets">
+      <h2 class="section-title">Timesheets <span class="badge badge-everyone">Everyone</span></h2>
+      <p class="section-sub">Clock-in history and payroll export. Actual clocking in/out happens from the separate <a href="#clock">Clock In/Out</a> button, not from this tab.</p>
+      <h3 class="sub-heading">For admins</h3>
+      <ul>
+        <li>See a live list of who's currently clocked in, at the top of the page</li>
+        <li>See every staff member's timesheet entries, filterable by date range</li>
+        <li><strong>Edit</strong> an entry to correct a wrong clock-in or clock-out time</li>
+        <li><strong>Delete</strong> an entry entirely if it shouldn't exist — this is a permanent action</li>
+        <li><strong>Download PDF</strong> — a payroll-ready report for the selected date range, grouped by staff member with totals, ready to send to an accountant</li>
+      </ul>
+      <h3 class="sub-heading">For staff</h3>
+      <ul>
+        <li>See only your own entries, filterable by date range</li>
+        <li>View-only — no editing or deleting</li>
+      </ul>
+    </section>
+
+    <section id="staff-accounts">
+      <h2 class="section-title">Staff Accounts <span class="badge badge-admin">Admin</span></h2>
+      <p class="section-sub">Who can log in, and what they can see.</p>
+      <h3 class="sub-heading">What you can do here</h3>
+      <ul>
+        <li><strong>+ Add staff account</strong> — name, email, role/title, hourly rate, an optional clock-in PIN, and a password they'll use to log in</li>
+        <li>Toggle <strong>Admin access</strong> when creating or editing an account — this is what decides whether they see the full sidebar or just Children, Scheduling, and Timesheets</li>
+        <li><strong>Edit</strong> to update details or reset a password</li>
+        <li><strong>Delete</strong> removes their ability to log in, but keeps all their historical timesheet entries and any invoices or records tied to them fully intact — nothing is erased</li>
+      </ul>
+      <div class="note"><strong>Note:</strong> You can't delete your own account, and an already-deactivated account won't show a Delete button — there'd be nothing left to remove.</div>
+    </section>
+
+    <section id="clock">
+      <h2 class="section-title">Clock In/Out <span class="badge badge-everyone">Everyone</span></h2>
+      <p class="section-sub">Not a tab — a standing button at the bottom of the sidebar, below the tab list.</p>
+      <p>Shows your current status at a glance and lets you clock in or out with one click, no PIN needed since you're already logged in. When you're clocked in, it shows how long you've been on the clock. This is the only place clocking in/out happens — the Timesheets tab is for viewing history, not for the action itself.</p>
+    </section>
+
+  </main>
+</div>
+
+</body>
+</html>
