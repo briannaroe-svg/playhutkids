@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign Registration — The Little Playhut</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --forest-deep: #1B2E22;
+    --sage-light: #E4EBDE;
+    --meadow: #CFDCC3;
+    --birch: #F4EDE0;
+    --wood: #8B5E34;
+    --gold: #D9A441;
+    --gold-dark: #BF8A2E;
+    --bark: #3A2E22;
+    --moss: #6B7A5E;
+    --white: #FFFFFF;
+    --error: #B3462E;
+    --error-bg: #FBEAE4;
+    --success: #4A7A5C;
+    --success-bg: #E7F1EA;
+    --sand-line: rgba(139,94,52,0.18);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(160deg, var(--sage-light) 0%, var(--meadow) 100%);
+    color: var(--bark);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 { font-family: 'Fredoka', sans-serif; font-weight: 600; letter-spacing: -0.01em; }
+
+  .card {
+    background: var(--birch); border: 1px solid var(--sand-line); border-radius: 20px;
+    padding: 40px 36px; width: 100%; max-width: 520px;
+    box-shadow: 0 24px 64px rgba(15,27,20,0.20), 0 2px 8px rgba(15,27,20,0.12);
+  }
+
+  .card img.mark { width: 84px; height: 84px; margin: 0 auto 16px; display: block; object-fit: contain; }
+  .card h1 { font-size: 22px; text-align: center; color: var(--forest-deep); margin: 0 0 6px; }
+  .card .sub { text-align: center; font-size: 14px; color: var(--moss); margin: 0 0 26px; }
+
+  .summary-box {
+    background: #fff; border: 1px solid var(--sand-line); border-radius: 12px;
+    padding: 18px 20px; margin-bottom: 22px;
+  }
+  .summary-row { display: flex; gap: 12px; padding: 7px 0; font-size: 14px; }
+  .summary-row .label { flex: 0 0 110px; font-weight: 600; color: var(--moss); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; padding-top: 1px; }
+  .summary-row .value { flex: 1; color: var(--bark); }
+  .summary-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--wood); margin: 14px 0 4px; }
+  .summary-section-title:first-child { margin-top: 0; }
+
+  .field { margin-bottom: 18px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--bark); margin-bottom: 6px; }
+  .field input {
+    width: 100%; padding: 12px 14px; border: 1.5px solid rgba(139,94,52,0.25); border-radius: 10px;
+    font-family: 'Inter', sans-serif; font-size: 15px; color: var(--bark); background: #FFFDF8;
+  }
+  .field input:focus { outline: none; border-color: var(--gold); background: #fff; }
+
+  .signature-canvas {
+    width: 100%; height: 160px; border: 1.5px dashed var(--wood); border-radius: 10px;
+    background: #fff; cursor: crosshair; touch-action: none; display: block;
+  }
+  .clear-link {
+    display: inline-block; margin-top: 8px; font-size: 12.5px; font-weight: 600;
+    color: var(--wood); cursor: pointer; background: none; border: none; padding: 0;
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 13px 20px; border-radius: 10px; border: none; font-family: 'Inter', sans-serif;
+    font-size: 15px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 6px;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary { background: var(--forest-deep); color: var(--birch); }
+  .btn-primary:hover { background: #12241A; }
+  .btn-primary:disabled { background: #B9BFB2; cursor: not-allowed; }
+
+  .error-banner, .status-banner {
+    display: none; font-size: 13.5px; font-weight: 500; padding: 12px 16px; border-radius: 9px; margin-bottom: 18px;
+  }
+  .error-banner.visible, .status-banner.visible { display: block; }
+  .error-banner { background: var(--error-bg); color: var(--error); }
+
+  .center-state { text-align: center; padding: 20px 0; }
+  .center-state h2 { font-size: 19px; color: var(--forest-deep); margin: 14px 0 8px; }
+  .center-state p { font-size: 14px; color: var(--moss); margin: 0; }
+  .success-icon, .error-icon {
+    width: 52px; height: 52px; border-radius: 50%; margin: 0 auto;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .success-icon { background: var(--success-bg); color: var(--success); }
+  .error-icon { background: var(--error-bg); color: var(--error); }
+</style>
+</head>
+<body>
+
+<div class="card" id="card">
+  <img class="mark" src="https://res.cloudinary.com/dhlymdlu/image/upload/v1788058962/Screenshot_2026-08-04_at_8.42.07_PM.png" alt="The Little Playhut">
+  <div id="content">
+    <div class="center-state"><p>Loading…</p></div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = 'https://little-playhut-backend.onrender.com';
+
+  let registration = null;
+  let signaturePad = null;
+
+  function getToken() {
+    return new URLSearchParams(window.location.search).get('token');
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  function formatDate(d) {
+    if (!d) return '—';
+    return new Date(d.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  }
+
+  async function init() {
+    const token = getToken();
+    const content = document.getElementById('content');
+
+    if (!token) {
+      renderError('Missing signing link', 'This link looks incomplete. Please use the exact link sent from the school.');
+      return;
+    }
+
+    try {
+      const res = await fetch(API_BASE + '/registrations/sign/' + token);
+      const data = await res.json();
+
+      if (res.status === 410) {
+        renderError('This link has expired', 'Signing links are valid for 72 hours. Please contact the school for a new one.');
+        return;
+      }
+      if (res.status === 400 && data.error && data.error.includes('already been signed')) {
+        renderAlreadySigned();
+        return;
+      }
+      if (!res.ok) {
+        renderError('Link not found', data.error || 'This signing link is invalid.');
+        return;
+      }
+
+      registration = data;
+      renderReviewForm();
+    } catch (err) {
+      renderError('Couldn\'t load this registration', 'Check your connection and try reloading the page.');
+    }
+  }
+
+  function renderError(title, message) {
+    document.getElementById('content').innerHTML = `
+      <div class="center-state">
+        <div class="error-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01" stroke-linecap="round"/></svg>
+        </div>
+        <h2>${escapeHtml(title)}</h2>
+        <p>${escapeHtml(message)}</p>
+      </div>
+    `;
+  }
+
+  function renderAlreadySigned() {
+    document.getElementById('content').innerHTML = `
+      <div class="center-state">
+        <div class="success-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h2>Already signed</h2>
+        <p>This registration has already been completed. If that doesn't seem right, contact the school directly.</p>
+      </div>
+    `;
+  }
+
+  function renderReviewForm() {
+    document.getElementById('content').innerHTML = `
+      <h1>Review &amp; Sign</h1>
+      <p class="sub">Please confirm the details below, then sign to complete enrollment.</p>
+
+      <div class="error-banner" id="form-error"></div>
+
+      <div class="summary-box">
+        <div class="summary-section-title">Parent / Guardian</div>
+        <div class="summary-row"><div class="label">Name</div><div class="value">${escapeHtml(registration.primary_parent_name)}</div></div>
+        <div class="summary-row"><div class="label">Email</div><div class="value">${escapeHtml(registration.primary_parent_email)}</div></div>
+        ${registration.primary_parent_phone ? `<div class="summary-row"><div class="label">Phone</div><div class="value">${escapeHtml(registration.primary_parent_phone)}</div></div>` : ''}
+
+        <div class="summary-section-title">Child</div>
+        <div class="summary-row"><div class="label">Name</div><div class="value">${escapeHtml(registration.child_first_name)} ${escapeHtml(registration.child_last_name)}</div></div>
+        <div class="summary-row"><div class="label">Birthdate</div><div class="value">${formatDate(registration.child_date_of_birth)}</div></div>
+        <div class="summary-row"><div class="label">Program</div><div class="value">${registration.child_program === 'preschool' ? 'Preschool' : 'Daycare'}</div></div>
+        ${registration.child_allergies ? `<div class="summary-row"><div class="label">Allergies</div><div class="value">${escapeHtml(registration.child_allergies)}</div></div>` : ''}
+      </div>
+
+      <div class="field">
+        <label for="signer-name">Your full name (as signature)</label>
+        <input type="text" id="signer-name" value="${escapeHtml(registration.primary_parent_name)}" required>
+      </div>
+
+      <div class="field">
+        <label>Signature</label>
+        <canvas id="sig-canvas" class="signature-canvas"></canvas>
+        <button type="button" class="clear-link" onclick="clearSignature()">Clear</button>
+      </div>
+
+      <button type="button" class="btn btn-primary" id="submit-btn" onclick="submitSignature()">Sign &amp; complete enrollment</button>
+    `;
+
+    requestAnimationFrame(initSignaturePad);
+  }
+
+  function initSignaturePad() {
+    const canvas = document.getElementById('sig-canvas');
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    ctx.strokeStyle = '#3A2E22';
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    signaturePad = { canvas, ctx, drawing: false, hasStroke: false };
+
+    const getPos = (e) => {
+      const r = canvas.getBoundingClientRect();
+      const point = e.touches ? e.touches[0] : e;
+      return { x: point.clientX - r.left, y: point.clientY - r.top };
+    };
+    const start = (e) => {
+      e.preventDefault();
+      signaturePad.drawing = true;
+      const { x, y } = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    };
+    const move = (e) => {
+      if (!signaturePad.drawing) return;
+      e.preventDefault();
+      const { x, y } = getPos(e);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      signaturePad.hasStroke = true;
+    };
+    const end = () => { signaturePad.drawing = false; };
+
+    canvas.onmousedown = start;
+    canvas.onmousemove = move;
+    canvas.onmouseup = end;
+    canvas.onmouseleave = end;
+    canvas.ontouchstart = start;
+    canvas.ontouchmove = move;
+    canvas.ontouchend = end;
+  }
+
+  function clearSignature() {
+    if (!signaturePad) return;
+    signaturePad.ctx.clearRect(0, 0, signaturePad.canvas.width, signaturePad.canvas.height);
+    signaturePad.hasStroke = false;
+  }
+
+  async function submitSignature() {
+    const errorBox = document.getElementById('form-error');
+    errorBox.classList.remove('visible');
+
+    const signerName = document.getElementById('signer-name').value.trim();
+    if (!signerName) {
+      errorBox.textContent = 'Please enter your name.';
+      errorBox.classList.add('visible');
+      return;
+    }
+    if (!signaturePad || !signaturePad.hasStroke) {
+      errorBox.textContent = 'Please sign in the box above.';
+      errorBox.classList.add('visible');
+      return;
+    }
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+
+    try {
+      const signatureDataUri = signaturePad.canvas.toDataURL('image/png');
+      const res = await fetch(API_BASE + '/registrations/sign/' + getToken(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signer_name: signerName, signature_data: signatureDataUri }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
+
+      renderComplete(data);
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('visible');
+      btn.disabled = false;
+      btn.textContent = 'Sign & complete enrollment';
+    }
+  }
+
+  function renderComplete(registrationResult) {
+    document.getElementById('content').innerHTML = `
+      <div class="center-state">
+        <div class="success-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h2>You're all set!</h2>
+        <p>${escapeHtml(registrationResult.child_first_name)} ${escapeHtml(registrationResult.child_last_name)} is now enrolled at The Little Playhut. The school will be in touch with next steps.</p>
+      </div>
+    `;
+  }
+
+  init();
+</script>
+
+</body>
+</html>

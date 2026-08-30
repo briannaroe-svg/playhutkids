@@ -78,7 +78,14 @@ router.post('/:id(\\d+)/send-remote-link', requireAdmin, async (req, res) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Registration not found or already signed' });
 
-    const signingUrl = `${process.env.APP_URL}/registrations/sign/${token}`;
+    // FRONTEND_URL is the Static Site's own domain (playhutkids.onrender.com),
+    // NOT the backend's APP_URL — this link needs to open an actual HTML
+    // signing page for a parent, not the raw JSON API route it points at.
+    // Falls back to APP_URL only if FRONTEND_URL was never set, so this
+    // doesn't silently break before the env var is configured — though the
+    // resulting link would still be wrong until FRONTEND_URL is set for real.
+    const frontendBase = process.env.FRONTEND_URL || process.env.APP_URL;
+    const signingUrl = `${frontendBase}/sign-registration.html?token=${token}`;
     res.json({ registration: result.rows[0], signing_url: signingUrl });
   } catch (err) {
     console.error(err);
