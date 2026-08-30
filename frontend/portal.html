@@ -104,6 +104,46 @@
 
   .portal-main { max-width: 640px; margin: 0 auto; padding: 32px 20px 60px; }
 
+  /* ---------- Tabs ---------- */
+  .portal-tabs {
+    display: flex; gap: 4px; max-width: 640px; margin: 0 auto; padding: 16px 20px 0;
+  }
+  .portal-tab {
+    padding: 10px 18px; border-radius: 9px 9px 0 0; border: none; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600;
+    background: transparent; color: rgba(58,46,34,0.5); position: relative;
+  }
+  .portal-tab.selected { background: #fff; color: var(--forest-deep); }
+  .portal-tab-badge {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px;
+    padding: 0 5px; margin-left: 4px; background: var(--error); color: #fff; font-size: 10.5px;
+    font-weight: 700; border-radius: 100px; vertical-align: middle;
+  }
+
+  /* ---------- Messages ---------- */
+  .message-thread {
+    background: #fff; border-radius: 14px; border: 1px solid var(--sand-light);
+    padding: 20px; min-height: 340px; max-height: 55vh; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px;
+  }
+  .message-bubble-row { display: flex; }
+  .message-bubble-row.from-family { justify-content: flex-end; }
+  .message-bubble {
+    max-width: 78%; padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.5;
+  }
+  .message-bubble-row.from-staff .message-bubble { background: var(--sage-light); color: var(--bark); border-bottom-left-radius: 4px; }
+  .message-bubble-row.from-family .message-bubble { background: var(--forest-deep); color: #fff; border-bottom-right-radius: 4px; }
+  .message-meta { font-size: 11px; color: var(--moss); margin-top: 4px; }
+  .message-bubble-row.from-family .message-meta { text-align: right; }
+
+  .message-compose { display: flex; gap: 8px; }
+  .message-compose input {
+    flex: 1; padding: 12px 14px; border: 1.5px solid rgba(139,94,52,0.25); border-radius: 10px;
+    font-family: 'Inter', sans-serif; font-size: 14px; color: var(--bark); background: #FFFDF8;
+  }
+  .message-compose input:focus { outline: none; border-color: var(--gold); background: #fff; }
+
+
   .child-picker { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 26px; }
   .child-chip {
     padding: 9px 18px; border-radius: 100px; border: 1.5px solid var(--sand-light);
@@ -191,10 +231,29 @@
     </div>
   </div>
 
+  <div class="portal-tabs">
+    <button type="button" class="portal-tab selected" id="tab-reports-btn" onclick="switchPortalTab('reports')">Daily Reports</button>
+    <button type="button" class="portal-tab" id="tab-messages-btn" onclick="switchPortalTab('messages')">
+      Messages <span class="portal-tab-badge" id="messages-unread-badge" style="display:none;"></span>
+    </button>
+  </div>
+
   <main class="portal-main">
-    <div class="child-picker" id="child-picker"></div>
-    <div id="reports-wrap">
-      <div class="empty-state"><p>Loading…</p></div>
+    <div id="reports-tab">
+      <div class="child-picker" id="child-picker"></div>
+      <div id="reports-wrap">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+    </div>
+
+    <div id="messages-tab" style="display:none;">
+      <div class="message-thread" id="message-thread">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+      <form id="message-form" class="message-compose">
+        <input type="text" id="message-input" placeholder="Type a message…" autocomplete="off" required>
+        <button type="submit" class="btn btn-primary" id="message-send-btn" style="width:auto; padding:12px 22px;">Send</button>
+      </form>
     </div>
   </main>
 </div>
@@ -317,7 +376,91 @@
     } catch (err) {
       document.getElementById('reports-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load your children</h3><p>${err.message}</p></div>`;
     }
+
+    refreshUnreadBadge();
   }
+
+  // ============================================================
+  // TABS
+  // ============================================================
+  function switchPortalTab(tab) {
+    document.getElementById('tab-reports-btn').classList.toggle('selected', tab === 'reports');
+    document.getElementById('tab-messages-btn').classList.toggle('selected', tab === 'messages');
+    document.getElementById('reports-tab').style.display = tab === 'reports' ? 'block' : 'none';
+    document.getElementById('messages-tab').style.display = tab === 'messages' ? 'block' : 'none';
+    if (tab === 'messages') loadMessages();
+  }
+
+  // ============================================================
+  // MESSAGING
+  // ============================================================
+  async function refreshUnreadBadge() {
+    try {
+      const { count } = await familyApiFetch('/family-auth/messages/unread-count');
+      const badge = document.getElementById('messages-unread-badge');
+      if (count > 0) {
+        badge.textContent = count;
+        badge.style.display = 'inline-flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    } catch (err) {
+      // Silent — a badge failing to load shouldn't interrupt anything else.
+    }
+  }
+
+  async function loadMessages() {
+    const wrap = document.getElementById('message-thread');
+    wrap.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+    try {
+      const thread = await familyApiFetch('/family-auth/messages');
+      renderMessageThread(thread);
+      document.getElementById('messages-unread-badge').style.display = 'none'; // opening the tab marks them read server-side
+      wrap.scrollTop = wrap.scrollHeight;
+    } catch (err) {
+      wrap.innerHTML = `<div class="empty-state"><h3>Couldn't load messages</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function renderMessageThread(thread) {
+    const wrap = document.getElementById('message-thread');
+    if (thread.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>No messages yet</h3><p>Send a message below to reach the school.</p></div>`;
+      return;
+    }
+    wrap.innerHTML = thread.map(m => {
+      const fromFamily = m.sender_type === 'family';
+      const senderLabel = fromFamily ? 'You' : (m.staff_first_name ? `${m.staff_first_name} ${m.staff_last_name}` : 'The Little Playhut');
+      const timeLabel = new Date(m.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      return `
+        <div class="message-bubble-row ${fromFamily ? 'from-family' : 'from-staff'}">
+          <div>
+            <div class="message-bubble">${escapeHtml(m.body)}</div>
+            <div class="message-meta">${escapeHtml(senderLabel)} · ${timeLabel}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('message-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('message-input');
+    const body = input.value.trim();
+    if (!body) return;
+    const btn = document.getElementById('message-send-btn');
+    btn.disabled = true;
+
+    try {
+      await familyApiFetch('/family-auth/messages', { method: 'POST', body: JSON.stringify({ body }) });
+      input.value = '';
+      await loadMessages();
+    } catch (err) {
+      alert('Could not send message: ' + err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   function renderChildPicker() {
     const wrap = document.getElementById('child-picker');

@@ -119,4 +119,67 @@ router.get('/reports', requireFamilyAuth, async (req, res) => {
   }
 });
 
+// ============================================================
+// PARENT-FACING: messaging with staff
+// ============================================================
+
+// GET /family-auth/messages/unread-count — how many unread staff messages the
+// parent has, without marking anything read (for the tab badge on login)
+router.get('/messages/unread-count', requireFamilyAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT COUNT(*) FROM messages WHERE family_id = $1 AND sender_type = 'staff' AND read_by_family = false`,
+      [req.family.family_id]
+    );
+    res.json({ count: Number(result.rows[0].count) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch unread count' });
+  }
+});
+
+// GET /family-auth/messages — the logged-in parent's own thread, marks
+// staff messages as read-by-family as a side effect of opening it
+router.get('/messages', requireFamilyAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT m.*, s.first_name AS staff_first_name, s.last_name AS staff_last_name
+       FROM messages m
+       LEFT JOIN staff s ON m.sender_staff_id = s.id
+       WHERE m.family_id = $1
+       ORDER BY m.created_at ASC`,
+      [req.family.family_id]
+    );
+
+    await pool.query(
+      `UPDATE messages SET read_by_family = true WHERE family_id = $1 AND sender_type = 'staff' AND read_by_family = false`,
+      [req.family.family_id]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+// POST /family-auth/messages — the logged-in parent sends a message to staff
+router.post('/messages', requireFamilyAuth, async (req, res) => {
+  const { body } = req.body;
+  if (!body || !body.trim()) return res.status(400).json({ error: 'Message body is required' });
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO messages (family_id, sender_type, body, read_by_family)
+       VALUES ($1, 'family', $2, true)
+       RETURNING *`,
+      [req.family.family_id, body.trim()]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
 module.exports = router;

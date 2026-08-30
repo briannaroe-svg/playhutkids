@@ -1142,6 +1142,7 @@
     { id: 'children',   label: 'Children',       adminOnly: false, icon: 'child' },
     { id: 'registrations', label: 'Registration', adminOnly: true, icon: 'registration' },
     { id: 'agreements', label: 'Documents',      adminOnly: false, icon: 'doc' },
+    { id: 'messages',   label: 'Messages',       adminOnly: false, icon: 'messages' },
     { id: 'services',   label: 'Services',       adminOnly: true,  icon: 'services' },
     { id: 'invoices',   label: 'Billing',        adminOnly: true,  icon: 'billing' },
     { id: 'scheduling', label: 'Scheduling',     adminOnly: false, icon: 'calendar' },
@@ -1160,6 +1161,7 @@
     services: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7l8-4 8 4-8 4-8-4z"/><path d="M4 7v10l8 4 8-4V7M12 11v10" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     billing: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4" stroke-linecap="round"/></svg>',
     doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M9 13h6M9 17h6" stroke-linecap="round"/></svg>',
+    messages: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16a1 1 0 011 1v10a1 1 0 01-1 1H9l-4 4v-4H4a1 1 0 01-1-1V6a1 1 0 011-1z" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     staff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke-linecap="round"/><path d="M16 8a3 3 0 110-6M17 14c2.3.4 4 2.3 4 6" stroke-linecap="round"/></svg>',
   };
 
@@ -1173,10 +1175,28 @@
           <span class="nav-icon">${ICONS[item.icon]}</span>
           ${item.label}
           ${item.id === 'scheduling' && isAdmin ? '<span class="nav-badge" id="scheduling-nav-badge" style="display:none;"></span>' : ''}
+          ${item.id === 'messages' ? '<span class="nav-badge" id="messages-nav-badge" style="display:none;"></span>' : ''}
         </li>
       `).join('');
 
     if (isAdmin) refreshPendingTimeOffBadge();
+    refreshMessagesBadge();
+  }
+
+  async function refreshMessagesBadge() {
+    const badge = document.getElementById('messages-nav-badge');
+    if (!badge) return;
+    try {
+      const { count } = await apiFetch('/messages/unread-count');
+      if (count > 0) {
+        badge.textContent = count;
+        badge.style.display = 'inline-flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    } catch (err) {
+      // Silent — badge failures shouldn't interrupt anything else.
+    }
   }
 
   async function refreshPendingTimeOffBadge() {
@@ -1210,6 +1230,7 @@
       registrations: renderRegistrationsView,
       children: renderChildrenView,
       agreements: renderDocumentsView,
+      messages: renderMessagesView,
     };
     (renderers[viewId] || renderers.staff)();
   }
@@ -3244,6 +3265,139 @@
       btn.disabled = false;
       btn.textContent = 'Sign document';
     }
+  }
+
+  // ============================================================
+  // MESSAGES VIEW — two-way messaging with families. Any staff member (not
+  // just admin) can see every family's thread and reply — messaging isn't
+  // scoped by room/assignment.
+  // ============================================================
+  let conversationsCache = [];
+  let openThreadFamilyId = null;
+
+  async function renderMessagesView() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h2>Messages</h2>
+          <p>Two-way messages with families, view-only reports aside — this is where they can actually reach you.</p>
+        </div>
+      </div>
+      <div class="card" id="conversations-wrap">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+      <div id="thread-panel-wrap" style="margin-top:22px;"></div>
+    `;
+
+    try {
+      conversationsCache = await apiFetch('/messages');
+      renderConversationsList();
+    } catch (err) {
+      document.getElementById('conversations-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load conversations</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function renderConversationsList() {
+    const wrap = document.getElementById('conversations-wrap');
+    if (conversationsCache.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>No conversations yet</h3><p>Messages a family sends will show up here.</p></div>`;
+      return;
+    }
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Family</th><th>Last message</th><th>When</th><th></th></tr></thead>
+        <tbody>
+          ${conversationsCache.map(c => `
+            <tr>
+              <td>
+                <strong>${escapeHtml(c.primary_parent_name)}</strong>
+                ${c.unread_count > 0 ? `<span class="badge badge-inactive" style="margin-left:6px;">${c.unread_count} new</span>` : ''}
+              </td>
+              <td style="max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(c.last_message || '')}</td>
+              <td>${c.last_message_at ? formatDate(c.last_message_at) : '—'}</td>
+              <td><button class="icon-btn" onclick="openThread(${c.family_id})">Open</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function openThread(familyId) {
+    openThreadFamilyId = familyId;
+    const family = conversationsCache.find(c => c.family_id === familyId);
+    const wrap = document.getElementById('thread-panel-wrap');
+    wrap.innerHTML = `
+      <div class="page-header" style="margin-bottom:14px;"><div><h2 style="font-size:19px;">${family ? escapeHtml(family.primary_parent_name) : 'Conversation'}</h2></div></div>
+      <div class="card" id="staff-message-thread" style="padding:20px; min-height:300px; max-height:50vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px; margin-bottom:14px;">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+      <form id="staff-message-form" style="display:flex; gap:8px;">
+        <input type="text" id="staff-message-input" placeholder="Type a reply…" autocomplete="off" required
+          style="flex:1; padding:11px 14px; border:1.5px solid var(--sage-light); border-radius:9px; font-family:inherit; font-size:14px; background:var(--cream);">
+        <button type="submit" class="btn btn-coral" id="staff-message-send-btn">Send</button>
+      </form>
+    `;
+    wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    document.getElementById('staff-message-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = document.getElementById('staff-message-input');
+      const body = input.value.trim();
+      if (!body) return;
+      const btn = document.getElementById('staff-message-send-btn');
+      btn.disabled = true;
+      try {
+        await apiFetch('/messages/' + openThreadFamilyId, { method: 'POST', body: JSON.stringify({ body }) });
+        input.value = '';
+        await loadStaffThread(openThreadFamilyId);
+        conversationsCache = await apiFetch('/messages');
+        renderConversationsList();
+      } catch (err) {
+        alert('Could not send message: ' + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    await loadStaffThread(familyId);
+    refreshMessagesBadge();
+  }
+
+  async function loadStaffThread(familyId) {
+    const threadWrap = document.getElementById('staff-message-thread');
+    try {
+      const thread = await apiFetch('/messages/' + familyId);
+      renderStaffThread(thread);
+      threadWrap.scrollTop = threadWrap.scrollHeight;
+    } catch (err) {
+      threadWrap.innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+    }
+  }
+
+  function renderStaffThread(thread) {
+    const wrap = document.getElementById('staff-message-thread');
+    if (thread.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>No messages yet</h3></div>`;
+      return;
+    }
+    wrap.innerHTML = thread.map(m => {
+      const fromStaff = m.sender_type === 'staff';
+      const senderLabel = fromStaff ? (m.staff_first_name ? `${m.staff_first_name} ${m.staff_last_name}` : 'Staff') : 'Parent';
+      const timeLabel = new Date(m.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      return `
+        <div style="display:flex; ${fromStaff ? 'justify-content:flex-end;' : ''}">
+          <div style="max-width:78%;">
+            <div style="padding:10px 14px; border-radius:14px; font-size:14px; line-height:1.5;
+              ${fromStaff ? 'background:var(--teal); color:#fff; border-bottom-right-radius:4px;' : 'background:var(--sage-light); color:var(--charcoal); border-bottom-left-radius:4px;'}">
+              ${escapeHtml(m.body)}
+            </div>
+            <div style="font-size:11px; color:#8A9490; margin-top:4px; ${fromStaff ? 'text-align:right;' : ''}">${escapeHtml(senderLabel)} · ${timeLabel}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 
   // ============================================================
