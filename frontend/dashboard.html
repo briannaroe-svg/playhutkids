@@ -82,7 +82,7 @@
   .logout-link { font-size: 12.5px; color: rgba(255,255,255,0.5); cursor: pointer; display: inline-block; text-decoration: none; }
   .logout-link:hover { color: #fff; }
 
-  .sidebar-clock-wrap { padding: 4px 12px 14px; }
+  .sidebar-clock-wrap { padding: 4px 12px 14px; display: flex; flex-direction: column; gap: 8px; }
   .sidebar-clock-btn {
     width: 100%; display: flex; align-items: center; gap: 9px;
     padding: 11px 14px; border-radius: 9px; border: none; cursor: pointer;
@@ -92,12 +92,15 @@
   }
   .sidebar-clock-btn:hover { background: rgba(255,255,255,0.14); }
   .sidebar-clock-btn.clocked-in { background: rgba(232,115,74,0.18); color: #fff; }
-  .sidebar-clock-btn:disabled { opacity: 0.6; cursor: default; }
+  .sidebar-clock-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .sidebar-clock-btn:disabled:hover { background: rgba(255,255,255,0.08); }
   .clock-dot {
     width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
     background: rgba(255,255,255,0.4);
   }
   .sidebar-clock-btn.clocked-in .clock-dot { background: var(--coral); box-shadow: 0 0 0 3px rgba(232,115,74,0.25); }
+  .sidebar-break-btn.on-break { background: rgba(139,94,52,0.32); color: #fff; }
+  .sidebar-break-btn.on-break .clock-dot { background: #C9A876; box-shadow: 0 0 0 3px rgba(201,168,118,0.3); }
 
   .main { flex: 1; padding: 34px 42px; max-width: 1080px; }
   .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 26px; gap: 20px; flex-wrap: wrap; }
@@ -319,6 +322,10 @@
       <button class="sidebar-clock-btn" id="sidebar-clock-btn" onclick="handleSidebarClockToggle()">
         <span class="clock-dot" id="sidebar-clock-dot"></span>
         <span id="sidebar-clock-label">Loading…</span>
+      </button>
+      <button class="sidebar-clock-btn sidebar-break-btn" id="sidebar-break-btn" onclick="handleSidebarBreakToggle()" disabled>
+        <span class="clock-dot" id="sidebar-break-dot"></span>
+        <span id="sidebar-break-label">Break / Lunch</span>
       </button>
     </div>
 
@@ -1294,14 +1301,16 @@
   });
 
   // ============================================================
-  // SIDEBAR CLOCK IN/OUT BUTTON (persistent, not a nav tab)
+  // SIDEBAR CLOCK IN/OUT + BREAK/LUNCH BUTTONS (persistent, not nav tabs)
   // ============================================================
-  let currentClockStatus = null; // { clocked_in, entry }
+  let currentClockStatus = null; // { clocked_in, entry, on_break, break }
 
   async function renderSidebarClockButton() {
     const btn = document.getElementById('sidebar-clock-btn');
-    const dot = document.getElementById('sidebar-clock-dot');
     const label = document.getElementById('sidebar-clock-label');
+    const breakBtn = document.getElementById('sidebar-break-btn');
+    const breakLabel = document.getElementById('sidebar-break-label');
+
     try {
       currentClockStatus = await apiFetch('/timesheets/my-status');
     } catch (err) {
@@ -1313,9 +1322,24 @@
       const clockInTime = new Date(currentClockStatus.entry.clock_in);
       btn.classList.add('clocked-in');
       label.textContent = `Clock out (in since ${clockInTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })})`;
+
+      breakBtn.disabled = false;
+      if (currentClockStatus.on_break) {
+        const breakStartTime = new Date(currentClockStatus.break.break_start);
+        breakBtn.classList.add('on-break');
+        breakLabel.textContent = `End break (since ${breakStartTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })})`;
+        btn.disabled = true; // can't clock out mid-break — end the break first
+      } else {
+        breakBtn.classList.remove('on-break');
+        breakLabel.textContent = 'Break / Lunch';
+        btn.disabled = false;
+      }
     } else {
       btn.classList.remove('clocked-in');
       label.textContent = 'Clock in';
+      breakBtn.disabled = true;
+      breakBtn.classList.remove('on-break');
+      breakLabel.textContent = 'Break / Lunch';
     }
   }
 
@@ -1338,6 +1362,22 @@
       alert('Could not update clock status: ' + err.message);
     } finally {
       btn.disabled = false;
+    }
+  }
+
+  async function handleSidebarBreakToggle() {
+    const breakBtn = document.getElementById('sidebar-break-btn');
+    breakBtn.disabled = true;
+    try {
+      if (currentClockStatus && currentClockStatus.on_break) {
+        await apiFetch('/timesheets/break-end', { method: 'POST' });
+      } else {
+        await apiFetch('/timesheets/break-start', { method: 'POST' });
+      }
+      await renderSidebarClockButton();
+    } catch (err) {
+      alert('Could not update break status: ' + err.message);
+      breakBtn.disabled = false;
     }
   }
 

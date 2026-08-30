@@ -37,11 +37,27 @@ router.post('/clock-out', requireAuth, async (req, res) => {
       [staffId]
     );
     if (openEntry.rows.length === 0) return res.status(400).json({ error: 'No open clock-in found' });
-
     const entry = openEntry.rows[0];
+
+    // Can't clock out mid-break — the person needs to end their break first,
+    // otherwise it's ambiguous whether the remaining time should count as work.
+    const openBreak = await pool.query(
+      `SELECT id FROM break_periods WHERE timesheet_entry_id = $1 AND break_end IS NULL`,
+      [entry.id]
+    );
+    if (openBreak.rows.length > 0) {
+      return res.status(400).json({ error: 'End your break before clocking out' });
+    }
+
+    // total_hours = raw clocked span minus the sum of all completed breaks that day.
     const result = await pool.query(
       `UPDATE timesheet_entries
-       SET clock_out = now(), total_hours = ROUND(EXTRACT(EPOCH FROM (now() - clock_in)) / 3600.0, 2)
+       SET clock_out = now(),
+           total_hours = ROUND(
+             (EXTRACT(EPOCH FROM (now() - clock_in)) -
+              COALESCE((SELECT SUM(EXTRACT(EPOCH FROM (break_end - break_start)))
+                        FROM break_periods WHERE timesheet_entry_id = $1 AND break_end IS NOT NULL), 0)
+             ) / 3600.0, 2)
        WHERE id = $1 RETURNING *`,
       [entry.id]
     );
@@ -52,14 +68,84 @@ router.post('/clock-out', requireAuth, async (req, res) => {
   }
 });
 
-// GET /timesheets/my-status — is the logged-in user currently clocked in?
+// POST /timesheets/break-start — start a break/lunch within the current open clock-in
+router.post('/break-start', requireAuth, async (req, res) => {
+  const staffId = req.staff.staff_id;
+  try {
+    const openEntry = await pool.query(
+      `SELECT * FROM timesheet_entries WHERE staff_id = $1 AND clock_out IS NULL ORDER BY clock_in DESC LIMIT 1`,
+      [staffId]
+    );
+    if (openEntry.rows.length === 0) return res.status(400).json({ error: 'Clock in before starting a break' });
+    const entry = openEntry.rows[0];
+
+    const existingOpenBreak = await pool.query(
+      `SELECT * FROM break_periods WHERE timesheet_entry_id = $1 AND break_end IS NULL`,
+      [entry.id]
+    );
+    if (existingOpenBreak.rows.length > 0) {
+      return res.status(400).json({ error: 'Already on break' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO break_periods (timesheet_entry_id, break_start) VALUES ($1, now()) RETURNING *`,
+      [entry.id]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to start break' });
+  }
+});
+
+// POST /timesheets/break-end — end the current open break
+router.post('/break-end', requireAuth, async (req, res) => {
+  const staffId = req.staff.staff_id;
+  try {
+    const openEntry = await pool.query(
+      `SELECT id FROM timesheet_entries WHERE staff_id = $1 AND clock_out IS NULL ORDER BY clock_in DESC LIMIT 1`,
+      [staffId]
+    );
+    if (openEntry.rows.length === 0) return res.status(400).json({ error: 'No open clock-in found' });
+
+    const openBreak = await pool.query(
+      `SELECT * FROM break_periods WHERE timesheet_entry_id = $1 AND break_end IS NULL ORDER BY break_start DESC LIMIT 1`,
+      [openEntry.rows[0].id]
+    );
+    if (openBreak.rows.length === 0) return res.status(400).json({ error: 'Not currently on break' });
+
+    const result = await pool.query(
+      `UPDATE break_periods SET break_end = now() WHERE id = $1 RETURNING *`,
+      [openBreak.rows[0].id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to end break' });
+  }
+});
+
+// GET /timesheets/my-status — is the logged-in user currently clocked in, and on break?
 router.get('/my-status', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT * FROM timesheet_entries WHERE staff_id = $1 AND clock_out IS NULL ORDER BY clock_in DESC LIMIT 1`,
       [req.staff.staff_id]
     );
-    res.json({ clocked_in: result.rows.length > 0, entry: result.rows[0] || null });
+    const entry = result.rows[0] || null;
+    let onBreak = false;
+    let breakEntry = null;
+    if (entry) {
+      const breakResult = await pool.query(
+        `SELECT * FROM break_periods WHERE timesheet_entry_id = $1 AND break_end IS NULL ORDER BY break_start DESC LIMIT 1`,
+        [entry.id]
+      );
+      if (breakResult.rows.length > 0) {
+        onBreak = true;
+        breakEntry = breakResult.rows[0];
+      }
+    }
+    res.json({ clocked_in: !!entry, entry, on_break: onBreak, break: breakEntry });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch clock status' });
@@ -140,7 +226,10 @@ router.get('/pdf', requireAdmin, async (req, res) => {
   }
 });
 
-// PUT /timesheets/:id — manual correction by a manager (admin only)
+// PUT /timesheets/:id — manual correction by a manager (admin only).
+// When clock_out changes, total_hours is recalculated the same break-aware way
+// as the normal clock-out flow, so a manual edit doesn't silently ignore breaks
+// already logged against this entry.
 router.put('/:id(\\d+)', requireAdmin, async (req, res) => {
   const { clock_in, clock_out, notes, edited_by } = req.body;
   try {
@@ -148,7 +237,11 @@ router.put('/:id(\\d+)', requireAdmin, async (req, res) => {
       `UPDATE timesheet_entries
        SET clock_in = COALESCE($2, clock_in),
            clock_out = COALESCE($3, clock_out),
-           total_hours = CASE WHEN $3 IS NOT NULL THEN ROUND(EXTRACT(EPOCH FROM ($3::timestamptz - COALESCE($2::timestamptz, clock_in))) / 3600.0, 2) ELSE total_hours END,
+           total_hours = CASE WHEN $3 IS NOT NULL THEN ROUND(
+             (EXTRACT(EPOCH FROM ($3::timestamptz - COALESCE($2::timestamptz, clock_in))) -
+              COALESCE((SELECT SUM(EXTRACT(EPOCH FROM (break_end - break_start)))
+                        FROM break_periods WHERE timesheet_entry_id = $1 AND break_end IS NOT NULL), 0)
+             ) / 3600.0, 2) ELSE total_hours END,
            notes = COALESCE($4, notes),
            edited_by = $5,
            edited_at = now()
