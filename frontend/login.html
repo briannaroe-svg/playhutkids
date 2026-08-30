@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Little Playhut — Staff Login</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --teal: #0F5C5C;
+    --teal-dark: #0A4444;
+    --cream: #FBF7F0;
+    --coral: #E8734A;
+    --coral-dark: #D4602F;
+    --charcoal: #2B3333;
+    --sage: #A8C4B8;
+    --sage-light: #DCE8E2;
+    --white: #FFFFFF;
+    --error: #C0392B;
+    --error-bg: #FBEAE8;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: var(--cream);
+    color: var(--charcoal);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Ambient roofline motif — a soft, oversized hut silhouette anchoring the
+     background. Subtle, decorative only, not a functional element. */
+  body::before {
+    content: '';
+    position: absolute;
+    bottom: -6vw;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 140vw;
+    height: 40vw;
+    background: var(--sage-light);
+    clip-path: polygon(50% 0%, 100% 45%, 100% 100%, 0% 100%, 0% 45%);
+    opacity: 0.5;
+    z-index: 0;
+  }
+
+  .login-card {
+    position: relative;
+    z-index: 1;
+    background: var(--white);
+    border-radius: 20px;
+    padding: 48px 40px 40px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 20px 60px rgba(15, 92, 92, 0.12), 0 2px 8px rgba(15, 92, 92, 0.08);
+  }
+
+  .mark {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 20px;
+    display: block;
+  }
+
+  h1 {
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 600;
+    font-size: 26px;
+    text-align: center;
+    color: var(--teal-dark);
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+
+  .subtitle {
+    text-align: center;
+    font-size: 14px;
+    color: #6B7A76;
+    margin: 0 0 32px;
+  }
+
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--charcoal);
+    margin-bottom: 6px;
+  }
+
+  .field {
+    margin-bottom: 18px;
+  }
+
+  input[type="email"],
+  input[type="password"] {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid var(--sage-light);
+    border-radius: 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    color: var(--charcoal);
+    background: var(--cream);
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  input[type="email"]:focus,
+  input[type="password"]:focus {
+    outline: none;
+    border-color: var(--teal);
+    background: var(--white);
+  }
+
+  input:focus-visible {
+    outline: 2px solid var(--teal);
+    outline-offset: 1px;
+  }
+
+  button[type="submit"] {
+    width: 100%;
+    padding: 13px;
+    margin-top: 8px;
+    border: none;
+    border-radius: 10px;
+    background: var(--coral);
+    color: var(--white);
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+
+  button[type="submit"]:hover {
+    background: var(--coral-dark);
+  }
+
+  button[type="submit"]:active {
+    transform: scale(0.98);
+  }
+
+  button[type="submit"]:disabled {
+    background: #D8C4BA;
+    cursor: not-allowed;
+  }
+
+  button:focus-visible {
+    outline: 2px solid var(--teal);
+    outline-offset: 2px;
+  }
+
+  .error-banner {
+    display: none;
+    background: var(--error-bg);
+    color: var(--error);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 18px;
+  }
+
+  .error-banner.visible {
+    display: block;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    button, input { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="login-card">
+    <svg class="mark" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M26 4L48 22V46C48 47.1 47.1 48 46 48H32V32H20V48H6C4.9 48 4 47.1 4 46V22L26 4Z" fill="#0F5C5C"/>
+      <path d="M26 4L48 22H4L26 4Z" fill="#E8734A"/>
+    </svg>
+
+    <h1>Little Playhut</h1>
+    <p class="subtitle">Sign in to the staff dashboard</p>
+
+    <div class="error-banner" id="errorBanner" role="alert"></div>
+
+    <form id="loginForm">
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password">
+      </div>
+      <button type="submit" id="submitBtn">Sign in</button>
+    </form>
+  </div>
+
+  <script>
+    // Update this to the live Render URL if it ever changes.
+    const API_BASE = 'https://little-playhut-backend.onrender.com';
+
+    const form = document.getElementById('loginForm');
+    const errorBanner = document.getElementById('errorBanner');
+    const submitBtn = document.getElementById('submitBtn');
+
+    function showError(message) {
+      errorBanner.textContent = message;
+      errorBanner.classList.add('visible');
+    }
+
+    function hideError() {
+      errorBanner.classList.remove('visible');
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideError();
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Signing in…';
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.error || 'Sign in failed. Check your email and password.');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign in';
+          return;
+        }
+
+        // Store the token and staff info for the dashboard to use.
+        // sessionStorage clears when the browser tab closes — reasonable default
+        // for a shared shop computer; switch to localStorage if staff want to
+        // stay logged in across sessions on a trusted personal device.
+        sessionStorage.setItem('lp_token', data.token);
+        sessionStorage.setItem('lp_staff', JSON.stringify(data.staff));
+
+        window.location.href = 'dashboard.html';
+      } catch (err) {
+        console.error(err);
+        showError('Could not reach the server. Check your connection and try again.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign in';
+      }
+    });
+  </script>
+
+</body>
+</html>

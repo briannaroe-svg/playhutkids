@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Little Playhut — Staff Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --teal: #0F5C5C;
+    --teal-dark: #0A4444;
+    --cream: #FBF7F0;
+    --coral: #E8734A;
+    --coral-dark: #D4602F;
+    --charcoal: #2B3333;
+    --sage: #A8C4B8;
+    --sage-light: #DCE8E2;
+    --white: #FFFFFF;
+    --error: #C0392B;
+    --error-bg: #FBEAE8;
+    --success: #3F7A5C;
+    --success-bg: #E7F3EC;
+    --shadow: 0 2px 8px rgba(15,92,92,0.06), 0 1px 2px rgba(15,92,92,0.08);
+    --shadow-lg: 0 20px 60px rgba(15,92,92,0.12), 0 2px 8px rgba(15,92,92,0.08);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: var(--cream);
+    color: var(--charcoal);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 { font-family: 'Fredoka', sans-serif; font-weight: 600; letter-spacing: -0.01em; }
+
+  /* ---------- Loading gate (shown until auth check completes) ---------- */
+  #loading-gate {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    color: #6B7A76; font-size: 14px;
+  }
+
+  /* ---------- App shell ---------- */
+  #app-shell { display: none; min-height: 100vh; }
+  #app-shell.show { display: flex; }
+
+  .sidebar {
+    width: 236px; flex-shrink: 0; background: var(--teal-dark); color: #fff;
+    display: flex; flex-direction: column; padding: 26px 0;
+  }
+  .sidebar-brand { padding: 0 22px 22px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.12); margin-bottom: 18px; }
+  .sidebar-brand svg { width: 30px; height: 30px; flex-shrink: 0; }
+  .sidebar-brand h1 { font-size: 17px; color: #fff; margin: 0; line-height: 1.15; }
+
+  .nav-list { list-style: none; padding: 0 12px; margin: 0; flex: 1; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px; padding: 10px 14px; border-radius: 9px;
+    color: rgba(255,255,255,0.7); cursor: pointer; font-size: 14px; font-weight: 500;
+    margin-bottom: 2px; transition: background 0.15s ease, color 0.15s ease; position: relative;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.07); color: #fff; }
+  .nav-item.active { background: rgba(232,115,74,0.16); color: #fff; }
+  .nav-item.active::before {
+    content: ''; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 3px;
+    background: var(--coral); border-radius: 0 3px 3px 0;
+  }
+  .nav-icon { width: 17px; height: 17px; flex-shrink: 0; opacity: 0.9; }
+
+  .sidebar-footer { padding: 16px 22px 0; border-top: 1px solid rgba(255,255,255,0.12); margin-top: 12px; }
+  .sidebar-user { font-size: 12.5px; color: rgba(255,255,255,0.5); margin-bottom: 10px; }
+  .sidebar-user strong { color: #fff; display: block; font-size: 13.5px; margin-bottom: 1px; }
+  .logout-link { font-size: 12.5px; color: rgba(255,255,255,0.5); cursor: pointer; display: inline-block; }
+  .logout-link:hover { color: #fff; }
+
+  .main { flex: 1; padding: 34px 42px; max-width: 1080px; }
+  .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 26px; gap: 20px; flex-wrap: wrap; }
+  .page-header h2 { font-size: 24px; color: var(--teal-dark); margin: 0 0 5px; }
+  .page-header p { color: #6B7A76; font-size: 14px; margin: 0; }
+
+  .card { background: #fff; border: 1px solid var(--sage-light); border-radius: 14px; box-shadow: var(--shadow); }
+
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; font-size: 11.5px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.04em; color: #6B7A76; padding: 13px 20px;
+    border-bottom: 1.5px solid var(--sage-light); background: var(--sage-light);
+  }
+  th:first-child { border-top-left-radius: 14px; }
+  th:last-child { border-top-right-radius: 14px; }
+  td { padding: 14px 20px; font-size: 14px; border-bottom: 1px solid #F1ECE3; color: var(--charcoal); }
+  tr:last-child td { border-bottom: none; }
+
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 100px; font-size: 11.5px; font-weight: 600; }
+  .badge-admin { background: rgba(232,115,74,0.15); color: var(--coral-dark); }
+  .badge-staff { background: var(--sage-light); color: #4A5B56; }
+  .badge-active { background: var(--success-bg); color: var(--success); }
+  .badge-inactive { background: var(--error-bg); color: var(--error); }
+
+  .icon-btn {
+    background: none; border: none; cursor: pointer; color: #6B7A76;
+    font-size: 13px; font-weight: 600; padding: 4px 8px; border-radius: 6px;
+  }
+  .icon-btn:hover { background: var(--sage-light); color: var(--teal); }
+
+  .empty-state { text-align: center; padding: 56px 20px; color: #6B7A76; }
+  .empty-state h3 { color: var(--charcoal); margin: 0 0 8px; font-size: 16px; }
+  .empty-state p { font-size: 13.5px; margin: 0 0 18px; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 11px 18px; border-radius: 10px; border: none; font-family: 'Inter', sans-serif;
+    font-size: 14.5px; font-weight: 600; cursor: pointer;
+    transition: transform 0.1s ease, background 0.15s ease;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-coral { background: var(--coral); color: #fff; }
+  .btn-coral:hover { background: var(--coral-dark); }
+  .btn-teal { background: var(--teal); color: #fff; }
+  .btn-teal:hover { background: var(--teal-dark); }
+  .btn-teal:disabled { background: #C7D6D1; cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--teal); border: 1.5px solid var(--sage-light); }
+  .btn-ghost:hover { border-color: var(--sage); background: var(--sage-light); }
+
+  .error-banner {
+    background: var(--error-bg); color: var(--error); border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; margin-bottom: 16px; display: none; font-weight: 500;
+  }
+  .error-banner.show { display: block; }
+
+  /* ---------- Modal ---------- */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(10,68,68,0.35);
+    align-items: center; justify-content: center; padding: 24px; z-index: 100;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal { background: #fff; border-radius: 18px; box-shadow: var(--shadow-lg); width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto; padding: 30px; }
+  .modal h3 { font-size: 19px; color: var(--teal-dark); margin: 0 0 4px; }
+  .modal .modal-sub { color: #6B7A76; font-size: 13px; margin: 0 0 22px; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12.5px; font-weight: 600; color: var(--charcoal); margin-bottom: 6px; }
+  .field input {
+    width: 100%; padding: 10px 13px; border: 1.5px solid var(--sage-light); border-radius: 9px;
+    font-family: inherit; font-size: 14.5px; background: var(--cream); color: var(--charcoal);
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .field input:focus { outline: none; border-color: var(--teal); background: #fff; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field-hint { font-size: 12px; color: #8A9490; margin-top: 5px; }
+
+  .modal-actions { display: flex; gap: 10px; margin-top: 22px; }
+  .modal-actions .btn { flex: 1; }
+
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; }
+  .toggle-row .field-copy strong { display: block; font-size: 13.5px; margin-bottom: 2px; }
+  .toggle-row .field-copy span { font-size: 12px; color: #8A9490; }
+
+  .switch { position: relative; width: 40px; height: 23px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch-track { position: absolute; inset: 0; background: var(--sage-light); border-radius: 100px; cursor: pointer; transition: background 0.15s ease; }
+  .switch-track::before {
+    content: ''; position: absolute; width: 17px; height: 17px; left: 3px; top: 3px;
+    background: #fff; border-radius: 50%; transition: transform 0.15s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .switch input:checked + .switch-track { background: var(--teal); }
+  .switch input:checked + .switch-track::before { transform: translateX(17px); }
+
+  .placeholder-view { padding: 56px 20px; text-align: center; color: #6B7A76; }
+  .placeholder-view svg { width: 44px; height: 44px; margin-bottom: 14px; opacity: 0.5; }
+  .placeholder-view h3 { color: var(--teal-dark); font-size: 18px; margin: 0 0 8px; }
+
+  @media (max-width: 760px) {
+    #app-shell.show { flex-direction: column; }
+    .sidebar { width: 100%; padding: 14px 0; }
+    .nav-list { display: flex; overflow-x: auto; gap: 4px; padding: 0 14px; }
+    .nav-item.active::before { display: none; }
+    .sidebar-footer { display: none; }
+    .main { padding: 22px 18px; }
+    .field-row { grid-template-columns: 1fr; }
+    table, thead, tbody, th, td, tr { display: block; }
+    thead { display: none; }
+    td { border-bottom: none; padding: 5px 20px; }
+    tr { border-bottom: 1px solid #F1ECE3; padding: 10px 0; }
+  }
+
+  :focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<div id="loading-gate">Loading…</div>
+
+<div id="app-shell">
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M26 4L48 22V46C48 47.1 47.1 48 46 48H32V32H20V48H6C4.9 48 4 47.1 4 46V22L26 4Z" fill="#0F5C5C"/>
+        <path d="M26 4L48 22H4L26 4Z" fill="#E8734A"/>
+      </svg>
+      <h1>Little Playhut<br>Dashboard</h1>
+    </div>
+    <ul class="nav-list" id="nav-list"></ul>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <strong id="sidebar-user-name">—</strong>
+        <span id="sidebar-user-role">—</span>
+      </div>
+      <span class="logout-link" id="logout-btn">Sign out</span>
+    </div>
+  </nav>
+
+  <main class="main" id="main-content"></main>
+</div>
+
+<!-- ============ ADD/EDIT STAFF MODAL ============ -->
+<div class="modal-overlay" id="staff-modal-overlay">
+  <div class="modal">
+    <h3 id="staff-modal-title">Add staff account</h3>
+    <p class="modal-sub" id="staff-modal-sub">Create a login for a new team member.</p>
+
+    <div class="error-banner" id="staff-modal-error"></div>
+
+    <form id="staff-form">
+      <input type="hidden" id="staff-id">
+      <div class="field-row">
+        <div class="field">
+          <label for="staff-first-name">First name</label>
+          <input type="text" id="staff-first-name" required>
+        </div>
+        <div class="field">
+          <label for="staff-last-name">Last name</label>
+          <input type="text" id="staff-last-name" required>
+        </div>
+      </div>
+      <div class="field">
+        <label for="staff-email">Email</label>
+        <input type="email" id="staff-email" required>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="staff-role">Role / title</label>
+          <input type="text" id="staff-role" placeholder="Lead Teacher">
+        </div>
+        <div class="field">
+          <label for="staff-hourly-rate">Hourly rate</label>
+          <input type="number" id="staff-hourly-rate" step="0.01" min="0" placeholder="18.00">
+        </div>
+      </div>
+      <div class="field">
+        <label for="staff-pin">Clock-in PIN <span style="font-weight:400; color:#8A9490;">(for the timeclock)</span></label>
+        <input type="text" id="staff-pin" maxlength="10" placeholder="1234">
+      </div>
+      <div class="field">
+        <label for="staff-password">Password</label>
+        <input type="password" id="staff-password" autocomplete="new-password">
+        <p class="field-hint" id="staff-password-hint">This is what they'll use to sign in to this dashboard.</p>
+      </div>
+
+      <div class="toggle-row">
+        <div class="field-copy">
+          <strong>Admin access</strong>
+          <span>Can manage billing, children, agreements, and other staff</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="staff-is-admin">
+          <span class="switch-track"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row" id="staff-active-row" style="display:none;">
+        <div class="field-copy">
+          <strong>Active</strong>
+          <span>Inactive staff can't log in or clock in</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="staff-is-active" checked>
+          <span class="switch-track"></span>
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeStaffModal()">Cancel</button>
+        <button type="submit" class="btn btn-teal" id="staff-submit-btn">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  // Update this to the live Render URL if it ever changes — must match login.html.
+  const API_BASE = 'https://little-playhut-backend.onrender.com';
+
+  let currentUser = null;
+  let authToken = null;
+
+  // ============================================================
+  // AUTH — reads the SAME sessionStorage keys login.html writes:
+  // lp_token and lp_staff. Do not rename these without updating login.html too.
+  // ============================================================
+  function loadAuthOrRedirect() {
+    const token = sessionStorage.getItem('lp_token');
+    const staffJson = sessionStorage.getItem('lp_staff');
+    if (!token || !staffJson) {
+      window.location.href = 'login.html';
+      return false;
+    }
+    try {
+      authToken = token;
+      currentUser = JSON.parse(staffJson);
+      return true;
+    } catch (e) {
+      window.location.href = 'login.html';
+      return false;
+    }
+  }
+
+  function signOut() {
+    sessionStorage.removeItem('lp_token');
+    sessionStorage.removeItem('lp_staff');
+    window.location.href = 'login.html';
+  }
+
+  async function apiFetch(path, options = {}) {
+    const headers = Object.assign(
+      { 'Content-Type': 'application/json' },
+      options.headers || {},
+      authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    );
+    const res = await fetch(API_BASE + path, Object.assign({}, options, { headers }));
+    if (res.status === 401) {
+      signOut();
+      throw new Error('Session expired — please sign in again.');
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+    return data;
+  }
+
+  document.getElementById('logout-btn').addEventListener('click', signOut);
+
+  // ============================================================
+  // NAV
+  // ============================================================
+  const NAV_ITEMS = [
+    { id: 'timesheets', label: 'My Timesheet', adminOnly: false, icon: 'clock' },
+    { id: 'children',   label: 'Children',      adminOnly: true,  icon: 'child' },
+    { id: 'invoices',   label: 'Billing',        adminOnly: true,  icon: 'billing' },
+    { id: 'agreements', label: 'Agreements',     adminOnly: true,  icon: 'doc' },
+    { id: 'staff',      label: 'Staff Accounts', adminOnly: true,  icon: 'staff' },
+  ];
+
+  const ICONS = {
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg>',
+    child: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-4 3-6.5 7-6.5s7 2.5 7 6.5" stroke-linecap="round"/></svg>',
+    billing: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4" stroke-linecap="round"/></svg>',
+    doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M9 13h6M9 17h6" stroke-linecap="round"/></svg>',
+    staff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke-linecap="round"/><path d="M16 8a3 3 0 110-6M17 14c2.3.4 4 2.3 4 6" stroke-linecap="round"/></svg>',
+  };
+
+  function renderNav() {
+    const isAdmin = currentUser.access_level === 'admin';
+    const nav = document.getElementById('nav-list');
+    nav.innerHTML = NAV_ITEMS
+      .filter(item => isAdmin || !item.adminOnly)
+      .map(item => `
+        <li class="nav-item" data-view="${item.id}" onclick="navigateTo('${item.id}')">
+          <span class="nav-icon">${ICONS[item.icon]}</span>
+          ${item.label}
+        </li>
+      `).join('');
+  }
+
+  function navigateTo(viewId) {
+    document.querySelectorAll('.nav-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.view === viewId);
+    });
+    const renderers = {
+      staff: renderStaffView,
+      timesheets: () => renderPlaceholder('My Timesheet', 'Clock-in history and hours will show up here.'),
+      children: () => renderPlaceholder('Children', 'Enrollment and roster management is coming next.'),
+      invoices: () => renderPlaceholder('Billing', 'Invoices and payment links are coming next.'),
+      agreements: () => renderPlaceholder('Agreements', 'Signed handbook agreements will show up here.'),
+    };
+    (renderers[viewId] || renderers.staff)();
+  }
+
+  function renderPlaceholder(title, message) {
+    document.getElementById('main-content').innerHTML = `
+      <div class="placeholder-view">
+        <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M26 4L48 22V46C48 47.1 47.1 48 46 48H32V32H20V48H6C4.9 48 4 47.1 4 46V22L26 4Z" fill="#A8C4B8"/>
+        </svg>
+        <h3>${title}</h3>
+        <p>${message}</p>
+      </div>
+    `;
+  }
+
+  // ============================================================
+  // STAFF VIEW
+  // ============================================================
+  let staffCache = [];
+
+  async function renderStaffView() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h2>Staff Accounts</h2>
+          <p>Manage who can log in, and what they can see.</p>
+        </div>
+        <button class="btn btn-coral" onclick="openStaffModal()">+ Add staff account</button>
+      </div>
+      <div class="card" id="staff-table-wrap">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+    `;
+
+    try {
+      staffCache = await apiFetch('/staff');
+      renderStaffTable();
+    } catch (err) {
+      document.getElementById('staff-table-wrap').innerHTML = `
+        <div class="empty-state"><h3>Couldn't load staff</h3><p>${err.message}</p></div>
+      `;
+    }
+  }
+
+  function renderStaffTable() {
+    const wrap = document.getElementById('staff-table-wrap');
+    if (staffCache.length === 0) {
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <h3>No staff accounts yet</h3>
+          <p>Add your first team member to get started.</p>
+          <button class="btn btn-coral" onclick="openStaffModal()">+ Add staff account</button>
+        </div>
+      `;
+      return;
+    }
+
+    wrap.innerHTML = `
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Email</th><th>Role</th><th>Access</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+          ${staffCache.map(s => `
+            <tr>
+              <td><strong>${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</strong></td>
+              <td>${escapeHtml(s.email)}</td>
+              <td>${escapeHtml(s.role || '—')}</td>
+              <td><span class="badge ${s.access_level === 'admin' ? 'badge-admin' : 'badge-staff'}">${s.access_level === 'admin' ? 'Admin' : 'Staff'}</span></td>
+              <td><span class="badge ${s.is_active ? 'badge-active' : 'badge-inactive'}">${s.is_active ? 'Active' : 'Inactive'}</span></td>
+              <td><button class="icon-btn" onclick="openStaffModal(${s.id})">Edit</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  function openStaffModal(staffId) {
+    const form = document.getElementById('staff-form');
+    form.reset();
+    document.getElementById('staff-modal-error').classList.remove('show');
+    document.getElementById('staff-id').value = staffId || '';
+
+    if (staffId) {
+      const s = staffCache.find(x => x.id === staffId);
+      document.getElementById('staff-modal-title').textContent = 'Edit staff account';
+      document.getElementById('staff-modal-sub').textContent = 'Update their details, or reset their password.';
+      document.getElementById('staff-first-name').value = s.first_name;
+      document.getElementById('staff-last-name').value = s.last_name;
+      document.getElementById('staff-email').value = s.email;
+      document.getElementById('staff-role').value = s.role || '';
+      document.getElementById('staff-hourly-rate').value = s.hourly_rate || '';
+      document.getElementById('staff-is-admin').checked = s.access_level === 'admin';
+      document.getElementById('staff-is-active').checked = s.is_active;
+      document.getElementById('staff-active-row').style.display = 'flex';
+      document.getElementById('staff-password-hint').textContent = 'Leave blank to keep their current password.';
+      document.getElementById('staff-submit-btn').textContent = 'Save changes';
+    } else {
+      document.getElementById('staff-modal-title').textContent = 'Add staff account';
+      document.getElementById('staff-modal-sub').textContent = 'Create a login for a new team member.';
+      document.getElementById('staff-active-row').style.display = 'none';
+      document.getElementById('staff-password-hint').textContent = "This is what they'll use to sign in to this dashboard.";
+      document.getElementById('staff-submit-btn').textContent = 'Add account';
+    }
+
+    document.getElementById('staff-modal-overlay').classList.add('show');
+  }
+
+  function closeStaffModal() {
+    document.getElementById('staff-modal-overlay').classList.remove('show');
+  }
+
+  document.getElementById('staff-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const staffId = document.getElementById('staff-id').value;
+    const errorBox = document.getElementById('staff-modal-error');
+    const btn = document.getElementById('staff-submit-btn');
+    errorBox.classList.remove('show');
+
+    const payload = {
+      first_name: document.getElementById('staff-first-name').value.trim(),
+      last_name: document.getElementById('staff-last-name').value.trim(),
+      email: document.getElementById('staff-email').value.trim(),
+      role: document.getElementById('staff-role').value.trim(),
+      hourly_rate: document.getElementById('staff-hourly-rate').value || null,
+      pin_code: document.getElementById('staff-pin').value.trim() || null,
+      access_level: document.getElementById('staff-is-admin').checked ? 'admin' : 'staff',
+    };
+
+    const password = document.getElementById('staff-password').value;
+    if (password) payload.password = password;
+
+    if (!staffId && !password) {
+      errorBox.textContent = 'A password is required when creating a new account.';
+      errorBox.classList.add('show');
+      return;
+    }
+
+    if (staffId) {
+      payload.is_active = document.getElementById('staff-is-active').checked;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    try {
+      if (staffId) {
+        await apiFetch('/staff/' + staffId, { method: 'PUT', body: JSON.stringify(payload) });
+      } else {
+        await apiFetch('/staff', { method: 'POST', body: JSON.stringify(payload) });
+      }
+      closeStaffModal();
+      staffCache = await apiFetch('/staff');
+      renderStaffTable();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = staffId ? 'Save changes' : 'Add account';
+    }
+  });
+
+  // ============================================================
+  // INIT
+  // ============================================================
+  (function init() {
+    if (!loadAuthOrRedirect()) return; // redirects to login.html if not authed
+
+    document.getElementById('loading-gate').style.display = 'none';
+    document.getElementById('app-shell').classList.add('show');
+    document.getElementById('sidebar-user-name').textContent = currentUser.first_name + ' ' + currentUser.last_name;
+    document.getElementById('sidebar-user-role').textContent = currentUser.access_level === 'admin' ? 'Admin' : 'Staff';
+
+    renderNav();
+    navigateTo(currentUser.access_level === 'admin' ? 'staff' : 'timesheets');
+  })();
+</script>
+
+</body>
+</html>
