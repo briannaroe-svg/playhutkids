@@ -61,6 +61,13 @@
   /* ---------- Main content ---------- */
   .main { flex: 1; padding: 48px 56px; max-width: 760px; }
 
+  .back-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13.5px; font-weight: 600; color: var(--wood);
+    text-decoration: none; margin-bottom: 18px;
+  }
+  .back-link:hover { color: var(--forest-deep); }
+
   .page-title { font-size: 32px; color: var(--forest-deep); margin: 0 0 8px; }
   .page-sub { font-size: 15px; color: var(--moss); margin: 0 0 40px; }
 
@@ -144,6 +151,7 @@
   </nav>
 
   <main class="main">
+    <a href="dashboard.html" class="back-link">← Back to Dashboard</a>
     <h1 class="page-title">Dashboard Help</h1>
     <p class="page-sub">What each tab does, and who can see it.</p>
 
@@ -294,6 +302,8 @@
       <p class="section-sub">Not a tab — a standing button at the bottom of the sidebar, below the tab list.</p>
       <p>Shows your current status at a glance and lets you clock in or out with one click, no PIN needed since you're already logged in. When you're clocked in, it shows how long you've been on the clock. This is the only place clocking in/out happens — the Timesheets tab is for viewing history, not for the action itself.</p>
     </section>
+
+    <a href="dashboard.html" class="back-link">← Back to Dashboard</a>
 
   </main>
 </div>
