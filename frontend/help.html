@@ -43,7 +43,6 @@
 
   .layout { display: flex; min-height: 100vh; }
 
-  /* ---------- Sidebar TOC ---------- */
   .toc {
     width: 240px; flex-shrink: 0; background: #2C4636; color: rgba(255,255,255,0.85);
     padding: 28px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto;
@@ -58,7 +57,6 @@
   }
   .toc-list a:hover { background: rgba(255,255,255,0.07); color: #fff; }
 
-  /* ---------- Main content ---------- */
   .main { flex: 1; padding: 48px 56px; max-width: 760px; }
 
   .back-link {
@@ -118,12 +116,16 @@
   }
   .top-note strong { color: var(--forest-deep); }
 
+  .room-list { columns: 2; column-gap: 24px; font-size: 13.5px; }
+  .room-list li { break-inside: avoid; }
+
   @media (max-width: 760px) {
     .layout { flex-direction: column; }
     .toc { width: 100%; height: auto; position: relative; padding: 16px 0; }
     .toc-list { display: flex; overflow-x: auto; gap: 4px; padding: 0 14px; }
     .toc-list a { white-space: nowrap; }
     .main { padding: 28px 20px; }
+    .room-list { columns: 1; }
   }
 </style>
 </head>
@@ -137,16 +139,17 @@
     </div>
     <ul class="toc-list">
       <li><a href="#overview">Overview</a></li>
+      <li><a href="#home">Home</a></li>
       <li><a href="#families">Families</a></li>
       <li><a href="#children">Children</a></li>
       <li><a href="#registration">Registration</a></li>
-      <li><a href="#agreements">Agreements</a></li>
+      <li><a href="#documents">Documents</a></li>
       <li><a href="#services">Services</a></li>
       <li><a href="#billing">Billing</a></li>
       <li><a href="#scheduling">Scheduling</a></li>
       <li><a href="#timesheets">Timesheets</a></li>
       <li><a href="#staff-accounts">Staff Accounts</a></li>
-      <li><a href="#clock">Clock In/Out</a></li>
+      <li><a href="#clock">Clock In / Break</a></li>
     </ul>
   </nav>
 
@@ -161,8 +164,14 @@
 
     <section id="overview">
       <h2 class="section-title">Overview</h2>
-      <p>The sidebar is organized in a fixed order: Families, Children, Registration, Agreements, Services, Billing, Scheduling, Timesheets, and Staff Accounts. Below the tab list is a standing <strong>Clock In/Out</strong> button, always visible, separate from the tabs above it.</p>
-      <p>A staff account only sees tabs relevant to them — Children, Scheduling, and Timesheets — plus the Clock In/Out button. Admin accounts see every tab.</p>
+      <p>The sidebar, top to bottom: Home, Families, Children, Registration, Documents, Services, Billing, Scheduling, Timesheets, and Staff Accounts. Below the tab list is a standing clock-in card, always visible, separate from the tabs above it.</p>
+      <p>A staff account only sees tabs relevant to them — Home, Children, Documents, Scheduling, and Timesheets — plus the clock-in card. Admin accounts see every tab.</p>
+    </section>
+
+    <section id="home">
+      <h2 class="section-title">Home <span class="badge badge-everyone">Everyone</span></h2>
+      <p class="section-sub">Lands here right after logging in.</p>
+      <p>A quick daily briefing: today's date, today's posted events, who's scheduled to work today (admins see everyone, staff see their own shift), and a preview of everything scheduled — events and shifts — over the next 7 days. It's read-only; making changes still happens on Scheduling.</p>
     </section>
 
     <section id="families">
@@ -180,17 +189,29 @@
 
     <section id="children">
       <h2 class="section-title">Children <span class="badge badge-everyone">Everyone</span></h2>
-      <p class="section-sub">Enrollment roster and daily check-in/check-out.</p>
+      <p class="section-sub">Enrollment roster, room assignment, and daily check-in/check-out.</p>
+      <p>Every enrolled child belongs to a room. Everyone — admin and staff — currently sees the full roster, since staff aren't yet tied to a specific room themselves. As staffing grows and staff get assigned to a room, this view is expected to start filtering by that.</p>
+      <h3 class="sub-heading">The rooms</h3>
+      <ul class="room-list">
+        <li>Little Bunnies (Infant &amp; 1 year olds)</li>
+        <li>Little Raccoons (2 year olds)</li>
+        <li>Little Cubs (3 &amp; 4 year olds)</li>
+        <li>3 Year Old Preschool-AM</li>
+        <li>3 Year Old Preschool-PM</li>
+        <li>4 Year Old Preschool-AM</li>
+        <li>4 Year Old Preschool-PM</li>
+        <li>Wolf Den (School Age Kids)</li>
+      </ul>
       <h3 class="sub-heading">For admins</h3>
       <ul>
-        <li>See every actively enrolled child, with their assigned staff and today's check-in status</li>
+        <li>See every actively enrolled child, their room, and today's check-in status</li>
         <li><strong>+ Add child</strong> for a quick roster entry (for a formal signed enrollment, use Registration instead)</li>
-        <li><strong>Edit</strong> a child to update their info, or manage which staff members are assigned to them</li>
-        <li>Check any child in or out — admins aren't limited to their own assigned children</li>
+        <li><strong>Edit</strong> a child to update their info or change their room</li>
+        <li>Check any child in or out</li>
       </ul>
       <h3 class="sub-heading">For staff</h3>
       <ul>
-        <li>See only the children assigned to you by an admin</li>
+        <li>See the full roster, grouped by room, with today's status</li>
         <li>Click a child's name to view their allergies, medical notes, and emergency contact — read-only, and parent contact info is intentionally left out of this view</li>
         <li>Check a child in when they arrive, check them out when they leave</li>
       </ul>
@@ -208,14 +229,24 @@
         <li>Choose how it gets signed: <strong>Sign now</strong> opens a signature pad for the parent to sign in person on your screen, or <strong>Send link</strong> generates a remote signing link</li>
         <li>Once signed, the family and child are created automatically, and a signed PDF is attached to the record</li>
       </ol>
+      <p>A new child created this way doesn't have a room set yet — assign one afterward from the Children tab.</p>
       <div class="gap-note"><strong>Known gap</strong>The "Send link" button generates a real, working link, but there isn't a page yet for a parent to actually open it and sign remotely. Until that page is built, use "Sign now" (in-person) for registrations.</div>
     </section>
 
-    <section id="agreements">
-      <h2 class="section-title">Agreements <span class="badge badge-admin">Admin</span></h2>
-      <p class="section-sub">Daycare and preschool handbook e-signing.</p>
-      <p>Built to track signed handbook agreements per family — daycare and preschool versions, with a full remote-signing flow (a 72-hour link a parent can open and sign from home) and an in-person canvas signing option, the same pattern as Registration above.</p>
-      <div class="gap-note"><strong>Known gap</strong>The backend for this is fully built, but the tab itself doesn't have a working screen yet — clicking it currently shows a placeholder. This is next in line to build out.</div>
+    <section id="documents">
+      <h2 class="section-title">Documents <span class="badge badge-everyone">Everyone</span></h2>
+      <p class="section-sub">Employee handbook agreements, and — for admins — every signed document in the system.</p>
+      <p>This is distinct from the daycare/preschool handbooks that parents sign during registration — this covers the employee handbook, which every staff member (including admins) signs for themselves.</p>
+      <h3 class="sub-heading">For everyone</h3>
+      <ul>
+        <li>See your own handbook documents — pending ones show a <strong>Sign</strong> button that opens a signature pad; signed ones link to the signed PDF</li>
+      </ul>
+      <h3 class="sub-heading">For admins, additionally</h3>
+      <ul>
+        <li><strong>+ Add handbook version</strong> — posting a new version automatically creates a pending agreement for every active staff member, so nobody needs to be manually assigned</li>
+        <li><strong>Who's signed?</strong> next to each handbook version shows a checklist of who has and hasn't signed it yet</li>
+        <li>An <strong>All signed documents</strong> table showing every signed document across the whole system — both staff handbook signatures and parent daycare/preschool agreements — each tagged Staff or Parent, with a link to the PDF</li>
+      </ul>
     </section>
 
     <section id="services">
@@ -268,20 +299,21 @@
 
     <section id="timesheets">
       <h2 class="section-title">Timesheets <span class="badge badge-everyone">Everyone</span></h2>
-      <p class="section-sub">Clock-in history and payroll export. Actual clocking in/out happens from the separate <a href="#clock">Clock In/Out</a> button, not from this tab.</p>
+      <p class="section-sub">Clock-in history, break/lunch times, and payroll export. Actual clocking in and out happens from the <a href="#clock">clock-in card</a> in the sidebar, not from this tab.</p>
       <h3 class="sub-heading">For admins</h3>
       <ul>
         <li>See a live list of who's currently clocked in, at the top of the page</li>
-        <li>See every staff member's timesheet entries, filterable by date range</li>
+        <li>See every staff member's timesheet entries, filterable by date range, including each break/lunch period they took that shift</li>
         <li><strong>Edit</strong> an entry to correct a wrong clock-in or clock-out time</li>
         <li><strong>Delete</strong> an entry entirely if it shouldn't exist — this is a permanent action</li>
         <li><strong>Download PDF</strong> — a payroll-ready report for the selected date range, grouped by staff member with totals, ready to send to an accountant</li>
       </ul>
       <h3 class="sub-heading">For staff</h3>
       <ul>
-        <li>See only your own entries, filterable by date range</li>
+        <li>See only your own entries, filterable by date range, including your break/lunch times</li>
         <li>View-only — no editing or deleting</li>
       </ul>
+      <div class="note"><strong>Breaks are unpaid:</strong> Time spent on a break or lunch is automatically subtracted from the total hours shown here and in the payroll PDF — it doesn't count as worked time.</div>
     </section>
 
     <section id="staff-accounts">
@@ -290,7 +322,7 @@
       <h3 class="sub-heading">What you can do here</h3>
       <ul>
         <li><strong>+ Add staff account</strong> — name, email, role/title, hourly rate, an optional clock-in PIN, and a password they'll use to log in</li>
-        <li>Toggle <strong>Admin access</strong> when creating or editing an account — this is what decides whether they see the full sidebar or just Children, Scheduling, and Timesheets</li>
+        <li>Toggle <strong>Admin access</strong> when creating or editing an account — this is what decides whether they see the full sidebar or just Home, Children, Documents, Scheduling, and Timesheets</li>
         <li><strong>Edit</strong> to update details or reset a password</li>
         <li><strong>Delete</strong> removes their ability to log in, but keeps all their historical timesheet entries and any invoices or records tied to them fully intact — nothing is erased</li>
       </ul>
@@ -298,9 +330,10 @@
     </section>
 
     <section id="clock">
-      <h2 class="section-title">Clock In/Out <span class="badge badge-everyone">Everyone</span></h2>
-      <p class="section-sub">Not a tab — a standing button at the bottom of the sidebar, below the tab list.</p>
-      <p>Shows your current status at a glance and lets you clock in or out with one click, no PIN needed since you're already logged in. When you're clocked in, it shows how long you've been on the clock. This is the only place clocking in/out happens — the Timesheets tab is for viewing history, not for the action itself.</p>
+      <h2 class="section-title">Clock In / Break <span class="badge badge-everyone">Everyone</span></h2>
+      <p class="section-sub">Not a tab — a standing card at the bottom of the sidebar, below the tab list.</p>
+      <p>A status line shows whether you're clocked in (and since when), or on a break. Two small buttons below it handle the actions: <strong>Clock in / Clock out</strong>, and <strong>Break / End break</strong>. The break button is disabled until you're clocked in, and Clock out is disabled while you're on a break — end the break first.</p>
+      <p>No PIN is needed for any of this — you're already identified by being logged in. Break and lunch time is automatically excluded from your paid hours; see <a href="#timesheets">Timesheets</a> for where that shows up.</p>
     </section>
 
     <a href="dashboard.html" class="back-link">← Back to Dashboard</a>
