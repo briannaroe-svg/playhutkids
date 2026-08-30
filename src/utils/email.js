@@ -28,10 +28,16 @@ function getTransporter() {
  * @param {string[]} params.to - recipient email addresses
  * @param {string} params.subject
  * @param {string} params.html
+ * @param {Array} [params.attachments] - nodemailer attachment objects, e.g.
+ *   [{ filename: 'invoice.pdf', content: pdfBuffer, contentType: 'application/pdf' }]
+ * @returns {Promise<boolean>} true if actually sent, false if skipped or failed —
+ *   callers that need to know whether the send succeeded (e.g. to show the
+ *   admin an error) should check this; callers that intentionally don't care
+ *   (existing notification emails) can ignore the return value, same as before.
  */
-async function sendEmail({ to, subject, html }) {
+async function sendEmail({ to, subject, html, attachments }) {
   const t = getTransporter();
-  if (!t || to.length === 0) return; // fail silently — don't break the calling request over email issues
+  if (!t || to.length === 0) return false; // fail silently — don't break the calling request over email issues
 
   try {
     await t.sendMail({
@@ -39,11 +45,14 @@ async function sendEmail({ to, subject, html }) {
       to: to.join(', '),
       subject,
       html,
+      attachments,
     });
+    return true;
   } catch (err) {
     // Email failures should never break the underlying feature (e.g. a time-off
     // request should still save even if the notification email fails to send).
     console.error('Failed to send email:', err);
+    return false;
   }
 }
 

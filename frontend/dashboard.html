@@ -4452,6 +4452,8 @@
                 ${inv.status !== 'paid' && inv.status !== 'void' ? `<button class="icon-btn" onclick="createPaymentLink(${inv.id})">Get payment link</button>` : ''}
                 ${inv.stripe_payment_link_url ? `<button class="icon-btn" onclick="copyPaymentLink('${inv.stripe_payment_link_url}')">Copy link</button>` : ''}
                 ${inv.status !== 'paid' && inv.status !== 'void' ? `<button class="icon-btn" onclick="markInvoicePaid(${inv.id})">Mark paid</button>` : ''}
+                <button class="icon-btn" id="invoice-pdf-btn-${inv.id}" onclick="downloadInvoicePdf(${inv.id})">PDF</button>
+                <button class="icon-btn" id="invoice-email-btn-${inv.id}" onclick="emailInvoice(${inv.id})">Email</button>
               </td>
             </tr>
           `).join('')}
@@ -4498,6 +4500,41 @@
       renderInvoicesTable();
     } catch (err) {
       alert('Could not mark invoice paid: ' + err.message);
+    }
+  }
+
+  // Opens the freshly-generated PDF in a new tab — from there, the browser's
+  // own print dialog (Ctrl/Cmd+P) covers "print a copy," so no separate
+  // print button is needed.
+  async function downloadInvoicePdf(invoiceId) {
+    const btn = document.getElementById('invoice-pdf-btn-' + invoiceId);
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
+    try {
+      const { pdf_url } = await apiFetch('/invoices/' + invoiceId + '/pdf');
+      window.open(pdf_url, '_blank');
+    } catch (err) {
+      alert('Could not generate the PDF: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+
+  async function emailInvoice(invoiceId) {
+    const btn = document.getElementById('invoice-email-btn-' + invoiceId);
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    try {
+      await apiFetch('/invoices/' + invoiceId + '/send-email', { method: 'POST' });
+      alert('Invoice emailed to the family.');
+    } catch (err) {
+      alert('Could not email the invoice: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
     }
   }
 

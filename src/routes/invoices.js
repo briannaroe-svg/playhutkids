@@ -3,10 +3,98 @@ const router = express.Router();
 const pool = require('../db/pool');
 const Stripe = require('stripe');
 const { requireAdmin } = require('../middleware/auth');
+const { generateInvoicePdf } = require('../utils/generateInvoicePdf');
+const { uploadPdfBuffer } = require('../utils/cloudinary');
+const { sendEmail } = require('../utils/email');
 
 router.use(requireAdmin);
 
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+
+// Shared helper: load an invoice + its line items + the billed family, in the
+// shape generateInvoicePdf expects. Used by both the PDF and email routes
+// below so they can't drift out of sync with each other.
+async function loadInvoiceForPdf(invoiceId) {
+  const invoiceResult = await pool.query(`SELECT * FROM invoices WHERE id = $1`, [invoiceId]);
+  if (invoiceResult.rows.length === 0) return null;
+  const invoice = invoiceResult.rows[0];
+
+  const [lineItemsResult, familyResult] = await Promise.all([
+    pool.query(`SELECT * FROM invoice_line_items WHERE invoice_id = $1 ORDER BY line_number`, [invoiceId]),
+    pool.query(`SELECT * FROM families WHERE id = $1`, [invoice.family_id]),
+  ]);
+
+  return { invoice, lineItems: lineItemsResult.rows, family: familyResult.rows[0] };
+}
+
+// GET /invoices/:id/pdf — generates the invoice PDF, uploads it to Cloudinary,
+// saves the URL on the invoice (pdf_url), and returns it. Regenerates every
+// call rather than trusting a stale pdf_url, since an invoice's line items or
+// payment status can change after the first PDF was made — the "Download
+// PDF" / "Print" buttons should always reflect the invoice as it stands now.
+router.get('/:id(\\d+)/pdf', async (req, res) => {
+  try {
+    const data = await loadInvoiceForPdf(req.params.id);
+    if (!data) return res.status(404).json({ error: 'Invoice not found' });
+    if (!data.family) return res.status(404).json({ error: 'The family this invoice is billed to no longer exists' });
+
+    const pdfBuffer = await generateInvoicePdf(data);
+    const pdfUrl = await uploadPdfBuffer(
+      pdfBuffer,
+      `invoice-${data.invoice.invoice_number}`,
+      'little-playhut/invoices'
+    );
+
+    await pool.query(`UPDATE invoices SET pdf_url = $2, updated_at = now() WHERE id = $1`, [req.params.id, pdfUrl]);
+
+    res.json({ pdf_url: pdfUrl });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to generate invoice PDF' });
+  }
+});
+
+// POST /invoices/:id/send-email — generates a fresh PDF (see note above) and
+// emails it to the family's primary_parent_email as an attachment.
+router.post('/:id(\\d+)/send-email', async (req, res) => {
+  try {
+    const data = await loadInvoiceForPdf(req.params.id);
+    if (!data) return res.status(404).json({ error: 'Invoice not found' });
+    if (!data.family) return res.status(404).json({ error: 'The family this invoice is billed to no longer exists' });
+    if (!data.family.primary_parent_email) return res.status(400).json({ error: 'This family has no email on file' });
+
+    const pdfBuffer = await generateInvoicePdf(data);
+    const pdfUrl = await uploadPdfBuffer(
+      pdfBuffer,
+      `invoice-${data.invoice.invoice_number}`,
+      'little-playhut/invoices'
+    );
+    await pool.query(`UPDATE invoices SET pdf_url = $2, updated_at = now() WHERE id = $1`, [req.params.id, pdfUrl]);
+
+    const grandTotal = Number(data.invoice.grand_total).toFixed(2);
+    const sent = await sendEmail({
+      to: [data.family.primary_parent_email],
+      subject: `Invoice ${data.invoice.invoice_number} from The Little Playhut`,
+      html: `
+        <p>Hi ${data.family.primary_parent_name},</p>
+        <p>Please find attached invoice <strong>${data.invoice.invoice_number}</strong> for <strong>$${grandTotal}</strong>, due ${data.invoice.due_date ? new Date(data.invoice.due_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'upon receipt'}.</p>
+        <p>Thank you!<br>The Little Playhut</p>
+      `,
+      attachments: [
+        { filename: `Invoice-${data.invoice.invoice_number}.pdf`, content: pdfBuffer, contentType: 'application/pdf' },
+      ],
+    });
+
+    if (!sent) {
+      return res.status(502).json({ error: 'The PDF was generated, but the email could not be sent. Email may not be configured yet — check EMAIL_USER/EMAIL_PASS.' });
+    }
+
+    res.json({ sent: true, pdf_url: pdfUrl });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to email invoice' });
+  }
+});
 
 // GET /invoices/tax-report — must be mounted BEFORE /:id (KP's lesson: route order matters)
 router.get('/tax-report', async (req, res) => {
