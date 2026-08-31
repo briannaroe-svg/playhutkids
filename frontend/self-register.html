@@ -176,6 +176,11 @@
         <button type="button" class="clear-link" style="margin-bottom:20px;" onclick="addChildBlock()">+ Add another child</button>
 
         <div class="section-title">Payment</div>
+        <div id="services-total-wrap" style="display:none; justify-content:space-between; align-items:center; background:#fff; border:1px solid var(--sand-line); border-radius:10px; padding:12px 16px; margin-bottom:16px;">
+          <span style="font-size:13.5px; font-weight:600; color:var(--wood);">Services selected</span>
+          <span id="services-total-amount" style="font-size:18px; font-weight:700; color:var(--forest-deep);"></span>
+        </div>
+        <p class="field-hint" style="margin:-10px 0 16px;">No charge happens today — this is what a future invoice will bill for.</p>
         <div class="field">
           <label>Card on file <span style="font-weight:400; color:#8A9490;">(required to complete enrollment — no charge today)</span></label>
           <div id="card-status-not-saved">
@@ -263,6 +268,11 @@
           <input type="text" id="child-${id}-emergency-phone" required>
         </div>
       </div>
+      <div class="field">
+        <label>Services <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <div id="child-${id}-services"></div>
+        <button type="button" class="clear-link" onclick="addChildServiceRow(${id})">+ Add a service</button>
+      </div>
     `;
     container.appendChild(block);
     updateRemoveLinksVisibility();
@@ -297,8 +307,81 @@
         medical_notes: document.getElementById(`child-${id}-medical-notes`).value.trim() || null,
         emergency_contact_name: document.getElementById(`child-${id}-emergency-name`).value.trim(),
         emergency_contact_phone: document.getElementById(`child-${id}-emergency-phone`).value.trim(),
+        services: collectChildServices(id),
       };
     });
+  }
+
+  // ============================================================
+  // SERVICES — per child, repeatable dropdown ("+ Add a service"), rolled
+  // into one running total shown near the card section. Prices shown here
+  // are for the parent's reference only; the actual invoice is built
+  // server-side from current service_items prices, never trusted from what
+  // this page sends.
+  // ============================================================
+  let servicesCatalog = [];
+  let childServiceRowCount = 0;
+
+  async function loadServicesCatalog() {
+    try {
+      const res = await fetch(API_BASE + '/registrations/services');
+      servicesCatalog = await res.json();
+    } catch (err) {
+      servicesCatalog = []; // registration still works fine with no services offered
+    }
+  }
+
+  function addChildServiceRow(childId) {
+    if (servicesCatalog.length === 0) return; // nothing to offer
+    childServiceRowCount++;
+    const rowId = childServiceRowCount;
+    const wrap = document.getElementById(`child-${childId}-services`);
+    const row = document.createElement('div');
+    row.className = 'field-row';
+    row.id = `child-service-row-${rowId}`;
+    row.style.alignItems = 'center';
+    row.innerHTML = `
+      <div class="field" style="flex:1;">
+        <select id="child-service-${rowId}" onchange="recalculateTotal()">
+          <option value="">Select a service…</option>
+          ${servicesCatalog.map(s => `<option value="${s.id}">${escapeHtml(s.name)} — $${Number(s.default_price).toFixed(2)}</option>`).join('')}
+        </select>
+      </div>
+      <button type="button" class="clear-link" style="margin-bottom:16px;" onclick="removeChildServiceRow(${rowId})">✕</button>
+    `;
+    wrap.appendChild(row);
+  }
+
+  function removeChildServiceRow(rowId) {
+    const row = document.getElementById('child-service-row-' + rowId);
+    if (row) row.remove();
+    recalculateTotal();
+  }
+
+  function collectChildServices(childId) {
+    const wrap = document.getElementById(`child-${childId}-services`);
+    if (!wrap) return [];
+    const selects = wrap.querySelectorAll('select');
+    return Array.from(selects)
+      .filter(sel => sel.value)
+      .map(sel => ({ service_item_id: Number(sel.value), quantity: 1 }));
+  }
+
+  function recalculateTotal() {
+    const allSelects = document.querySelectorAll('.child-block select[id^="child-service-"]');
+    let total = 0;
+    allSelects.forEach(sel => {
+      const service = servicesCatalog.find(s => String(s.id) === sel.value);
+      if (service) total += Number(service.default_price);
+    });
+    const totalWrap = document.getElementById('services-total-wrap');
+    if (!totalWrap) return;
+    if (total > 0) {
+      totalWrap.style.display = 'flex';
+      document.getElementById('services-total-amount').textContent = '$' + total.toFixed(2);
+    } else {
+      totalWrap.style.display = 'none';
+    }
   }
 
   // ============================================================
@@ -518,7 +601,7 @@
     `;
   }
 
-  addChildBlock();
+  loadServicesCatalog().then(addChildBlock);
   initSignaturePad();
   mountCardElement();
 </script>

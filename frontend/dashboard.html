@@ -680,6 +680,10 @@
       <button type="button" class="icon-btn" style="margin-bottom:14px;" onclick="addRegChildBlock()">+ Add another child</button>
 
       <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:18px 0 10px;">Payment</p>
+      <div id="reg-services-total-wrap" style="display:none; justify-content:space-between; align-items:center; background:var(--cream); border:1px solid var(--sage-light); border-radius:9px; padding:10px 14px; margin-bottom:14px;">
+        <span style="font-size:13px; font-weight:600; color:var(--wood);">Services selected</span>
+        <span id="reg-services-total-amount" style="font-size:16px; font-weight:700; color:var(--teal-dark);"></span>
+      </div>
       <div class="field">
         <label>Card on file <span style="font-weight:400; color:#8A9490;">(required to complete — no charge today)</span></label>
         <div id="reg-card-status-not-saved">
@@ -3328,11 +3332,18 @@
   let regStripeCardElement = null;
   let regModalSignaturePad = null;
 
-  function openRegistrationModal() {
+  async function openRegistrationModal() {
     document.getElementById('registration-form').reset();
     document.getElementById('registration-modal-error').classList.remove('show');
     document.getElementById('reg-children-container').innerHTML = '';
+    document.getElementById('reg-services-total-wrap').style.display = 'none';
     regChildBlockCount = 0;
+
+    try {
+      servicesCache = await apiFetch('/service-items?active=true');
+    } catch (err) {
+      servicesCache = []; // registration still works fine with no services offered
+    }
     addRegChildBlock();
 
     regSavedStripeCustomerId = null;
@@ -3405,6 +3416,11 @@
           <input type="text" id="reg-child-${id}-emergency-phone">
         </div>
       </div>
+      <div class="field">
+        <label>Services <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <div id="reg-child-${id}-services"></div>
+        <button type="button" class="icon-btn" onclick="addRegChildServiceRow(${id})">+ Add a service</button>
+      </div>
     `;
     container.appendChild(block);
     updateRegRemoveLinksVisibility();
@@ -3437,8 +3453,65 @@
         medical_notes: document.getElementById(`reg-child-${id}-medical-notes`).value.trim() || null,
         emergency_contact_name: document.getElementById(`reg-child-${id}-emergency-name`).value.trim() || null,
         emergency_contact_phone: document.getElementById(`reg-child-${id}-emergency-phone`).value.trim() || null,
+        services: collectRegChildServices(id),
       };
     });
+  }
+
+  // ---- Services — same repeatable-dropdown-per-child pattern as self-register.html ----
+  let regChildServiceRowCount = 0;
+
+  function addRegChildServiceRow(childId) {
+    if (!servicesCache || servicesCache.length === 0) return;
+    regChildServiceRowCount++;
+    const rowId = regChildServiceRowCount;
+    const wrap = document.getElementById(`reg-child-${childId}-services`);
+    const row = document.createElement('div');
+    row.className = 'field-row';
+    row.id = `reg-child-service-row-${rowId}`;
+    row.style.alignItems = 'center';
+    row.innerHTML = `
+      <div class="field" style="flex:1;">
+        <select id="reg-child-service-${rowId}" onchange="recalculateRegTotal()">
+          <option value="">Select a service…</option>
+          ${servicesCache.map(s => `<option value="${s.id}">${escapeHtml(s.name)} — $${Number(s.default_price).toFixed(2)}</option>`).join('')}
+        </select>
+      </div>
+      <button type="button" class="icon-btn" onclick="removeRegChildServiceRow(${rowId})">✕</button>
+    `;
+    wrap.appendChild(row);
+  }
+
+  function removeRegChildServiceRow(rowId) {
+    const row = document.getElementById('reg-child-service-row-' + rowId);
+    if (row) row.remove();
+    recalculateRegTotal();
+  }
+
+  function collectRegChildServices(childId) {
+    const wrap = document.getElementById(`reg-child-${childId}-services`);
+    if (!wrap) return [];
+    const selects = wrap.querySelectorAll('select');
+    return Array.from(selects)
+      .filter(sel => sel.value)
+      .map(sel => ({ service_item_id: Number(sel.value), quantity: 1 }));
+  }
+
+  function recalculateRegTotal() {
+    const allSelects = document.querySelectorAll('#reg-children-container select[id^="reg-child-service-"]');
+    let total = 0;
+    allSelects.forEach(sel => {
+      const service = (servicesCache || []).find(s => String(s.id) === sel.value);
+      if (service) total += Number(service.default_price);
+    });
+    const totalWrap = document.getElementById('reg-services-total-wrap');
+    if (!totalWrap) return;
+    if (total > 0) {
+      totalWrap.style.display = 'flex';
+      document.getElementById('reg-services-total-amount').textContent = '$' + total.toFixed(2);
+    } else {
+      totalWrap.style.display = 'none';
+    }
   }
 
   // ---- Card (Stripe Elements) — same pattern as the family/self-register card flows ----

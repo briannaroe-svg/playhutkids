@@ -280,6 +280,24 @@ router.post('/:id(\\d+)/sign-in-person', requireAdmin, async (req, res) => {
   }
 });
 
+// GET /registrations/services — PUBLIC, no login needed. The active service
+// catalog, for the registration form's per-child services picker. Deliberately
+// separate from the admin-only GET /service-items — this returns only the
+// fields a registration form needs (nothing sensitive lives on a service
+// item anyway, but keeping this route distinct means the public surface
+// doesn't grow just because the admin route's shape changes later).
+router.get('/services', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, description, default_price FROM service_items WHERE is_active = true ORDER BY name`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch services' });
+  }
+});
+
 // POST /registrations/start-card-setup — PUBLIC, no login/token needed.
 // Called from self-register.html BEFORE the form is actually submitted, so
 // Stripe Elements has a live SetupIntent to attach the card to. Creates a
@@ -323,12 +341,16 @@ router.post('/start-card-setup', async (req, res) => {
 // together under one family, one card, one signature — each child still
 // gets their own registrations row and signed PDF (matching how every other
 // signing path in this file works), but they all share one family record
-// via completeRegistration()'s existingFamilyId parameter.
+// via completeRegistration()'s existingFamilyId parameter. Each child can
+// also list `services` (service_item ids + quantity) — these roll up into
+// ONE draft invoice for the family, built from CURRENT service_items prices
+// looked up server-side (never a client-supplied price, which would let
+// someone submit a fabricated total).
 router.post('/self-register', async (req, res) => {
   const {
     primary_parent_name, primary_parent_email, primary_parent_phone,
     secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address,
-    children, // [{ first_name, last_name, date_of_birth, program, allergies, medical_notes, emergency_contact_name, emergency_contact_phone }, ...]
+    children, // [{ first_name, last_name, date_of_birth, program, allergies, medical_notes, emergency_contact_name, emergency_contact_phone, services: [{ service_item_id, quantity }] }, ...]
     signer_name, signature_data,
     stripe_customer_id, setup_intent_id,
   } = req.body;
@@ -378,6 +400,7 @@ router.post('/self-register', async (req, res) => {
 
     let sharedFamilyId = null;
     const completedRegistrations = [];
+    const invoiceLineItemPlan = []; // [{ child_id, child_name, service_item_id, quantity }] — resolved to real prices below
 
     for (const c of children) {
       const insertResult = await pool.query(
@@ -405,6 +428,19 @@ router.post('/self-register', async (req, res) => {
       if (!sharedFamilyId) sharedFamilyId = completed.resulting_family_id;
       completedRegistrations.push(completed);
 
+      if (Array.isArray(c.services)) {
+        for (const s of c.services) {
+          if (s.service_item_id) {
+            invoiceLineItemPlan.push({
+              child_id: completed.resulting_child_id,
+              child_name: `${c.first_name} ${c.last_name}`,
+              service_item_id: s.service_item_id,
+              quantity: Number(s.quantity) || 1,
+            });
+          }
+        }
+      }
+
       // Auto-close any matching waitlist entry — same behavior as the
       // admin-initiated path, checked per child in case a family has more
       // than one waitlist entry (e.g. inquired about each kid separately).
@@ -417,6 +453,63 @@ router.post('/self-register', async (req, res) => {
         );
       } catch (waitlistErr) {
         console.error('Self-registration completed, but waitlist auto-conversion failed:', waitlistErr);
+      }
+    }
+
+    // Build one draft invoice for the family covering every selected service
+    // across every child — prices are looked up fresh from service_items
+    // right now, never trusted from the request body.
+    let createdInvoice = null;
+    if (invoiceLineItemPlan.length > 0) {
+      try {
+        const serviceIds = [...new Set(invoiceLineItemPlan.map(li => li.service_item_id))];
+        const servicesResult = await pool.query(
+          `SELECT * FROM service_items WHERE id = ANY($1::int[]) AND is_active = true`,
+          [serviceIds]
+        );
+        const servicesById = {};
+        servicesResult.rows.forEach(s => { servicesById[s.id] = s; });
+
+        const resolvedLineItems = invoiceLineItemPlan
+          .filter(li => servicesById[li.service_item_id]) // silently drop any service that's since gone inactive/was invalid
+          .map(li => {
+            const service = servicesById[li.service_item_id];
+            const unitPrice = Number(service.default_price);
+            return {
+              child_id: li.child_id,
+              description: `${service.name} — ${li.child_name}`,
+              item_type: 'service',
+              quantity: li.quantity,
+              unit_price: unitPrice,
+              line_total: unitPrice * li.quantity,
+            };
+          });
+
+        if (resolvedLineItems.length > 0) {
+          const subtotal = resolvedLineItems.reduce((sum, li) => sum + li.line_total, 0);
+          const invoiceNumber = 'INV-' + Date.now();
+
+          const invoiceResult = await pool.query(
+            `INSERT INTO invoices (invoice_number, family_id, subtotal, tax_total, grand_total)
+             VALUES ($1,$2,$3,0,$3) RETURNING *`,
+            [invoiceNumber, sharedFamilyId, subtotal]
+          );
+          createdInvoice = invoiceResult.rows[0];
+
+          for (let i = 0; i < resolvedLineItems.length; i++) {
+            const li = resolvedLineItems[i];
+            await pool.query(
+              `INSERT INTO invoice_line_items (invoice_id, child_id, line_number, description, item_type, quantity, unit_price, line_total)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+              [createdInvoice.id, li.child_id, i + 1, li.description, li.item_type, li.quantity, li.unit_price, li.line_total]
+            );
+          }
+        }
+      } catch (invoiceErr) {
+        // Registration already succeeded at this point — a failed invoice
+        // build shouldn't undo the enrollment, but admin needs to know they
+        // may need to create this invoice manually.
+        console.error('Registration completed, but building the services invoice failed:', invoiceErr);
       }
     }
 
@@ -452,6 +545,7 @@ router.post('/self-register', async (req, res) => {
       registrations: completedRegistrations,
       portal_email: primary_parent_email,
       portal_password: password, // returned ONCE, here — never stored in plaintext, never retrievable again after this response
+      invoice: createdInvoice, // null if no services were selected
     });
   } catch (err) {
     console.error(err);
