@@ -775,6 +775,29 @@
   </div>
 </div>
 
+<!-- ============ SELF-REGISTRATION QR MODAL (admin only) ============ -->
+<div class="modal-overlay" id="self-register-qr-modal-overlay">
+  <div class="modal" style="max-width:420px;">
+    <h3>Self-registration</h3>
+    <p class="modal-sub">A family can scan this to enroll themselves — no login needed, works on any phone, tablet, or computer.</p>
+
+    <div style="text-align:center; padding:10px 0 18px;">
+      <img id="self-register-qr-image" src="" alt="QR code to the self-registration page" style="border-radius:12px; border:1px solid var(--sage-light); width:260px; height:260px;">
+      <p style="font-size:13px; color:#8A9490; margin-top:14px;">Scan to start enrolling</p>
+      <p id="self-register-qr-url-text" style="font-size:12.5px; word-break:break-all; color:var(--wood);"></p>
+    </div>
+
+    <div class="note" style="text-align:left;">
+      Completed self-registrations show up right here on the Registration tab automatically, and generate portal login credentials for the family on the spot.
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="printSelfRegisterQr()">Print</button>
+      <button type="button" class="btn btn-teal" onclick="closeSelfRegisterQr()">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ ADD HANDBOOK VERSION MODAL (admin only) ============ -->
 <div class="modal-overlay" id="handbook-template-modal-overlay">
   <div class="modal">
@@ -1203,6 +1226,46 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="closeInvoiceModal()">Cancel</button>
         <button type="submit" class="btn btn-teal" id="invoice-submit-btn">Create invoice</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ NEW/EDIT RECURRING PLAN MODAL (admin only) ============ -->
+<div class="modal-overlay" id="recurring-plan-modal-overlay">
+  <div class="modal" style="max-width:540px;">
+    <h3 id="recurring-plan-modal-title">New recurring plan</h3>
+    <p class="modal-sub">Bills the family's saved card automatically each month.</p>
+
+    <div class="error-banner" id="recurring-plan-modal-error"></div>
+
+    <form id="recurring-plan-form">
+      <input type="hidden" id="recurring-plan-id">
+
+      <div class="field" id="recurring-plan-family-picker">
+        <label for="recurring-plan-family-search">Family</label>
+        <input type="text" id="recurring-plan-family-search" placeholder="Search by parent name or email…">
+        <div id="recurring-plan-family-results"></div>
+      </div>
+      <div id="recurring-plan-selected-family" class="selected-family-chip" style="display:none; margin-bottom:16px;">
+        <span>Billing: <strong id="recurring-plan-selected-family-name"></strong></span>
+        <button type="button" class="icon-btn" onclick="clearRecurringPlanFamily()">Change</button>
+      </div>
+
+      <div class="field">
+        <label for="recurring-plan-billing-day">Bill on day of month</label>
+        <input type="number" id="recurring-plan-billing-day" min="1" max="28" required style="max-width:100px;">
+        <p class="field-hint">Capped at 28 so it's a valid date in every month.</p>
+      </div>
+
+      <div class="field">
+        <label>Line items <span style="font-weight:400; color:#8A9490;">(what this charges each cycle — can be edited any time)</span></label>
+        <div id="recurring-plan-line-items"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeRecurringPlanModal()">Cancel</button>
+        <button type="submit" class="btn btn-teal" id="recurring-plan-submit-btn">Create plan</button>
       </div>
     </form>
   </div>
@@ -3171,7 +3234,10 @@
           <h2>Registration</h2>
           <p>Start a new enrollment — captures family and child info with a signature.</p>
         </div>
-        <button class="btn btn-coral" onclick="openRegistrationModal()">+ Add new Registration</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost" onclick="openSelfRegisterQr()">Self-registration QR</button>
+          <button class="btn btn-coral" onclick="openRegistrationModal()">+ Add new Registration</button>
+        </div>
       </div>
       <div class="card" id="registrations-table-wrap">
         <div class="empty-state"><p>Loading…</p></div>
@@ -3184,6 +3250,25 @@
     } catch (err) {
       document.getElementById('registrations-table-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load registrations</h3><p>${err.message}</p></div>`;
     }
+  }
+
+  // Shows a QR code + link to the self-registration page — meant to be
+  // printed or displayed on a tablet at the front desk. Uses the same
+  // image-API QR generator as the post-registration portal QR screen.
+  function openSelfRegisterQr() {
+    const selfRegUrl = window.location.origin + '/self-register.html';
+    const qrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=' + encodeURIComponent(selfRegUrl);
+    document.getElementById('self-register-qr-image').src = qrImageUrl;
+    document.getElementById('self-register-qr-url-text').textContent = selfRegUrl;
+    document.getElementById('self-register-qr-modal-overlay').classList.add('show');
+  }
+
+  function closeSelfRegisterQr() {
+    document.getElementById('self-register-qr-modal-overlay').classList.remove('show');
+  }
+
+  function printSelfRegisterQr() {
+    window.print();
   }
 
   function renderRegistrationsTable() {
@@ -4530,6 +4615,9 @@
   // INVOICES VIEW
   // ============================================================
   let invoicesCache = [];
+  let recurringPlansCache = [];
+  let recurringPlanLineItems = []; // staged line items while building/editing a plan
+  let recurringPlanSelectedFamily = null;
   let invoiceLineItems = []; // working line items while building a new invoice
   let invoiceSelectedFamily = null; // { id, primary_parent_name, ... }
 
@@ -4550,6 +4638,19 @@
       <div class="card" id="invoices-table-wrap">
         <div class="empty-state"><p>Loading…</p></div>
       </div>
+
+      <div class="page-header" style="margin:28px 0 14px;"><div><h2 style="font-size:19px;">Recurring billing activity</h2><p>What's happened in the last 7 days — includes failed and skipped attempts.</p></div></div>
+      <div class="card" id="recurring-runs-wrap" style="margin-bottom:28px;">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
+
+      <div class="page-header" style="margin-bottom:14px;">
+        <div><h2 style="font-size:19px;">Recurring plans</h2><p>Automatically bills a family's saved card on a set day each month.</p></div>
+        <button class="btn btn-ghost" onclick="openRecurringPlanModal()">+ New plan</button>
+      </div>
+      <div class="card" id="recurring-plans-wrap">
+        <div class="empty-state"><p>Loading…</p></div>
+      </div>
     `;
 
     try {
@@ -4558,7 +4659,279 @@
     } catch (err) {
       document.getElementById('invoices-table-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load invoices</h3><p>${err.message}</p></div>`;
     }
+
+    try {
+      const runs = await apiFetch('/recurring-plans/runs?days=7');
+      renderRecurringRuns(runs);
+    } catch (err) {
+      document.getElementById('recurring-runs-wrap').innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+    }
+
+    try {
+      recurringPlansCache = await apiFetch('/recurring-plans');
+      renderRecurringPlansTable();
+    } catch (err) {
+      document.getElementById('recurring-plans-wrap').innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+    }
   }
+
+  function renderRecurringRuns(runs) {
+    const wrap = document.getElementById('recurring-runs-wrap');
+    if (runs.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>Nothing yet</h3><p>Runs will show up here once a recurring plan fires.</p></div>`;
+      return;
+    }
+    const STATUS_LABEL = { charged: 'Charged', failed: 'Failed', no_card: 'Skipped — no card' };
+    const STATUS_CLASS = { charged: 'badge-active', failed: 'badge-inactive', no_card: 'badge-staff' };
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Family</th><th>Date</th><th>Invoice</th><th>Amount</th><th>Result</th></tr></thead>
+        <tbody>
+          ${runs.map(r => `
+            <tr>
+              <td><strong>${escapeHtml(r.primary_parent_name)}</strong></td>
+              <td>${formatDate(r.run_date)}</td>
+              <td>${r.invoice_number ? escapeHtml(r.invoice_number) : '—'}</td>
+              <td>${r.grand_total ? formatCurrency(r.grand_total) : '—'}</td>
+              <td>
+                <span class="badge ${STATUS_CLASS[r.status] || 'badge-staff'}">${STATUS_LABEL[r.status] || r.status}</span>
+                ${r.error_message ? `<div style="font-size:12px; color:#8A9490; margin-top:3px;">${escapeHtml(r.error_message)}</div>` : ''}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function renderRecurringPlansTable() {
+    const wrap = document.getElementById('recurring-plans-wrap');
+    if (recurringPlansCache.length === 0) {
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <h3>No recurring plans yet</h3>
+          <p>Set up automatic monthly billing for a family with a saved card.</p>
+          <button class="btn btn-ghost" onclick="openRecurringPlanModal()">+ New plan</button>
+        </div>
+      `;
+      return;
+    }
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Family</th><th>Bills on</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${recurringPlansCache.map(p => {
+            const total = p.line_items.reduce((sum, li) => sum + Number(li.quantity || 1) * Number(li.unit_price), 0);
+            return `
+              <tr>
+                <td>
+                  <strong>${escapeHtml(p.primary_parent_name)}</strong>
+                  ${!p.has_card_on_file ? '<div style="font-size:12px; color:var(--error); margin-top:2px;">No card on file</div>' : ''}
+                </td>
+                <td>Day ${p.billing_day} of each month</td>
+                <td>${formatCurrency(total)}</td>
+                <td><span class="badge ${p.is_active ? 'badge-active' : 'badge-staff'}">${p.is_active ? 'Active' : 'Paused'}</span></td>
+                <td>
+                  <button class="icon-btn" onclick="openRecurringPlanModal(${p.id})">Edit</button>
+                  <button class="icon-btn" onclick="toggleRecurringPlanActive(${p.id}, ${!p.is_active})">${p.is_active ? 'Pause' : 'Resume'}</button>
+                  <button class="icon-btn" id="recurring-run-now-btn-${p.id}" onclick="runRecurringPlanNow(${p.id})">Run now</button>
+                  <button class="icon-btn" style="color:var(--error);" onclick="deleteRecurringPlan(${p.id})">Delete</button>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function toggleRecurringPlanActive(planId, newActive) {
+    try {
+      await apiFetch('/recurring-plans/' + planId, { method: 'PUT', body: JSON.stringify({ is_active: newActive }) });
+      recurringPlansCache = await apiFetch('/recurring-plans');
+      renderRecurringPlansTable();
+    } catch (err) {
+      alert('Could not update plan: ' + err.message);
+    }
+  }
+
+  async function runRecurringPlanNow(planId) {
+    const plan = recurringPlansCache.find(p => p.id === planId);
+    if (!confirm(`Run this plan for ${plan.primary_parent_name} right now? This generates and charges an invoice immediately.`)) return;
+    const btn = document.getElementById('recurring-run-now-btn-' + planId);
+    btn.disabled = true;
+    btn.textContent = 'Running…';
+    try {
+      const result = await apiFetch('/recurring-plans/' + planId + '/run-now', { method: 'POST' });
+      alert(`Result: ${result.status}${result.error ? ' — ' + result.error : ''}`);
+      const runs = await apiFetch('/recurring-plans/runs?days=7');
+      renderRecurringRuns(runs);
+      invoicesCache = await apiFetch('/invoices');
+      renderInvoicesTable();
+    } catch (err) {
+      alert('Could not run plan: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Run now';
+    }
+  }
+
+  async function deleteRecurringPlan(planId) {
+    if (!confirm('Delete this recurring plan? This does not affect invoices it already generated.')) return;
+    try {
+      await apiFetch('/recurring-plans/' + planId, { method: 'DELETE' });
+      recurringPlansCache = await apiFetch('/recurring-plans');
+      renderRecurringPlansTable();
+    } catch (err) {
+      alert('Could not delete plan: ' + err.message);
+    }
+  }
+
+  // ---- New/Edit Recurring Plan modal ----
+  async function openRecurringPlanModal(planId) {
+    document.getElementById('recurring-plan-id').value = planId || '';
+    document.getElementById('recurring-plan-modal-error').classList.remove('show');
+    document.getElementById('recurring-plan-family-search').value = '';
+    document.getElementById('recurring-plan-family-results').innerHTML = '';
+
+    if (planId) {
+      const p = recurringPlansCache.find(x => x.id === planId);
+      document.getElementById('recurring-plan-modal-title').textContent = 'Edit recurring plan';
+      document.getElementById('recurring-plan-billing-day').value = p.billing_day;
+      recurringPlanLineItems = p.line_items.map(li => ({ ...li }));
+      recurringPlanSelectedFamily = { id: p.family_id, name: p.primary_parent_name };
+      document.getElementById('recurring-plan-selected-family').style.display = 'flex';
+      document.getElementById('recurring-plan-selected-family-name').textContent = p.primary_parent_name;
+      document.getElementById('recurring-plan-family-picker').style.display = 'none'; // family can't change on an existing plan
+      document.getElementById('recurring-plan-submit-btn').textContent = 'Save changes';
+    } else {
+      document.getElementById('recurring-plan-modal-title').textContent = 'New recurring plan';
+      document.getElementById('recurring-plan-billing-day').value = '1';
+      recurringPlanLineItems = [];
+      recurringPlanSelectedFamily = null;
+      document.getElementById('recurring-plan-selected-family').style.display = 'none';
+      document.getElementById('recurring-plan-family-picker').style.display = 'block';
+      document.getElementById('recurring-plan-submit-btn').textContent = 'Create plan';
+    }
+
+    renderRecurringPlanLineItems();
+    document.getElementById('recurring-plan-modal-overlay').classList.add('show');
+  }
+
+  function closeRecurringPlanModal() {
+    document.getElementById('recurring-plan-modal-overlay').classList.remove('show');
+  }
+
+  document.getElementById('recurring-plan-family-search').addEventListener('input', debounce(async (e) => {
+    const term = e.target.value.trim();
+    const resultsBox = document.getElementById('recurring-plan-family-results');
+    if (!term) { resultsBox.innerHTML = ''; return; }
+    try {
+      const results = await apiFetch('/families/search?q=' + encodeURIComponent(term));
+      resultsBox.innerHTML = results.length
+        ? results.map(f => `
+            <div class="family-result" onclick="selectRecurringPlanFamily(${f.id}, '${escapeHtml(f.primary_parent_name).replace(/'/g, "\\'")}', ${f.has_card_on_file || f.card_brand ? 'true' : 'false'})">
+              <strong>${escapeHtml(f.primary_parent_name)}</strong> — ${escapeHtml(f.primary_parent_email)}
+            </div>
+          `).join('')
+        : '<div class="family-result-empty">No matches.</div>';
+    } catch (err) {
+      resultsBox.innerHTML = `<div class="family-result-empty">${err.message}</div>`;
+    }
+  }, 300));
+
+  function selectRecurringPlanFamily(id, name, hasCard) {
+    recurringPlanSelectedFamily = { id, name };
+    document.getElementById('recurring-plan-family-results').innerHTML = '';
+    document.getElementById('recurring-plan-family-search').value = '';
+    document.getElementById('recurring-plan-selected-family').style.display = 'flex';
+    document.getElementById('recurring-plan-selected-family-name').textContent = name + (hasCard ? '' : ' (no card on file yet)');
+  }
+
+  function clearRecurringPlanFamily() {
+    recurringPlanSelectedFamily = null;
+    document.getElementById('recurring-plan-selected-family').style.display = 'none';
+  }
+
+  function addRecurringPlanLineItem() {
+    recurringPlanLineItems.push({ description: '', quantity: 1, unit_price: 0 });
+    renderRecurringPlanLineItems();
+  }
+
+  function removeRecurringPlanLineItem(index) {
+    recurringPlanLineItems.splice(index, 1);
+    renderRecurringPlanLineItems();
+  }
+
+  function updateRecurringPlanLineItem(index, field, value) {
+    if (field === 'description') {
+      recurringPlanLineItems[index].description = value;
+    } else {
+      recurringPlanLineItems[index][field] = Number(value) || 0;
+    }
+    renderRecurringPlanLineItems();
+  }
+
+  function renderRecurringPlanLineItems() {
+    const wrap = document.getElementById('recurring-plan-line-items');
+    const subtotal = recurringPlanLineItems.reduce((sum, li) => sum + (Number(li.quantity) * Number(li.unit_price)), 0);
+    wrap.innerHTML = `
+      ${recurringPlanLineItems.map((li, i) => `
+        <div class="line-item-row">
+          <input type="text" placeholder="Description" value="${escapeHtml(li.description)}" oninput="updateRecurringPlanLineItem(${i}, 'description', this.value)">
+          <input type="number" min="1" step="1" value="${li.quantity}" oninput="updateRecurringPlanLineItem(${i}, 'quantity', this.value)" style="width:52px;">
+          <input type="number" min="0" step="0.01" placeholder="0.00" value="${li.unit_price || ''}" oninput="updateRecurringPlanLineItem(${i}, 'unit_price', this.value)" style="width:80px;">
+          <button type="button" class="icon-btn" onclick="removeRecurringPlanLineItem(${i})">✕</button>
+        </div>
+      `).join('')}
+      <button type="button" class="btn btn-ghost btn-add-line" onclick="addRecurringPlanLineItem()">+ Add line item</button>
+      <div class="invoice-subtotal">Bills: <strong>${formatCurrency(subtotal)}</strong> each cycle</div>
+    `;
+  }
+
+  document.getElementById('recurring-plan-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const planId = document.getElementById('recurring-plan-id').value;
+    const errorBox = document.getElementById('recurring-plan-modal-error');
+    const btn = document.getElementById('recurring-plan-submit-btn');
+    errorBox.classList.remove('show');
+
+    if (!planId && !recurringPlanSelectedFamily) {
+      errorBox.textContent = 'Select a family first.';
+      errorBox.classList.add('show');
+      return;
+    }
+    if (recurringPlanLineItems.length === 0 || recurringPlanLineItems.some(li => !li.description.trim())) {
+      errorBox.textContent = 'Add at least one line item, and make sure each has a description.';
+      errorBox.classList.add('show');
+      return;
+    }
+
+    const payload = {
+      family_id: recurringPlanSelectedFamily ? recurringPlanSelectedFamily.id : undefined,
+      line_items: recurringPlanLineItems,
+      billing_day: Number(document.getElementById('recurring-plan-billing-day').value),
+    };
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      if (planId) {
+        await apiFetch('/recurring-plans/' + planId, { method: 'PUT', body: JSON.stringify(payload) });
+      } else {
+        await apiFetch('/recurring-plans', { method: 'POST', body: JSON.stringify(payload) });
+      }
+      closeRecurringPlanModal();
+      recurringPlansCache = await apiFetch('/recurring-plans');
+      renderRecurringPlansTable();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = planId ? 'Save changes' : 'Create plan';
+    }
+  });
 
   function renderInvoicesTable() {
     const wrap = document.getElementById('invoices-table-wrap');
@@ -4589,6 +4962,7 @@
                 ${inv.status !== 'paid' && inv.status !== 'void' ? `<button class="icon-btn" onclick="createPaymentLink(${inv.id})">Get payment link</button>` : ''}
                 ${inv.stripe_payment_link_url ? `<button class="icon-btn" onclick="copyPaymentLink('${inv.stripe_payment_link_url}')">Copy link</button>` : ''}
                 ${inv.status !== 'paid' && inv.status !== 'void' ? `<button class="icon-btn" onclick="markInvoicePaid(${inv.id})">Mark paid</button>` : ''}
+                ${inv.status === 'paid' && inv.stripe_payment_intent_id ? `<button class="icon-btn" style="color:var(--error);" onclick="refundInvoice(${inv.id})">Refund</button>` : ''}
                 <button class="icon-btn" id="invoice-pdf-btn-${inv.id}" onclick="downloadInvoicePdf(${inv.id})">PDF</button>
                 <button class="icon-btn" id="invoice-email-btn-${inv.id}" onclick="emailInvoice(${inv.id})">Email</button>
               </td>
@@ -4678,7 +5052,7 @@
   async function chargeInvoiceCard(invoiceId) {
     const inv = invoicesCache.find(i => i.id === invoiceId);
     const confirmed = confirm(
-      `Charge ${inv.primary_parent_name}'s card on file ${formatCurrency(inv.grand_total)} for invoice ${inv.invoice_number}?\n\nThis charges a real card immediately and cannot be undone from here.`
+      `Charge ${inv.primary_parent_name}'s card on file ${formatCurrency(inv.grand_total)} for invoice ${inv.invoice_number}?\n\nThis charges a real card immediately. It can be refunded afterward if needed.`
     );
     if (!confirmed) return;
 
@@ -4693,6 +5067,18 @@
       alert('Charge failed: ' + err.message);
       btn.disabled = false;
       btn.textContent = 'Charge card';
+    }
+  }
+
+  async function refundInvoice(invoiceId) {
+    const inv = invoicesCache.find(i => i.id === invoiceId);
+    if (!confirm(`Refund ${formatCurrency(inv.grand_total)} to ${inv.primary_parent_name} for invoice ${inv.invoice_number}? This refunds the full amount via Stripe immediately.`)) return;
+    try {
+      await apiFetch('/invoices/' + invoiceId + '/refund', { method: 'POST' });
+      invoicesCache = await apiFetch('/invoices');
+      renderInvoicesTable();
+    } catch (err) {
+      alert('Refund failed: ' + err.message);
     }
   }
 

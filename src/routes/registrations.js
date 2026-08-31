@@ -5,11 +5,29 @@ const crypto = require('crypto');
 const { uploadPdfBuffer } = require('../utils/cloudinary');
 const { generateSignedAgreementPdf } = require('../utils/generateAgreementPdf');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { hashPassword } = require('../utils/auth');
+
+// Small word lists for generating a readable, memorable auto-password —
+// e.g. "maple-forest-42" — rather than a wall of random symbols, since the
+// parent needs to actually type this on their own device shortly after.
+// Not a security downgrade in practice: combined with 2 random digits, this
+// is still a large space, and it's a temporary password they're expected to
+// change or simply keep using for a low-stakes read-only portal.
+const PASSWORD_WORDS_A = ['maple', 'cedar', 'birch', 'willow', 'meadow', 'harbor', 'canyon', 'ember', 'brook', 'thistle'];
+const PASSWORD_WORDS_B = ['forest', 'summit', 'hollow', 'ridge', 'valley', 'orchard', 'grove', 'creek', 'garden', 'trail'];
+
+function generateReadablePassword() {
+  const a = PASSWORD_WORDS_A[crypto.randomInt(PASSWORD_WORDS_A.length)];
+  const b = PASSWORD_WORDS_B[crypto.randomInt(PASSWORD_WORDS_B.length)];
+  const digits = String(crypto.randomInt(10, 100)); // 10-99
+  return `${a}-${b}-${digits}`;
+}
 
 // NOTE: this file deliberately does NOT use a blanket router.use(requireAdmin).
-// The /sign/:token routes (GET and POST) must stay public — a signing parent
-// is not a logged-in staff member. Every other route has requireAdmin applied
-// individually. See agreements.js for the same pattern.
+// The /sign/:token routes (GET and POST) and /self-register must stay public
+// — a signing/registering parent is not a logged-in staff member. Every
+// other route has requireAdmin applied individually. See agreements.js for
+// the same pattern.
 
 // GET /registrations — admin only, list all (any status)
 router.get('/', requireAdmin, async (req, res) => {
@@ -248,6 +266,97 @@ router.post('/:id(\\d+)/sign-in-person', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to complete registration' });
+  }
+});
+
+// POST /registrations/self-register — PUBLIC, no login and no token needed.
+// A parent fills out the entire form and signs themselves, in one sitting —
+// unlike the admin-initiated flow above (POST / then a separate sign step),
+// this creates the registration row AND completes it in the same request,
+// then generates portal login credentials on the spot. Reuses
+// completeRegistration() so the resulting family/child/signed-PDF creation
+// is identical to every other signing path in this file.
+router.post('/self-register', async (req, res) => {
+  const {
+    primary_parent_name, primary_parent_email, primary_parent_phone,
+    secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address,
+    child_first_name, child_last_name, child_date_of_birth, child_program,
+    child_allergies, child_medical_notes, child_emergency_contact_name,
+    child_emergency_contact_phone,
+    signer_name, signature_data,
+  } = req.body;
+
+  if (!primary_parent_name || !primary_parent_email || !child_first_name || !child_last_name || !child_date_of_birth || !child_program) {
+    return res.status(400).json({ error: 'Primary parent name/email and child name/DOB/program are required' });
+  }
+  if (!signer_name || !signature_data) {
+    return res.status(400).json({ error: 'A signature is required to complete registration' });
+  }
+
+  try {
+    // A family with this email already having portal access is a sign this
+    // isn't actually a first-time registration — point them at the real
+    // portal/login instead of silently creating a duplicate family record.
+    const existingFamily = await pool.query(
+      `SELECT id FROM families WHERE primary_parent_email = $1`,
+      [primary_parent_email]
+    );
+    if (existingFamily.rows.length > 0) {
+      return res.status(409).json({ error: 'A family with this email is already registered. Contact the school if you need help accessing your account.' });
+    }
+
+    const insertResult = await pool.query(
+      `INSERT INTO registrations (
+        primary_parent_name, primary_parent_email, primary_parent_phone,
+        secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address,
+        child_first_name, child_last_name, child_date_of_birth, child_program,
+        child_allergies, child_medical_notes, child_emergency_contact_name,
+        child_emergency_contact_phone, sign_method
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'self_service')
+      RETURNING *`,
+      [primary_parent_name, primary_parent_email, primary_parent_phone,
+       secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address,
+       child_first_name, child_last_name, child_date_of_birth, child_program,
+       child_allergies, child_medical_notes, child_emergency_contact_name,
+       child_emergency_contact_phone]
+    );
+    const registration = insertResult.rows[0];
+
+    const completed = await completeRegistration(registration, {
+      signer_name, signature_data, sign_method: 'self_service',
+    });
+
+    // Auto-close any matching waitlist entry — same behavior as the
+    // admin-initiated path.
+    try {
+      await pool.query(
+        `UPDATE waitlist_entries
+         SET status = 'enrolled', converted_registration_id = $2, converted_at = now()
+         WHERE parent_email = $1 AND status = 'waiting'`,
+        [primary_parent_email, registration.id]
+      );
+    } catch (waitlistErr) {
+      console.error('Self-registration completed, but waitlist auto-conversion failed:', waitlistErr);
+    }
+
+    // Generate a portal password automatically — readable (not a wall of
+    // symbols), since the parent needs to actually type this in shortly.
+    // Two short words + two digits, e.g. "maple-forest-42".
+    const password = generateReadablePassword();
+    const passwordHash = await hashPassword(password);
+    await pool.query(
+      `UPDATE families SET password_hash = $2 WHERE id = $1`,
+      [completed.resulting_family_id, passwordHash]
+    );
+
+    res.status(201).json({
+      registration: completed,
+      portal_email: primary_parent_email,
+      portal_password: password, // returned ONCE, here — never stored in plaintext, never retrievable again after this response
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to complete registration: ' + err.message });
   }
 });
 

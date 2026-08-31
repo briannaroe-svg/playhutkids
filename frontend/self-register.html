@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enroll — The Little Playhut</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --forest-deep: #1B2E22;
+    --sage-light: #E4EBDE;
+    --meadow: #CFDCC3;
+    --birch: #F4EDE0;
+    --wood: #8B5E34;
+    --gold: #D9A441;
+    --gold-dark: #BF8A2E;
+    --bark: #3A2E22;
+    --moss: #6B7A5E;
+    --white: #FFFFFF;
+    --error: #B3462E;
+    --error-bg: #FBEAE4;
+    --success: #4A7A5C;
+    --success-bg: #E7F1EA;
+    --sand-line: rgba(139,94,52,0.18);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(160deg, var(--sage-light) 0%, var(--meadow) 100%);
+    color: var(--bark);
+    min-height: 100vh;
+    padding: 24px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 { font-family: 'Fredoka', sans-serif; font-weight: 600; letter-spacing: -0.01em; }
+
+  .wrap { max-width: 620px; margin: 0 auto; }
+
+  .card {
+    background: var(--birch); border: 1px solid var(--sand-line); border-radius: 20px;
+    padding: 40px 36px; box-shadow: 0 24px 64px rgba(15,27,20,0.18), 0 2px 8px rgba(15,27,20,0.10);
+  }
+
+  .card img.mark { width: 84px; height: 84px; margin: 0 auto 16px; display: block; object-fit: contain; }
+  .card h1 { font-size: 24px; text-align: center; color: var(--forest-deep); margin: 0 0 6px; }
+  .sub { text-align: center; font-size: 14px; color: var(--moss); margin: 0 0 30px; }
+
+  .section-title {
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--wood); margin: 26px 0 12px;
+  }
+  .section-title:first-of-type { margin-top: 0; }
+
+  .field { margin-bottom: 16px; }
+  .field-row { display: flex; gap: 12px; }
+  .field-row .field { flex: 1; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--bark); margin-bottom: 6px; }
+  .field input, .field select {
+    width: 100%; padding: 12px 14px; border: 1.5px solid rgba(139,94,52,0.25); border-radius: 10px;
+    font-family: 'Inter', sans-serif; font-size: 15px; color: var(--bark); background: #FFFDF8;
+  }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--gold); background: #fff; }
+  .field-hint { font-size: 12px; color: var(--moss); margin-top: 5px; }
+
+  .signature-canvas {
+    width: 100%; height: 160px; border: 1.5px dashed var(--wood); border-radius: 10px;
+    background: #fff; cursor: crosshair; touch-action: none; display: block;
+  }
+  .clear-link {
+    display: inline-block; margin-top: 8px; font-size: 12.5px; font-weight: 600;
+    color: var(--wood); cursor: pointer; background: none; border: none; padding: 0;
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 13px 20px; border-radius: 10px; border: none; font-family: 'Inter', sans-serif;
+    font-size: 15px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 10px;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary { background: var(--forest-deep); color: var(--birch); }
+  .btn-primary:hover { background: #12241A; }
+  .btn-primary:disabled { background: #B9BFB2; cursor: not-allowed; }
+
+  .error-banner {
+    display: none; background: var(--error-bg); color: var(--error); font-size: 13px; font-weight: 500;
+    padding: 10px 14px; border-radius: 8px; margin-bottom: 18px;
+  }
+  .error-banner.visible { display: block; }
+
+  .center-state { text-align: center; padding: 20px 0; }
+  .center-state h2 { font-size: 20px; color: var(--forest-deep); margin: 14px 0 8px; }
+  .center-state p { font-size: 14px; color: var(--moss); margin: 0 0 8px; }
+  .success-icon {
+    width: 52px; height: 52px; border-radius: 50%; margin: 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--success-bg); color: var(--success);
+  }
+
+  .credentials-box {
+    background: #fff; border: 1px solid var(--sand-line); border-radius: 12px;
+    padding: 20px 22px; margin: 20px 0; text-align: left;
+  }
+  .credentials-box img.qr { display: block; margin: 0 auto 16px; border-radius: 10px; border: 1px solid var(--sand-line); }
+  .cred-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--sand-line); font-size: 14px; }
+  .cred-row:last-child { border-bottom: none; }
+  .cred-row .cred-label { color: var(--moss); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .cred-row .cred-value { font-weight: 600; color: var(--bark); font-family: 'SF Mono', Consolas, monospace; }
+
+  .save-warning {
+    background: rgba(217,164,65,0.14); color: var(--gold-dark); border-radius: 8px;
+    padding: 10px 14px; font-size: 12.5px; font-weight: 500; margin-top: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="card">
+    <img class="mark" src="https://res.cloudinary.com/dhlymdlu/image/upload/v1788058962/Screenshot_2026-08-04_at_8.42.07_PM.png" alt="The Little Playhut">
+    <h1>Enroll at The Little Playhut</h1>
+    <p class="sub">Fill this out, sign at the bottom, and you're enrolled — no appointment needed.</p>
+
+    <div id="content">
+      <div class="error-banner" id="form-error"></div>
+
+      <form id="register-form">
+        <div class="section-title">Parent / Guardian</div>
+        <div class="field">
+          <label for="parent-name">Full name</label>
+          <input type="text" id="parent-name" required>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="parent-email">Email</label>
+            <input type="email" id="parent-email" required>
+          </div>
+          <div class="field">
+            <label for="parent-phone">Phone</label>
+            <input type="text" id="parent-phone">
+          </div>
+        </div>
+        <div class="field">
+          <label for="mailing-address">Mailing address <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+          <input type="text" id="mailing-address">
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="secondary-name">Secondary parent <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+            <input type="text" id="secondary-name">
+          </div>
+          <div class="field">
+            <label for="secondary-phone">Their phone</label>
+            <input type="text" id="secondary-phone">
+          </div>
+        </div>
+
+        <div class="section-title">Child</div>
+        <div class="field-row">
+          <div class="field">
+            <label for="child-first-name">First name</label>
+            <input type="text" id="child-first-name" required>
+          </div>
+          <div class="field">
+            <label for="child-last-name">Last name</label>
+            <input type="text" id="child-last-name" required>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="child-dob">Date of birth</label>
+            <input type="date" id="child-dob" required>
+          </div>
+          <div class="field">
+            <label for="child-program">Program</label>
+            <select id="child-program" required>
+              <option value="daycare">Daycare</option>
+              <option value="preschool">Preschool</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="child-allergies">Allergies <span style="font-weight:400; color:#8A9490;">(optional — write "None" if none)</span></label>
+          <input type="text" id="child-allergies">
+        </div>
+        <div class="field">
+          <label for="child-medical-notes">Medical notes <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+          <input type="text" id="child-medical-notes">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="emergency-name">Emergency contact</label>
+            <input type="text" id="emergency-name" required>
+          </div>
+          <div class="field">
+            <label for="emergency-phone">Emergency phone</label>
+            <input type="text" id="emergency-phone" required>
+          </div>
+        </div>
+
+        <div class="section-title">Signature</div>
+        <div class="field">
+          <label for="signer-name">Your full name (as signature)</label>
+          <input type="text" id="signer-name" required>
+        </div>
+        <div class="field">
+          <label>Sign below</label>
+          <canvas id="sig-canvas" class="signature-canvas"></canvas>
+          <button type="button" class="clear-link" onclick="clearSignature()">Clear</button>
+        </div>
+
+        <button type="button" class="btn btn-primary" id="submit-btn" onclick="submitRegistration()">Sign & complete enrollment</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = 'https://little-playhut-backend.onrender.com';
+  let signaturePad = null;
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  function initSignaturePad() {
+    const canvas = document.getElementById('sig-canvas');
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    ctx.strokeStyle = '#3A2E22';
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    signaturePad = { canvas, ctx, drawing: false, hasStroke: false };
+
+    const getPos = (e) => {
+      const r = canvas.getBoundingClientRect();
+      const point = e.touches ? e.touches[0] : e;
+      return { x: point.clientX - r.left, y: point.clientY - r.top };
+    };
+    const start = (e) => {
+      e.preventDefault();
+      signaturePad.drawing = true;
+      const { x, y } = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    };
+    const move = (e) => {
+      if (!signaturePad.drawing) return;
+      e.preventDefault();
+      const { x, y } = getPos(e);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      signaturePad.hasStroke = true;
+    };
+    const end = () => { signaturePad.drawing = false; };
+
+    canvas.onmousedown = start;
+    canvas.onmousemove = move;
+    canvas.onmouseup = end;
+    canvas.onmouseleave = end;
+    canvas.ontouchstart = start;
+    canvas.ontouchmove = move;
+    canvas.ontouchend = end;
+  }
+
+  function clearSignature() {
+    if (!signaturePad) return;
+    signaturePad.ctx.clearRect(0, 0, signaturePad.canvas.width, signaturePad.canvas.height);
+    signaturePad.hasStroke = false;
+  }
+
+  async function submitRegistration() {
+    const errorBox = document.getElementById('form-error');
+    errorBox.classList.remove('visible');
+
+    const form = document.getElementById('register-form');
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+    if (!signaturePad || !signaturePad.hasStroke) {
+      errorBox.textContent = 'Please sign in the box above.';
+      errorBox.classList.add('visible');
+      return;
+    }
+
+    const payload = {
+      primary_parent_name: document.getElementById('parent-name').value.trim(),
+      primary_parent_email: document.getElementById('parent-email').value.trim(),
+      primary_parent_phone: document.getElementById('parent-phone').value.trim() || null,
+      secondary_parent_name: document.getElementById('secondary-name').value.trim() || null,
+      secondary_parent_phone: document.getElementById('secondary-phone').value.trim() || null,
+      mailing_address: document.getElementById('mailing-address').value.trim() || null,
+      child_first_name: document.getElementById('child-first-name').value.trim(),
+      child_last_name: document.getElementById('child-last-name').value.trim(),
+      child_date_of_birth: document.getElementById('child-dob').value,
+      child_program: document.getElementById('child-program').value,
+      child_allergies: document.getElementById('child-allergies').value.trim() || null,
+      child_medical_notes: document.getElementById('child-medical-notes').value.trim() || null,
+      child_emergency_contact_name: document.getElementById('emergency-name').value.trim(),
+      child_emergency_contact_phone: document.getElementById('emergency-phone').value.trim(),
+      signer_name: document.getElementById('signer-name').value.trim(),
+      signature_data: signaturePad.canvas.toDataURL('image/png'),
+    };
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+
+    try {
+      const res = await fetch(API_BASE + '/registrations/self-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
+
+      renderComplete(data);
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('visible');
+      btn.disabled = false;
+      btn.textContent = 'Sign & complete enrollment';
+    }
+  }
+
+  function renderComplete(data) {
+    // Static, pre-branded QR code (Little Playhut logo centered in the code
+    // itself) hosted on Cloudinary — same image used on the admin-side
+    // post-registration screen. Not derived from portalUrl below; if the
+    // portal's URL ever changes, this image needs to be regenerated and
+    // re-uploaded to match.
+    const qrImageUrl = 'https://res.cloudinary.com/dhlymdlu/image/upload/v1788105089/ParentPortal_QR.png';
+
+    document.getElementById('content').innerHTML = `
+      <div class="center-state">
+        <div class="success-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h2>You're enrolled!</h2>
+        <p>${escapeHtml(data.registration.child_first_name)} ${escapeHtml(data.registration.child_last_name)} is all set at The Little Playhut.</p>
+
+        <div class="credentials-box">
+          <img class="qr" src="${qrImageUrl}" width="220" height="220" alt="QR code to the family portal">
+          <div class="cred-row"><span class="cred-label">Portal</span><span class="cred-value">portal.html</span></div>
+          <div class="cred-row"><span class="cred-label">Email</span><span class="cred-value">${escapeHtml(data.portal_email)}</span></div>
+          <div class="cred-row"><span class="cred-label">Password</span><span class="cred-value">${escapeHtml(data.portal_password)}</span></div>
+          <div class="save-warning">Save this password now — it won't be shown again. Scan the code or visit the portal link to see daily reports and message the school.</div>
+        </div>
+      </div>
+    `;
+  }
+
+  initSignaturePad();
+</script>
+
+</body>
+</html>
