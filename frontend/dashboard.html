@@ -638,7 +638,7 @@
 <div class="modal-overlay" id="registration-modal-overlay">
   <div class="modal" style="max-width:560px;">
     <h3>Add new Registration</h3>
-    <p class="modal-sub">Family and child info. Nothing is enrolled until it's signed.</p>
+    <p class="modal-sub">Family, child, card, and signature — completes enrollment immediately, same as self-registration.</p>
     <div class="error-banner" id="registration-modal-error"></div>
     <form id="registration-form">
       <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:0 0 10px;">Parent / Guardian</p>
@@ -675,56 +675,37 @@
         <input type="text" id="reg-address">
       </div>
 
-      <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:18px 0 10px;">Child</p>
-      <div class="field-row">
-        <div class="field">
-          <label for="reg-child-first-name">First name</label>
-          <input type="text" id="reg-child-first-name" required>
+      <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:18px 0 10px;">Children</p>
+      <div id="reg-children-container"></div>
+      <button type="button" class="icon-btn" style="margin-bottom:14px;" onclick="addRegChildBlock()">+ Add another child</button>
+
+      <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:18px 0 10px;">Payment</p>
+      <div class="field">
+        <label>Card on file <span style="font-weight:400; color:#8A9490;">(required to complete — no charge today)</span></label>
+        <div id="reg-card-status-not-saved">
+          <div id="reg-stripe-card-element" style="padding:12px 14px; border:1.5px solid var(--sage-light); border-radius:9px; background:#fff;"></div>
+          <button type="button" class="btn btn-ghost" style="margin-top:10px; padding:9px 16px; font-size:13px; width:auto;" id="reg-save-card-btn" onclick="saveRegCard()">Save card</button>
         </div>
-        <div class="field">
-          <label for="reg-child-last-name">Last name</label>
-          <input type="text" id="reg-child-last-name" required>
+        <div id="reg-card-status-saved" style="display:none; padding:10px 14px; background:var(--success-bg); color:var(--success); border-radius:8px; font-size:13.5px; font-weight:600;">
+          ✓ Card saved
         </div>
+        <div class="error-banner" id="reg-card-error" style="margin-top:10px;"></div>
       </div>
-      <div class="field-row">
-        <div class="field">
-          <label for="reg-child-dob">Date of birth</label>
-          <input type="date" id="reg-child-dob" required>
-        </div>
-        <div class="field">
-          <label for="reg-child-program">Program</label>
-          <select id="reg-child-program" required>
-            <option value="daycare">Daycare</option>
-            <option value="preschool">Preschool</option>
-          </select>
-        </div>
+
+      <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:18px 0 10px;">Signature</p>
+      <div class="field">
+        <label for="reg-signer-name">Signer's full name</label>
+        <input type="text" id="reg-signer-name" required>
       </div>
       <div class="field">
-        <label for="reg-child-tuition">Base tuition rate <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
-        <input type="number" id="reg-child-tuition" step="0.01" min="0" placeholder="0.00">
-      </div>
-      <div class="field">
-        <label for="reg-child-allergies">Allergies <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
-        <input type="text" id="reg-child-allergies">
-      </div>
-      <div class="field">
-        <label for="reg-child-medical-notes">Medical notes <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
-        <input type="text" id="reg-child-medical-notes">
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label for="reg-child-emergency-name">Emergency contact</label>
-          <input type="text" id="reg-child-emergency-name">
-        </div>
-        <div class="field">
-          <label for="reg-child-emergency-phone">Emergency phone</label>
-          <input type="text" id="reg-child-emergency-phone">
-        </div>
+        <label>Sign below</label>
+        <canvas id="reg-sig-canvas" class="signature-canvas"></canvas>
+        <button type="button" class="clear-link" onclick="clearRegSignature()">Clear</button>
       </div>
 
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="closeRegistrationModal()">Cancel</button>
-        <button type="submit" class="btn btn-teal" id="registration-submit-btn">Save registration</button>
+        <button type="submit" class="btn btn-teal" id="registration-submit-btn">Sign & complete enrollment</button>
       </div>
     </form>
   </div>
@@ -766,6 +747,18 @@
 
     <div class="note" id="portal-qr-next-step" style="text-align:left; display:none;">
       <strong>Next step:</strong> the family needs a portal password before they can sign in. Set one now from the Families tab, or use the "Set portal password" option next to this registration.
+    </div>
+
+    <div id="portal-qr-credentials" style="display:none; background:#fff; border:1px solid var(--sage-light); border-radius:10px; padding:14px 16px; margin-top:4px;">
+      <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--sage-light); font-size:13.5px;">
+        <span style="color:#8A9490; font-weight:600; text-transform:uppercase; font-size:11px; letter-spacing:0.03em;">Email</span>
+        <strong id="portal-qr-cred-email" style="font-family:monospace;"></strong>
+      </div>
+      <div style="display:flex; justify-content:space-between; padding:6px 0; font-size:13.5px;">
+        <span style="color:#8A9490; font-weight:600; text-transform:uppercase; font-size:11px; letter-spacing:0.03em;">Password</span>
+        <strong id="portal-qr-cred-password" style="font-family:monospace;"></strong>
+      </div>
+      <p style="font-size:12px; color:var(--gold-dark); margin:10px 0 0;">Give this to the family now — it won't be shown again after you close this.</p>
     </div>
 
     <div class="modal-actions">
@@ -3325,14 +3318,236 @@
   }
 
   // ---- Add new Registration modal ----
+  // Mirrors self-register.html's one-shot flow: fill out, save a card,
+  // sign, submit — completes enrollment immediately via the same
+  // /registrations/self-register endpoint the public page uses. No more
+  // "pending" registrations created from this modal.
+  let regChildBlockCount = 0;
+  let regSavedStripeCustomerId = null;
+  let regSavedSetupIntentId = null;
+  let regStripeCardElement = null;
+  let regModalSignaturePad = null;
+
   function openRegistrationModal() {
     document.getElementById('registration-form').reset();
     document.getElementById('registration-modal-error').classList.remove('show');
+    document.getElementById('reg-children-container').innerHTML = '';
+    regChildBlockCount = 0;
+    addRegChildBlock();
+
+    regSavedStripeCustomerId = null;
+    regSavedSetupIntentId = null;
+    document.getElementById('reg-card-status-not-saved').style.display = 'block';
+    document.getElementById('reg-card-status-saved').style.display = 'none';
+    document.getElementById('reg-card-error').classList.remove('show');
+
     document.getElementById('registration-modal-overlay').classList.add('show');
+    requestAnimationFrame(() => {
+      mountRegCardElement();
+      initRegSignaturePad();
+    });
   }
 
   function closeRegistrationModal() {
     document.getElementById('registration-modal-overlay').classList.remove('show');
+  }
+
+  function addRegChildBlock() {
+    regChildBlockCount++;
+    const id = regChildBlockCount;
+    const container = document.getElementById('reg-children-container');
+    const block = document.createElement('div');
+    block.className = 'child-block';
+    block.id = 'reg-child-block-' + id;
+    block.innerHTML = `
+      <div class="child-block-header">
+        <strong>Child</strong>
+        <button type="button" class="remove-child-link" onclick="removeRegChildBlock(${id})">Remove</button>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="reg-child-${id}-first-name">First name</label>
+          <input type="text" id="reg-child-${id}-first-name" required>
+        </div>
+        <div class="field">
+          <label for="reg-child-${id}-last-name">Last name</label>
+          <input type="text" id="reg-child-${id}-last-name" required>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="reg-child-${id}-dob">Date of birth</label>
+          <input type="date" id="reg-child-${id}-dob" required>
+        </div>
+        <div class="field">
+          <label for="reg-child-${id}-program">Program</label>
+          <select id="reg-child-${id}-program" required>
+            <option value="daycare">Daycare</option>
+            <option value="preschool">Preschool</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="reg-child-${id}-allergies">Allergies <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="reg-child-${id}-allergies">
+      </div>
+      <div class="field">
+        <label for="reg-child-${id}-medical-notes">Medical notes <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="reg-child-${id}-medical-notes">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="reg-child-${id}-emergency-name">Emergency contact</label>
+          <input type="text" id="reg-child-${id}-emergency-name">
+        </div>
+        <div class="field">
+          <label for="reg-child-${id}-emergency-phone">Emergency phone</label>
+          <input type="text" id="reg-child-${id}-emergency-phone">
+        </div>
+      </div>
+    `;
+    container.appendChild(block);
+    updateRegRemoveLinksVisibility();
+  }
+
+  function removeRegChildBlock(id) {
+    const block = document.getElementById('reg-child-block-' + id);
+    if (block) block.remove();
+    updateRegRemoveLinksVisibility();
+  }
+
+  function updateRegRemoveLinksVisibility() {
+    const blocks = document.querySelectorAll('#reg-children-container .child-block');
+    blocks.forEach(b => {
+      const link = b.querySelector('.remove-child-link');
+      if (link) link.style.display = blocks.length > 1 ? 'inline-block' : 'none';
+    });
+  }
+
+  function collectRegChildBlocks() {
+    const blocks = document.querySelectorAll('#reg-children-container .child-block');
+    return Array.from(blocks).map(block => {
+      const id = block.id.replace('reg-child-block-', '');
+      return {
+        first_name: document.getElementById(`reg-child-${id}-first-name`).value.trim(),
+        last_name: document.getElementById(`reg-child-${id}-last-name`).value.trim(),
+        date_of_birth: document.getElementById(`reg-child-${id}-dob`).value,
+        program: document.getElementById(`reg-child-${id}-program`).value,
+        allergies: document.getElementById(`reg-child-${id}-allergies`).value.trim() || null,
+        medical_notes: document.getElementById(`reg-child-${id}-medical-notes`).value.trim() || null,
+        emergency_contact_name: document.getElementById(`reg-child-${id}-emergency-name`).value.trim() || null,
+        emergency_contact_phone: document.getElementById(`reg-child-${id}-emergency-phone`).value.trim() || null,
+      };
+    });
+  }
+
+  // ---- Card (Stripe Elements) — same pattern as the family/self-register card flows ----
+  async function mountRegCardElement() {
+    try {
+      const stripe = await getStripeInstance();
+      const elements = stripe.elements();
+      if (regStripeCardElement) regStripeCardElement.unmount();
+      regStripeCardElement = elements.create('card', {
+        style: { base: { fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#3A2E22' } },
+      });
+      regStripeCardElement.mount('#reg-stripe-card-element');
+    } catch (err) {
+      document.getElementById('reg-card-error').textContent = err.message;
+      document.getElementById('reg-card-error').classList.add('show');
+    }
+  }
+
+  async function saveRegCard() {
+    const errorBox = document.getElementById('reg-card-error');
+    errorBox.classList.remove('show');
+
+    const parentName = document.getElementById('reg-primary-name').value.trim();
+    const parentEmail = document.getElementById('reg-primary-email').value.trim();
+    if (!parentName || !parentEmail) {
+      errorBox.textContent = 'Enter the primary parent\'s name and email above first.';
+      errorBox.classList.add('show');
+      return;
+    }
+
+    const btn = document.getElementById('reg-save-card-btn');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    try {
+      const stripe = await getStripeInstance();
+      const setupData = await apiFetch('/registrations/start-card-setup', {
+        method: 'POST',
+        body: JSON.stringify({ primary_parent_name: parentName, primary_parent_email: parentEmail }),
+      });
+
+      const result = await stripe.confirmCardSetup(setupData.client_secret, {
+        payment_method: { card: regStripeCardElement },
+      });
+      if (result.error) throw new Error(result.error.message);
+
+      regSavedStripeCustomerId = setupData.stripe_customer_id;
+      regSavedSetupIntentId = result.setupIntent.id;
+
+      document.getElementById('reg-card-status-not-saved').style.display = 'none';
+      document.getElementById('reg-card-status-saved').style.display = 'block';
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save card';
+    }
+  }
+
+  // ---- Signature ----
+  function initRegSignaturePad() {
+    const canvas = document.getElementById('reg-sig-canvas');
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    ctx.strokeStyle = '#3A2E22';
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    regModalSignaturePad = { canvas, ctx, drawing: false, hasStroke: false };
+
+    const getPos = (e) => {
+      const r = canvas.getBoundingClientRect();
+      const point = e.touches ? e.touches[0] : e;
+      return { x: point.clientX - r.left, y: point.clientY - r.top };
+    };
+    const start = (e) => {
+      e.preventDefault();
+      regModalSignaturePad.drawing = true;
+      const { x, y } = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    };
+    const move = (e) => {
+      if (!regModalSignaturePad.drawing) return;
+      e.preventDefault();
+      const { x, y } = getPos(e);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      regModalSignaturePad.hasStroke = true;
+    };
+    const end = () => { regModalSignaturePad.drawing = false; };
+
+    canvas.onmousedown = start;
+    canvas.onmousemove = move;
+    canvas.onmouseup = end;
+    canvas.onmouseleave = end;
+    canvas.ontouchstart = start;
+    canvas.ontouchmove = move;
+    canvas.ontouchend = end;
+  }
+
+  function clearRegSignature() {
+    if (!regModalSignaturePad) return;
+    regModalSignaturePad.ctx.clearRect(0, 0, regModalSignaturePad.canvas.width, regModalSignaturePad.canvas.height);
+    regModalSignaturePad.hasStroke = false;
   }
 
   document.getElementById('registration-form').addEventListener('submit', async (e) => {
@@ -3340,6 +3555,23 @@
     const errorBox = document.getElementById('registration-modal-error');
     const btn = document.getElementById('registration-submit-btn');
     errorBox.classList.remove('show');
+
+    if (!regSavedStripeCustomerId || !regSavedSetupIntentId) {
+      errorBox.textContent = 'Save a card before completing registration.';
+      errorBox.classList.add('show');
+      return;
+    }
+    if (!regModalSignaturePad || !regModalSignaturePad.hasStroke) {
+      errorBox.textContent = 'A signature is required.';
+      errorBox.classList.add('show');
+      return;
+    }
+    const signerName = document.getElementById('reg-signer-name').value.trim();
+    if (!signerName) {
+      errorBox.textContent = "Enter the signer's name.";
+      errorBox.classList.add('show');
+      return;
+    }
 
     const payload = {
       primary_parent_name: document.getElementById('reg-primary-name').value.trim(),
@@ -3349,30 +3581,28 @@
       secondary_parent_email: document.getElementById('reg-secondary-email').value.trim() || null,
       secondary_parent_phone: document.getElementById('reg-secondary-phone').value.trim() || null,
       mailing_address: document.getElementById('reg-address').value.trim() || null,
-      child_first_name: document.getElementById('reg-child-first-name').value.trim(),
-      child_last_name: document.getElementById('reg-child-last-name').value.trim(),
-      child_date_of_birth: document.getElementById('reg-child-dob').value,
-      child_program: document.getElementById('reg-child-program').value,
-      child_allergies: document.getElementById('reg-child-allergies').value.trim() || null,
-      child_medical_notes: document.getElementById('reg-child-medical-notes').value.trim() || null,
-      child_emergency_contact_name: document.getElementById('reg-child-emergency-name').value.trim() || null,
-      child_emergency_contact_phone: document.getElementById('reg-child-emergency-phone').value.trim() || null,
-      child_base_tuition_rate: document.getElementById('reg-child-tuition').value || null,
+      children: collectRegChildBlocks(),
+      signer_name: signerName,
+      signature_data: regModalSignaturePad.canvas.toDataURL('image/png'),
+      stripe_customer_id: regSavedStripeCustomerId,
+      setup_intent_id: regSavedSetupIntentId,
     };
 
     btn.disabled = true;
-    btn.textContent = 'Saving…';
+    btn.textContent = 'Completing…';
     try {
-      await apiFetch('/registrations', { method: 'POST', body: JSON.stringify(payload) });
+      const result = await apiFetch('/registrations/self-register', { method: 'POST', body: JSON.stringify(payload) });
       closeRegistrationModal();
       registrationsCache = await apiFetch('/registrations');
       renderRegistrationsTable();
+      const firstCompleted = result.registrations[0];
+      showPortalQrScreen(firstCompleted, signerName, { email: result.portal_email, password: result.portal_password });
     } catch (err) {
       errorBox.textContent = err.message;
       errorBox.classList.add('show');
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Save registration';
+      btn.textContent = 'Sign & complete enrollment';
     }
   });
 
@@ -3509,7 +3739,7 @@
   // being handed a URL to type in later. This is its OWN modal, separate from
   // the signature canvas modal — never write into sig-canvas-modal-overlay
   // here, since that would destroy the reusable signing form inside it.
-  function showPortalQrScreen(registration, signerName) {
+  function showPortalQrScreen(registration, signerName, credentials) {
     const portalUrl = window.location.origin + '/portal.html';
     // Static, pre-branded QR code (Little Playhut logo centered in the code
     // itself) hosted on Cloudinary — replaces the plain auto-generated QR
@@ -3522,7 +3752,19 @@
     document.getElementById('portal-qr-signer-name').textContent = signerName;
     document.getElementById('portal-qr-image').src = qrImageUrl;
     document.getElementById('portal-qr-url-text').textContent = portalUrl;
-    document.getElementById('portal-qr-next-step').style.display = registration.resulting_family_id ? 'block' : 'none';
+
+    if (credentials) {
+      // A password was already auto-generated by this registration (the
+      // one-shot admin/self-register flow) — show it directly instead of
+      // the stale "go set a password separately" reminder.
+      document.getElementById('portal-qr-next-step').style.display = 'none';
+      document.getElementById('portal-qr-credentials').style.display = 'block';
+      document.getElementById('portal-qr-cred-email').textContent = credentials.email;
+      document.getElementById('portal-qr-cred-password').textContent = credentials.password;
+    } else {
+      document.getElementById('portal-qr-next-step').style.display = registration.resulting_family_id ? 'block' : 'none';
+      document.getElementById('portal-qr-credentials').style.display = 'none';
+    }
 
     document.getElementById('portal-qr-modal-overlay').classList.add('show');
   }
