@@ -2,10 +2,13 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
 const crypto = require('crypto');
+const Stripe = require('stripe');
 const { uploadPdfBuffer } = require('../utils/cloudinary');
 const { generateSignedAgreementPdf } = require('../utils/generateAgreementPdf');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { hashPassword } = require('../utils/auth');
+
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 // Small word lists for generating a readable, memorable auto-password —
 // e.g. "maple-forest-42" — rather than a wall of random symbols, since the
@@ -269,6 +272,39 @@ router.post('/:id(\\d+)/sign-in-person', requireAdmin, async (req, res) => {
   }
 });
 
+// POST /registrations/start-card-setup — PUBLIC, no login/token needed.
+// Called from self-register.html BEFORE the form is actually submitted, so
+// Stripe Elements has a live SetupIntent to attach the card to. Creates a
+// Stripe Customer from just the name/email typed so far (no database write —
+// the family record doesn't exist yet and won't until the form is actually
+// submitted). If the parent abandons the form after this point, the result
+// is an unused Stripe Customer with no card and no linked family — harmless
+// and not worth extra cleanup machinery for.
+router.post('/start-card-setup', async (req, res) => {
+  const { primary_parent_name, primary_parent_email } = req.body;
+  if (!primary_parent_name || !primary_parent_email) {
+    return res.status(400).json({ error: 'Name and email are required before adding a card' });
+  }
+
+  try {
+    const customer = await stripe.customers.create({
+      name: primary_parent_name,
+      email: primary_parent_email,
+      metadata: { little_playhut_source: 'self_registration' },
+    });
+
+    const setupIntent = await stripe.setupIntents.create({
+      customer: customer.id,
+      payment_method_types: ['card'],
+    });
+
+    res.json({ client_secret: setupIntent.client_secret, stripe_customer_id: customer.id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to start card setup: ' + err.message });
+  }
+});
+
 // POST /registrations/self-register — PUBLIC, no login and no token needed.
 // A parent fills out the entire form and signs themselves, in one sitting —
 // unlike the admin-initiated flow above (POST / then a separate sign step),
@@ -284,6 +320,7 @@ router.post('/self-register', async (req, res) => {
     child_allergies, child_medical_notes, child_emergency_contact_name,
     child_emergency_contact_phone,
     signer_name, signature_data,
+    stripe_customer_id, setup_intent_id,
   } = req.body;
 
   if (!primary_parent_name || !primary_parent_email || !child_first_name || !child_last_name || !child_date_of_birth || !child_program) {
@@ -292,8 +329,24 @@ router.post('/self-register', async (req, res) => {
   if (!signer_name || !signature_data) {
     return res.status(400).json({ error: 'A signature is required to complete registration' });
   }
+  if (!stripe_customer_id || !setup_intent_id) {
+    return res.status(400).json({ error: 'A card on file is required to complete registration' });
+  }
 
   try {
+    // Confirm the card was actually saved successfully before creating
+    // anything — a family record should never be created with an incomplete
+    // or failed card setup when a card is required. This also guards against
+    // a forged/mismatched stripe_customer_id being sent directly to this
+    // endpoint: the SetupIntent's own customer must match what was passed.
+    const setupIntent = await stripe.setupIntents.retrieve(setup_intent_id);
+    if (setupIntent.status !== 'succeeded') {
+      return res.status(400).json({ error: 'Card setup did not complete successfully. Please try adding your card again.' });
+    }
+    if (setupIntent.customer !== stripe_customer_id) {
+      return res.status(400).json({ error: 'Card setup does not match this registration.' });
+    }
+
     // A family with this email already having portal access is a sign this
     // isn't actually a first-time registration — point them at the real
     // portal/login instead of silently creating a duplicate family record.
@@ -325,6 +378,26 @@ router.post('/self-register', async (req, res) => {
     const completed = await completeRegistration(registration, {
       signer_name, signature_data, sign_method: 'self_service',
     });
+
+    // Attach the saved card to the new family record. The payment method was
+    // already confirmed above — this just retrieves its safe display info
+    // (brand/last4) and sets it as the default on the Customer, same as the
+    // admin-side confirm-card flow in families.js.
+    try {
+      const paymentMethod = await stripe.paymentMethods.retrieve(setupIntent.payment_method);
+      await stripe.customers.update(stripe_customer_id, {
+        invoice_settings: { default_payment_method: paymentMethod.id },
+      });
+      await pool.query(
+        `UPDATE families SET stripe_customer_id = $2, card_brand = $3, card_last4 = $4, card_saved_at = now() WHERE id = $1`,
+        [completed.resulting_family_id, stripe_customer_id, paymentMethod.card.brand, paymentMethod.card.last4]
+      );
+    } catch (cardErr) {
+      // The registration itself already succeeded at this point — a failure
+      // here shouldn't undo the enrollment, but it does mean admin needs to
+      // know the card didn't actually get attached.
+      console.error('Registration completed, but attaching the saved card failed:', cardErr);
+    }
 
     // Auto-close any matching waitlist entry — same behavior as the
     // admin-initiated path.

@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://js.stripe.com/v3/"></script>
 <style>
   :root {
     --forest-deep: #1B2E22;
@@ -205,6 +206,19 @@
           </div>
         </div>
 
+        <div class="section-title">Payment</div>
+        <div class="field">
+          <label>Card on file <span style="font-weight:400; color:#8A9490;">(required to complete enrollment — no charge today)</span></label>
+          <div id="card-status-not-saved">
+            <div id="stripe-card-element" style="padding:12px 14px; border:1.5px solid rgba(139,94,52,0.25); border-radius:10px; background:#FFFDF8;"></div>
+            <button type="button" class="btn btn-primary" id="save-card-btn" style="background:var(--wood); margin-top:10px;" onclick="saveCard()">Save card</button>
+          </div>
+          <div id="card-status-saved" style="display:none; padding:12px 14px; background:var(--success-bg); color:var(--success); border-radius:10px; font-size:13.5px; font-weight:600;">
+            ✓ Card saved
+          </div>
+          <div class="error-banner" id="card-error" style="margin-top:10px;"></div>
+        </div>
+
         <div class="section-title">Signature</div>
         <div class="field">
           <label for="signer-name">Your full name (as signature)</label>
@@ -225,6 +239,83 @@
 <script>
   const API_BASE = 'https://little-playhut-backend.onrender.com';
   let signaturePad = null;
+
+  // ============================================================
+  // SAVED CARD (Stripe Elements) — same security model as the admin-side
+  // card-on-file feature: the card number is typed directly into Stripe's
+  // own embedded field and sent straight to Stripe from this page. It NEVER
+  // touches this app's JavaScript or backend — only a setup_intent_id (a
+  // reference, not card data) comes back, which the backend then verifies
+  // actually succeeded before creating anything.
+  // ============================================================
+  let stripeInstance = null;
+  let stripeCardElement = null;
+  let savedStripeCustomerId = null;
+  let savedSetupIntentId = null;
+
+  async function getStripeInstance() {
+    if (stripeInstance) return stripeInstance;
+    const res = await fetch(API_BASE + '/config/stripe-key');
+    const data = await res.json();
+    if (!data.publishable_key) throw new Error('Payment setup is not configured yet.');
+    stripeInstance = Stripe(data.publishable_key);
+    return stripeInstance;
+  }
+
+  async function mountCardElement() {
+    const stripe = await getStripeInstance();
+    const elements = stripe.elements();
+    stripeCardElement = elements.create('card', {
+      style: { base: { fontFamily: 'Inter, sans-serif', fontSize: '15px', color: '#3A2E22' } },
+    });
+    stripeCardElement.mount('#stripe-card-element');
+  }
+
+  async function saveCard() {
+    const errorBox = document.getElementById('card-error');
+    errorBox.classList.remove('visible');
+
+    const parentName = document.getElementById('parent-name').value.trim();
+    const parentEmail = document.getElementById('parent-email').value.trim();
+    if (!parentName || !parentEmail) {
+      errorBox.textContent = 'Enter your name and email above first.';
+      errorBox.classList.add('visible');
+      return;
+    }
+
+    const btn = document.getElementById('save-card-btn');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    try {
+      const stripe = await getStripeInstance();
+
+      const setupRes = await fetch(API_BASE + '/registrations/start-card-setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ primary_parent_name: parentName, primary_parent_email: parentEmail }),
+      });
+      const setupData = await setupRes.json();
+      if (!setupRes.ok) throw new Error(setupData.error || 'Could not start card setup.');
+
+      const result = await stripe.confirmCardSetup(setupData.client_secret, {
+        payment_method: { card: stripeCardElement },
+      });
+      if (result.error) throw new Error(result.error.message);
+
+      savedStripeCustomerId = setupData.stripe_customer_id;
+      savedSetupIntentId = result.setupIntent.id;
+
+      document.getElementById('card-status-not-saved').style.display = 'none';
+      document.getElementById('card-status-saved').style.display = 'block';
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('visible');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save card';
+    }
+  }
 
   function escapeHtml(str) {
     const div = document.createElement('div');
@@ -291,6 +382,12 @@
       form.reportValidity();
       return;
     }
+    if (!savedStripeCustomerId || !savedSetupIntentId) {
+      errorBox.textContent = 'Please save a card above before completing enrollment.';
+      errorBox.classList.add('visible');
+      document.getElementById('stripe-card-element').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     if (!signaturePad || !signaturePad.hasStroke) {
       errorBox.textContent = 'Please sign in the box above.';
       errorBox.classList.add('visible');
@@ -314,6 +411,8 @@
       child_emergency_contact_phone: document.getElementById('emergency-phone').value.trim(),
       signer_name: document.getElementById('signer-name').value.trim(),
       signature_data: signaturePad.canvas.toDataURL('image/png'),
+      stripe_customer_id: savedStripeCustomerId,
+      setup_intent_id: savedSetupIntentId,
     };
 
     const btn = document.getElementById('submit-btn');
@@ -366,6 +465,7 @@
   }
 
   initSignaturePad();
+  mountCardElement();
 </script>
 
 </body>
