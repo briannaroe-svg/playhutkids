@@ -238,17 +238,61 @@
 
     <section id="registration">
       <h2 class="section-title">Registration <span class="badge badge-admin">Admin</span></h2>
-      <p class="section-sub">Formal, signed enrollment — creates the family and child records together.</p>
-      <p>This is the intended way to enroll a new family: one form captures both the parent/guardian info and the child's info, and nothing is created in the system until a signature is collected. A registration sits as <strong>pending</strong> until it's signed, at which point the family and child records are created automatically and a signed PDF is generated.</p>
-      <h3 class="sub-heading">How to use it</h3>
+      <p class="section-sub">Enrollment is fully digital — a family can enroll themselves on their own device, or admin can walk them through it on the dashboard. Both work identically start to finish.</p>
+
+      <h3 class="sub-heading">The two entry points</h3>
+      <ul>
+        <li><strong>Self-registration (public, no login)</strong> — <code>self-register.html</code>. A parent opens this on their own phone, a tablet at the front desk, or a computer, and fills out the whole thing themselves. Get them there with the <strong>Self-registration QR</strong> button on the Registration tab, which opens a printable QR code pointing at this page.</li>
+        <li><strong>Admin-assisted (dashboard, admin only)</strong> — the <strong>+ Add new Registration</strong> button on the Registration tab. Same exact form, same requirements, filled out by admin instead — useful when a parent calls in, or when it's easier for staff to walk someone through it in person than hand them a device.</li>
+      </ul>
+      <p>Both submit to the same place and produce the same result. Nothing about what happens afterward differs based on which one was used.</p>
+
+      <h3 class="sub-heading">What the form asks for</h3>
       <ol>
-        <li>Click <strong>+ Add new Registration</strong> and fill out the family and child sections</li>
-        <li>Save it — it now shows as <strong>pending</strong> in the list, nothing enrolled yet</li>
-        <li>Choose how it gets signed: <strong>Sign now</strong> opens a signature pad for the parent to sign in person on your screen, or <strong>Send link</strong> generates a remote signing link</li>
-        <li>Once signed, the family and child are created automatically, and a signed PDF is attached to the record</li>
+        <li><strong>Parent / guardian</strong> — name, email, phone, mailing address, and an optional secondary parent</li>
+        <li><strong>One or more children</strong> — <strong>+ Add another child</strong> repeats the whole child section, so siblings can be enrolled together in one sitting. Each child gets their own name, birthdate, program (daycare or preschool), allergies, medical notes, and emergency contact</li>
+        <li><strong>Services</strong> <span style="font-weight:400; color:#8A9490;">(optional, per child)</span> — see <a href="#billing">Billing</a> below for what this does</li>
+        <li><strong>A card on file</strong> — required</li>
+        <li><strong>A signature</strong> — required</li>
       </ol>
-      <p>A new child created this way doesn't have a room set yet — assign one afterward from the Children tab.</p>
-      <div class="note"><strong>Remote signing:</strong> "Send link" generates a 72-hour link a parent can open on their own phone or computer. It shows them the same family and child details entered here, lets them sign on their own screen, and completes the enrollment the moment they submit — no need for them to be physically present.</div>
+
+      <h3 class="sub-heading">What's required to submit — and what happens if it's skipped</h3>
+      <ul>
+        <li><strong>No card saved yet:</strong> the <strong>Sign &amp; complete enrollment</strong> button refuses to submit. A message says a card is required, and the page scrolls back up to the card field. This is enforced on the server too, not just the button — there's no way to complete a registration without a card on file, from either entry point.</li>
+        <li><strong>Card saved, but not signed yet:</strong> same thing — submission is blocked with a message asking for a signature. Saving a card and signing are two separate steps; both have to be done before the final button does anything.</li>
+        <li><strong>Existing family:</strong> if the email entered already belongs to a family in the system, the form is rejected with a message pointing them to contact the school — this prevents a duplicate family record. To add a sibling to a family that's already enrolled, do it from the Children tab instead, not through Registration again.</li>
+      </ul>
+      <div class="note"><strong>No charge happens at registration.</strong> Saving a card only stores it for future billing — it does not charge anything, regardless of whether services were selected. See <a href="#billing">Billing</a> for when a charge would actually happen.</div>
+
+      <h3 class="sub-heading">The moment it's submitted</h3>
+      <p>Clicking <strong>Sign &amp; complete enrollment</strong> does all of this in one step, immediately — there is no pending or "waiting to be signed" state anymore:</p>
+      <ol>
+        <li>The family record is created in <strong>Families</strong> — one record shared by all children in that sitting, with the card attached</li>
+        <li>Each child is created in <strong>Children</strong>, enrolled and ready to check in — rooms are <strong>not</strong> assigned automatically; assign each child's room afterward from the Children tab</li>
+        <li>A signed PDF is generated for each child and attached to their row on the Registration tab</li>
+        <li>If any services were selected, one draft invoice is created for the family — see <a href="#billing">Billing</a></li>
+        <li>Any matching <strong>Waitlist</strong> entry (same parent email) is automatically marked Enrolled and linked to this registration</li>
+        <li>A portal password is generated automatically — see below</li>
+      </ol>
+
+      <h3 class="sub-heading">The parent portal QR code, email, and password</h3>
+      <p>The completion screen — shown right after submitting, on whichever device was used — displays three things together: the branded QR code for the parent portal, the email the family registered with, and a freshly generated password (something readable, like <code>maple-forest-42</code>, not a wall of symbols).</p>
+      <ul>
+        <li><strong>The email is exactly what they typed</strong> as the primary parent email on the form — nothing different, nothing to remember separately.</li>
+        <li><strong>The password is generated once, at that exact moment,</strong> and is only ever shown on this one screen. It is not stored anywhere in plain text and cannot be looked up or re-displayed later — if it's lost, a new one has to be set from the Families tab or the "Set portal password" option (see below).</li>
+        <li><strong>The QR code always points to the same place</strong> — <code>portal.html</code> — regardless of which family it's for. Scanning it just opens the login page; the family still enters their own email and password there. The QR code itself does not contain the password.</li>
+      </ul>
+      <p>This screen is meant to be handed to the family on the spot — <strong>Print</strong> produces a physical slip they can take home, or they can screenshot the screen directly on their own phone if they filled it out themselves. Either way, once they close this screen, the password isn't retrievable again — make sure it's saved (printed, screenshotted, or written down) before moving on.</p>
+
+      <h3 class="sub-heading">What staff see afterward, and where to look</h3>
+      <ul>
+        <li><strong>Registration tab</strong> — one row per child, showing the child's name, family name, when it was started, and status (always <strong>signed</strong> for anything completed this way). <strong>View signed PDF</strong> opens that child's signed registration document.</li>
+        <li><strong>Families tab</strong> — the new family record, including their card on file (shown as "Visa ending in 4242," never the full number) and whether portal access is set up.</li>
+        <li><strong>Children tab</strong> — each child, listed as <strong>Unassigned</strong> for room until admin assigns one.</li>
+        <li><strong>Billing tab</strong> — a new draft invoice if any services were selected during registration; nothing new here if none were.</li>
+        <li><strong>Waitlist tab</strong> — if this family had a pending inquiry, it now shows as <strong>Enrolled</strong> instead of <strong>Waiting</strong>.</li>
+      </ul>
+      <div class="note"><strong>If a password gets lost:</strong> go to <strong>Families</strong>, edit the family, and use the <strong>Portal password</strong> field to set a new one — this immediately replaces the old one. There's no way to recover the original password since it was never stored.</div>
     </section>
 
     <section id="documents">
@@ -280,7 +324,7 @@
 
     <section id="billing">
       <h2 class="section-title">Billing <span class="badge badge-admin">Admin</span></h2>
-      <p class="section-sub">Invoices, payment links, and payment status.</p>
+      <p class="section-sub">Invoices, payment links, saved-card charges, and payment status.</p>
       <h3 class="sub-heading">Creating an invoice</h3>
       <ol>
         <li>Click <strong>+ New invoice</strong></li>
@@ -288,13 +332,16 @@
         <li>Add line items — pick from the Services catalog (auto-fills price) or choose <strong>Custom…</strong> to type a one-off item</li>
         <li>Save — the invoice starts in <strong>draft</strong> status</li>
       </ol>
+      <div class="note"><strong>Invoices also get created automatically from Registration:</strong> if a family selects any services while enrolling (see <a href="#registration">Registration</a>), one invoice is created for them the moment registration completes — same draft status, same table, same actions below. No invoice is created if no services were selected.</div>
       <h3 class="sub-heading">Getting paid</h3>
       <ul>
-        <li><strong>Get payment link</strong> creates a real Stripe payment link and copies it to your clipboard — this uses live Stripe, so it charges real money</li>
+        <li><strong>Charge card</strong> — only shown when the family has a card on file. Charges that saved card for the invoice's exact total immediately, after a confirmation showing the amount and family name. This uses live Stripe — it's a real charge.</li>
+        <li><strong>Get payment link</strong> creates a real Stripe payment link and copies it to your clipboard — also live Stripe.</li>
         <li><strong>Copy link</strong> re-copies a link that already exists for that invoice</li>
         <li><strong>Mark paid</strong> manually flips an invoice to paid — useful for cash or check payments, or any payment collected outside Stripe</li>
+        <li><strong>Refund</strong> — shown on any invoice that was actually charged through Stripe (via Charge card or a payment link). Refunds the full amount immediately and flips the invoice to void. Cash/check payments marked paid manually have nothing to refund here — handle those directly with the family.</li>
       </ul>
-      <div class="note"><strong>Note:</strong> There's no automatic sync between a Stripe payment and this dashboard yet — even if a family pays through the link, an admin still needs to click <strong>Mark paid</strong> to reflect that here. Automatic syncing is built on the backend but not turned on.</div>
+      <div class="note"><strong>Note:</strong> There's no automatic sync between a Stripe payment link and this dashboard — even if a family pays through the link, an admin still needs to click <strong>Mark paid</strong> to reflect that here. Charging the saved card directly (Charge card) does update the status automatically, since that action happens inside the dashboard itself.</div>
     </section>
 
     <section id="scheduling">
