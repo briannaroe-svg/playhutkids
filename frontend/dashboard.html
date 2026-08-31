@@ -199,6 +199,60 @@
   .modal h3 { font-size: 19px; color: var(--teal-dark); margin: 0 0 4px; }
   .modal .modal-sub { color: #6B7A76; font-size: 13px; margin: 0 0 22px; }
 
+  /* ---------- Registration modal: mirrors self-register.html's look exactly,
+     scoped to this one modal only via .registration-modal so no other modal
+     in the dashboard is affected. Colors/spacing intentionally match the
+     public registration page's own :root values rather than the dashboard's
+     teal/coral system. ---------- */
+  .modal.registration-modal {
+    max-width: 620px; padding: 40px 36px; border-radius: 20px;
+    background: #F4EDE0; /* --birch */
+    border: 1px solid rgba(139,94,52,0.18);
+  }
+  .registration-modal .reg-modal-mark { width: 64px; height: 64px; margin: 0 auto 14px; display: block; object-fit: contain; }
+  .registration-modal h3 { font-size: 22px; text-align: center; color: #1B2E22; margin: 0 0 6px; font-family: 'Fredoka', sans-serif; font-weight: 600; }
+  .registration-modal .modal-sub { text-align: center; font-size: 13.5px; color: #6B7A5E; margin: 0 0 26px; }
+  .registration-modal .reg-section-title {
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    color: #8B5E34; margin: 26px 0 12px;
+  }
+  .registration-modal .reg-section-title:first-of-type { margin-top: 0; }
+  .registration-modal .field { margin-bottom: 16px; }
+  .registration-modal .field label { display: block; font-size: 13px; font-weight: 600; color: #3A2E22; margin-bottom: 6px; }
+  .registration-modal .field input,
+  .registration-modal .field select {
+    width: 100%; padding: 12px 14px; border: 1.5px solid rgba(139,94,52,0.25); border-radius: 10px;
+    font-family: 'Inter', sans-serif; font-size: 15px; color: #3A2E22; background: #FFFDF8;
+  }
+  .registration-modal .field input:focus,
+  .registration-modal .field select:focus { outline: none; border-color: #D9A441; background: #fff; }
+  .registration-modal .child-block {
+    background: #fff; border: 1px solid rgba(139,94,52,0.18); border-radius: 12px;
+    padding: 18px 18px 6px; margin-bottom: 14px; position: relative;
+  }
+  .registration-modal .child-block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .registration-modal .child-block-header strong { font-size: 13px; color: #8B5E34; text-transform: uppercase; letter-spacing: 0.03em; }
+  .registration-modal .remove-child-link,
+  .registration-modal .clear-link {
+    font-size: 12.5px; font-weight: 600; color: #B3462E; cursor: pointer; background: none; border: none; padding: 0;
+  }
+  .registration-modal .clear-link { color: #8B5E34; }
+  .registration-modal .signature-canvas {
+    width: 100%; height: 160px; border: 1.5px dashed #8B5E34; border-radius: 10px;
+    background: #fff; cursor: crosshair; touch-action: none; display: block;
+  }
+  .registration-modal .btn-primary-mirror {
+    background: #1B2E22; color: #F4EDE0; width: 100%; padding: 13px; border: none; border-radius: 10px;
+    font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 6px;
+  }
+  .registration-modal .btn-primary-mirror:hover { background: #12241A; }
+  .registration-modal .btn-primary-mirror:disabled { background: #B9BFB2; cursor: not-allowed; }
+  .registration-modal .modal-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+  .registration-modal .modal-actions .btn-ghost {
+    background: transparent; border: 1.5px solid rgba(139,94,52,0.25); color: #8B5E34;
+    padding: 11px; border-radius: 10px; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+
   .field { margin-bottom: 16px; }
   .field label { display: block; font-size: 12.5px; font-weight: 600; color: var(--charcoal); margin-bottom: 6px; }
   .field input {
@@ -636,12 +690,13 @@
 
 <!-- ============ ADD REGISTRATION MODAL (admin only) ============ -->
 <div class="modal-overlay" id="registration-modal-overlay">
-  <div class="modal" style="max-width:560px;">
+  <div class="modal registration-modal">
+    <img class="reg-modal-mark" src="https://res.cloudinary.com/dhlymdlu/image/upload/v1788058962/Screenshot_2026-08-04_at_8.42.07_PM.png" alt="The Little Playhut">
     <h3>Add new Registration</h3>
     <p class="modal-sub">Family, child, card, and signature — completes enrollment immediately, same as self-registration.</p>
     <div class="error-banner" id="registration-modal-error"></div>
     <form id="registration-form">
-      <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:0 0 10px;">Parent / Guardian</p>
+      <p class="reg-section-title">Parent / Guardian</p>
       <div class="field">
         <label for="reg-primary-name">Primary parent name</label>
         <input type="text" id="reg-primary-name" required>
@@ -675,28 +730,28 @@
         <input type="text" id="reg-address">
       </div>
 
-      <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:18px 0 10px;">Children</p>
+      <p class="reg-section-title">Children</p>
       <div id="reg-children-container"></div>
-      <button type="button" class="icon-btn" style="margin-bottom:14px;" onclick="addRegChildBlock()">+ Add another child</button>
+      <button type="button" class="clear-link" style="margin-bottom:14px;" onclick="addRegChildBlock()">+ Add another child</button>
 
-      <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:18px 0 10px;">Payment</p>
-      <div id="reg-services-total-wrap" style="display:none; justify-content:space-between; align-items:center; background:var(--cream); border:1px solid var(--sage-light); border-radius:9px; padding:10px 14px; margin-bottom:14px;">
-        <span style="font-size:13px; font-weight:600; color:var(--wood);">Services selected</span>
-        <span id="reg-services-total-amount" style="font-size:16px; font-weight:700; color:var(--teal-dark);"></span>
+      <p class="reg-section-title">Payment</p>
+      <div id="reg-services-total-wrap" style="display:none; justify-content:space-between; align-items:center; background:#fff; border:1px solid rgba(139,94,52,0.18); border-radius:10px; padding:12px 16px; margin-bottom:16px;">
+        <span style="font-size:13.5px; font-weight:600; color:#8B5E34;">Services selected</span>
+        <span id="reg-services-total-amount" style="font-size:18px; font-weight:700; color:#1B2E22;"></span>
       </div>
       <div class="field">
         <label>Card on file <span style="font-weight:400; color:#8A9490;">(required to complete — no charge today)</span></label>
         <div id="reg-card-status-not-saved">
-          <div id="reg-stripe-card-element" style="padding:12px 14px; border:1.5px solid var(--sage-light); border-radius:9px; background:#fff;"></div>
-          <button type="button" class="btn btn-ghost" style="margin-top:10px; padding:9px 16px; font-size:13px; width:auto;" id="reg-save-card-btn" onclick="saveRegCard()">Save card</button>
+          <div id="reg-stripe-card-element" style="padding:12px 14px; border:1.5px solid rgba(139,94,52,0.25); border-radius:10px; background:#FFFDF8;"></div>
+          <button type="button" class="clear-link" style="margin-top:10px; display:inline-block;" id="reg-save-card-btn" onclick="saveRegCard()">Save card</button>
         </div>
-        <div id="reg-card-status-saved" style="display:none; padding:10px 14px; background:var(--success-bg); color:var(--success); border-radius:8px; font-size:13.5px; font-weight:600;">
+        <div id="reg-card-status-saved" style="display:none; padding:12px 14px; background:#E7F1EA; color:#4A7A5C; border-radius:10px; font-size:13.5px; font-weight:600;">
           ✓ Card saved
         </div>
         <div class="error-banner" id="reg-card-error" style="margin-top:10px;"></div>
       </div>
 
-      <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:18px 0 10px;">Signature</p>
+      <p class="reg-section-title">Signature</p>
       <div class="field">
         <label for="reg-signer-name">Signer's full name</label>
         <input type="text" id="reg-signer-name" required>
@@ -708,8 +763,8 @@
       </div>
 
       <div class="modal-actions">
-        <button type="button" class="btn btn-ghost" onclick="closeRegistrationModal()">Cancel</button>
-        <button type="submit" class="btn btn-teal" id="registration-submit-btn">Sign & complete enrollment</button>
+        <button type="submit" class="btn-primary-mirror" id="registration-submit-btn">Sign & complete enrollment</button>
+        <button type="button" class="btn-ghost" onclick="closeRegistrationModal()">Cancel</button>
       </div>
     </form>
   </div>
