@@ -58,6 +58,14 @@
   }
   .section-title:first-of-type { margin-top: 0; }
 
+  .child-block {
+    background: #fff; border: 1px solid var(--sand-line); border-radius: 12px;
+    padding: 18px 18px 6px; margin-bottom: 14px; position: relative;
+  }
+  .child-block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .child-block-header strong { font-size: 13px; color: var(--wood); text-transform: uppercase; letter-spacing: 0.03em; }
+  .remove-child-link { font-size: 12.5px; font-weight: 600; color: var(--error); cursor: pointer; background: none; border: none; padding: 0; }
+
   .field { margin-bottom: 16px; }
   .field-row { display: flex; gap: 12px; }
   .field-row .field { flex: 1; }
@@ -163,48 +171,9 @@
           </div>
         </div>
 
-        <div class="section-title">Child</div>
-        <div class="field-row">
-          <div class="field">
-            <label for="child-first-name">First name</label>
-            <input type="text" id="child-first-name" required>
-          </div>
-          <div class="field">
-            <label for="child-last-name">Last name</label>
-            <input type="text" id="child-last-name" required>
-          </div>
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label for="child-dob">Date of birth</label>
-            <input type="date" id="child-dob" required>
-          </div>
-          <div class="field">
-            <label for="child-program">Program</label>
-            <select id="child-program" required>
-              <option value="daycare">Daycare</option>
-              <option value="preschool">Preschool</option>
-            </select>
-          </div>
-        </div>
-        <div class="field">
-          <label for="child-allergies">Allergies <span style="font-weight:400; color:#8A9490;">(optional — write "None" if none)</span></label>
-          <input type="text" id="child-allergies">
-        </div>
-        <div class="field">
-          <label for="child-medical-notes">Medical notes <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
-          <input type="text" id="child-medical-notes">
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label for="emergency-name">Emergency contact</label>
-            <input type="text" id="emergency-name" required>
-          </div>
-          <div class="field">
-            <label for="emergency-phone">Emergency phone</label>
-            <input type="text" id="emergency-phone" required>
-          </div>
-        </div>
+        <div class="section-title">Children</div>
+        <div id="children-container"></div>
+        <button type="button" class="clear-link" style="margin-bottom:20px;" onclick="addChildBlock()">+ Add another child</button>
 
         <div class="section-title">Payment</div>
         <div class="field">
@@ -239,6 +208,98 @@
 <script>
   const API_BASE = 'https://little-playhut-backend.onrender.com';
   let signaturePad = null;
+  let childBlockCount = 0; // used only to generate unique element IDs, not a real count
+
+  function addChildBlock() {
+    childBlockCount++;
+    const id = childBlockCount;
+    const container = document.getElementById('children-container');
+    const block = document.createElement('div');
+    block.className = 'child-block';
+    block.id = 'child-block-' + id;
+    block.innerHTML = `
+      <div class="child-block-header">
+        <strong>Child</strong>
+        <button type="button" class="remove-child-link" onclick="removeChildBlock(${id})">Remove</button>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="child-${id}-first-name">First name</label>
+          <input type="text" id="child-${id}-first-name" required>
+        </div>
+        <div class="field">
+          <label for="child-${id}-last-name">Last name</label>
+          <input type="text" id="child-${id}-last-name" required>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="child-${id}-dob">Date of birth</label>
+          <input type="date" id="child-${id}-dob" required>
+        </div>
+        <div class="field">
+          <label for="child-${id}-program">Program</label>
+          <select id="child-${id}-program" required>
+            <option value="daycare">Daycare</option>
+            <option value="preschool">Preschool</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="child-${id}-allergies">Allergies <span style="font-weight:400; color:#8A9490;">(optional — write "None" if none)</span></label>
+        <input type="text" id="child-${id}-allergies">
+      </div>
+      <div class="field">
+        <label for="child-${id}-medical-notes">Medical notes <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="child-${id}-medical-notes">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="child-${id}-emergency-name">Emergency contact</label>
+          <input type="text" id="child-${id}-emergency-name" required>
+        </div>
+        <div class="field">
+          <label for="child-${id}-emergency-phone">Emergency phone</label>
+          <input type="text" id="child-${id}-emergency-phone" required>
+        </div>
+      </div>
+    `;
+    container.appendChild(block);
+    updateRemoveLinksVisibility();
+  }
+
+  function removeChildBlock(id) {
+    const block = document.getElementById('child-block-' + id);
+    if (block) block.remove();
+    updateRemoveLinksVisibility();
+  }
+
+  // Hides every "Remove" link when only one child block remains — at least
+  // one child is always required, so removing down to zero isn't allowed.
+  function updateRemoveLinksVisibility() {
+    const blocks = document.querySelectorAll('.child-block');
+    blocks.forEach(b => {
+      const link = b.querySelector('.remove-child-link');
+      if (link) link.style.display = blocks.length > 1 ? 'inline-block' : 'none';
+    });
+  }
+
+  function collectChildBlocks() {
+    const blocks = document.querySelectorAll('.child-block');
+    return Array.from(blocks).map(block => {
+      const id = block.id.replace('child-block-', '');
+      return {
+        first_name: document.getElementById(`child-${id}-first-name`).value.trim(),
+        last_name: document.getElementById(`child-${id}-last-name`).value.trim(),
+        date_of_birth: document.getElementById(`child-${id}-dob`).value,
+        program: document.getElementById(`child-${id}-program`).value,
+        allergies: document.getElementById(`child-${id}-allergies`).value.trim() || null,
+        medical_notes: document.getElementById(`child-${id}-medical-notes`).value.trim() || null,
+        emergency_contact_name: document.getElementById(`child-${id}-emergency-name`).value.trim(),
+        emergency_contact_phone: document.getElementById(`child-${id}-emergency-phone`).value.trim(),
+      };
+    });
+  }
 
   // ============================================================
   // SAVED CARD (Stripe Elements) — same security model as the admin-side
@@ -401,14 +462,7 @@
       secondary_parent_name: document.getElementById('secondary-name').value.trim() || null,
       secondary_parent_phone: document.getElementById('secondary-phone').value.trim() || null,
       mailing_address: document.getElementById('mailing-address').value.trim() || null,
-      child_first_name: document.getElementById('child-first-name').value.trim(),
-      child_last_name: document.getElementById('child-last-name').value.trim(),
-      child_date_of_birth: document.getElementById('child-dob').value,
-      child_program: document.getElementById('child-program').value,
-      child_allergies: document.getElementById('child-allergies').value.trim() || null,
-      child_medical_notes: document.getElementById('child-medical-notes').value.trim() || null,
-      child_emergency_contact_name: document.getElementById('emergency-name').value.trim(),
-      child_emergency_contact_phone: document.getElementById('emergency-phone').value.trim(),
+      children: collectChildBlocks(),
       signer_name: document.getElementById('signer-name').value.trim(),
       signature_data: signaturePad.canvas.toDataURL('image/png'),
       stripe_customer_id: savedStripeCustomerId,
@@ -451,7 +505,7 @@
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
         <h2>You're enrolled!</h2>
-        <p>${escapeHtml(data.registration.child_first_name)} ${escapeHtml(data.registration.child_last_name)} is all set at The Little Playhut.</p>
+        <p>${data.registrations.map(r => escapeHtml(r.child_first_name) + ' ' + escapeHtml(r.child_last_name)).join(', ')} ${data.registrations.length > 1 ? 'are' : 'is'} all set at The Little Playhut.</p>
 
         <div class="credentials-box">
           <img class="qr" src="${qrImageUrl}" width="220" height="220" alt="QR code to the family portal">
@@ -464,6 +518,7 @@
     `;
   }
 
+  addChildBlock();
   initSignaturePad();
   mountCardElement();
 </script>

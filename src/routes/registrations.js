@@ -152,23 +152,31 @@ router.get('/sign/:token', async (req, res) => {
   }
 });
 
-// Shared completion logic: given a registration row + signer info, creates the
-// real family/child records and the signed PDF, all in one transaction.
-async function completeRegistration(registration, { signer_name, signature_data, sign_method }) {
+// Shared completion logic: given a registration row + signer info, creates
+// the real family/child records and the signed PDF, all in one transaction.
+// existingFamilyId lets multiple registrations (e.g. siblings enrolled in
+// the same sitting) share one family record instead of each creating their
+// own — see self-register-multi below, which is the only caller that passes
+// this. Every other caller omits it and gets the original one-family-per-
+// registration behavior.
+async function completeRegistration(registration, { signer_name, signature_data, sign_method, existingFamilyId }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    const familyResult = await client.query(
-      `INSERT INTO families
-        (primary_parent_name, primary_parent_email, primary_parent_phone,
-         secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [registration.primary_parent_name, registration.primary_parent_email, registration.primary_parent_phone,
-       registration.secondary_parent_name, registration.secondary_parent_email, registration.secondary_parent_phone,
-       registration.mailing_address]
-    );
-    const familyId = familyResult.rows[0].id;
+    let familyId = existingFamilyId;
+    if (!familyId) {
+      const familyResult = await client.query(
+        `INSERT INTO families
+          (primary_parent_name, primary_parent_email, primary_parent_phone,
+           secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+        [registration.primary_parent_name, registration.primary_parent_email, registration.primary_parent_phone,
+         registration.secondary_parent_name, registration.secondary_parent_email, registration.secondary_parent_phone,
+         registration.mailing_address]
+      );
+      familyId = familyResult.rows[0].id;
+    }
 
     const childResult = await client.query(
       `INSERT INTO children
@@ -308,23 +316,33 @@ router.post('/start-card-setup', async (req, res) => {
 // POST /registrations/self-register — PUBLIC, no login and no token needed.
 // A parent fills out the entire form and signs themselves, in one sitting —
 // unlike the admin-initiated flow above (POST / then a separate sign step),
-// this creates the registration row AND completes it in the same request,
-// then generates portal login credentials on the spot. Reuses
-// completeRegistration() so the resulting family/child/signed-PDF creation
-// is identical to every other signing path in this file.
+// this creates the registration row(s) AND completes them in the same
+// request, then generates portal login credentials on the spot.
+//
+// Accepts a `children` array (1 or more) so siblings can be enrolled
+// together under one family, one card, one signature — each child still
+// gets their own registrations row and signed PDF (matching how every other
+// signing path in this file works), but they all share one family record
+// via completeRegistration()'s existingFamilyId parameter.
 router.post('/self-register', async (req, res) => {
   const {
     primary_parent_name, primary_parent_email, primary_parent_phone,
     secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address,
-    child_first_name, child_last_name, child_date_of_birth, child_program,
-    child_allergies, child_medical_notes, child_emergency_contact_name,
-    child_emergency_contact_phone,
+    children, // [{ first_name, last_name, date_of_birth, program, allergies, medical_notes, emergency_contact_name, emergency_contact_phone }, ...]
     signer_name, signature_data,
     stripe_customer_id, setup_intent_id,
   } = req.body;
 
-  if (!primary_parent_name || !primary_parent_email || !child_first_name || !child_last_name || !child_date_of_birth || !child_program) {
-    return res.status(400).json({ error: 'Primary parent name/email and child name/DOB/program are required' });
+  if (!primary_parent_name || !primary_parent_email) {
+    return res.status(400).json({ error: 'Primary parent name and email are required' });
+  }
+  if (!Array.isArray(children) || children.length === 0) {
+    return res.status(400).json({ error: 'At least one child is required' });
+  }
+  for (const c of children) {
+    if (!c.first_name || !c.last_name || !c.date_of_birth || !c.program) {
+      return res.status(400).json({ error: 'Each child needs a first name, last name, date of birth, and program' });
+    }
   }
   if (!signer_name || !signature_data) {
     return res.status(400).json({ error: 'A signature is required to complete registration' });
@@ -358,31 +376,52 @@ router.post('/self-register', async (req, res) => {
       return res.status(409).json({ error: 'A family with this email is already registered. Contact the school if you need help accessing your account.' });
     }
 
-    const insertResult = await pool.query(
-      `INSERT INTO registrations (
-        primary_parent_name, primary_parent_email, primary_parent_phone,
-        secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address,
-        child_first_name, child_last_name, child_date_of_birth, child_program,
-        child_allergies, child_medical_notes, child_emergency_contact_name,
-        child_emergency_contact_phone, sign_method
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'self_service')
-      RETURNING *`,
-      [primary_parent_name, primary_parent_email, primary_parent_phone,
-       secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address,
-       child_first_name, child_last_name, child_date_of_birth, child_program,
-       child_allergies, child_medical_notes, child_emergency_contact_name,
-       child_emergency_contact_phone]
-    );
-    const registration = insertResult.rows[0];
+    let sharedFamilyId = null;
+    const completedRegistrations = [];
 
-    const completed = await completeRegistration(registration, {
-      signer_name, signature_data, sign_method: 'self_service',
-    });
+    for (const c of children) {
+      const insertResult = await pool.query(
+        `INSERT INTO registrations (
+          primary_parent_name, primary_parent_email, primary_parent_phone,
+          secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address,
+          child_first_name, child_last_name, child_date_of_birth, child_program,
+          child_allergies, child_medical_notes, child_emergency_contact_name,
+          child_emergency_contact_phone, sign_method
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'self_service')
+        RETURNING *`,
+        [primary_parent_name, primary_parent_email, primary_parent_phone,
+         secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address,
+         c.first_name, c.last_name, c.date_of_birth, c.program,
+         c.allergies || null, c.medical_notes || null, c.emergency_contact_name || null,
+         c.emergency_contact_phone || null]
+      );
+      const registration = insertResult.rows[0];
 
-    // Attach the saved card to the new family record. The payment method was
-    // already confirmed above — this just retrieves its safe display info
-    // (brand/last4) and sets it as the default on the Customer, same as the
-    // admin-side confirm-card flow in families.js.
+      const completed = await completeRegistration(registration, {
+        signer_name, signature_data, sign_method: 'self_service',
+        existingFamilyId: sharedFamilyId, // null for the first child — completeRegistration creates the family then
+      });
+
+      if (!sharedFamilyId) sharedFamilyId = completed.resulting_family_id;
+      completedRegistrations.push(completed);
+
+      // Auto-close any matching waitlist entry — same behavior as the
+      // admin-initiated path, checked per child in case a family has more
+      // than one waitlist entry (e.g. inquired about each kid separately).
+      try {
+        await pool.query(
+          `UPDATE waitlist_entries
+           SET status = 'enrolled', converted_registration_id = $2, converted_at = now()
+           WHERE parent_email = $1 AND status = 'waiting'`,
+          [primary_parent_email, registration.id]
+        );
+      } catch (waitlistErr) {
+        console.error('Self-registration completed, but waitlist auto-conversion failed:', waitlistErr);
+      }
+    }
+
+    // Attach the saved card to the family record — once, after every child
+    // has been created, since they all share the same family now.
     try {
       const paymentMethod = await stripe.paymentMethods.retrieve(setupIntent.payment_method);
       await stripe.customers.update(stripe_customer_id, {
@@ -390,26 +429,13 @@ router.post('/self-register', async (req, res) => {
       });
       await pool.query(
         `UPDATE families SET stripe_customer_id = $2, card_brand = $3, card_last4 = $4, card_saved_at = now() WHERE id = $1`,
-        [completed.resulting_family_id, stripe_customer_id, paymentMethod.card.brand, paymentMethod.card.last4]
+        [sharedFamilyId, stripe_customer_id, paymentMethod.card.brand, paymentMethod.card.last4]
       );
     } catch (cardErr) {
       // The registration itself already succeeded at this point — a failure
       // here shouldn't undo the enrollment, but it does mean admin needs to
       // know the card didn't actually get attached.
       console.error('Registration completed, but attaching the saved card failed:', cardErr);
-    }
-
-    // Auto-close any matching waitlist entry — same behavior as the
-    // admin-initiated path.
-    try {
-      await pool.query(
-        `UPDATE waitlist_entries
-         SET status = 'enrolled', converted_registration_id = $2, converted_at = now()
-         WHERE parent_email = $1 AND status = 'waiting'`,
-        [primary_parent_email, registration.id]
-      );
-    } catch (waitlistErr) {
-      console.error('Self-registration completed, but waitlist auto-conversion failed:', waitlistErr);
     }
 
     // Generate a portal password automatically — readable (not a wall of
@@ -419,11 +445,11 @@ router.post('/self-register', async (req, res) => {
     const passwordHash = await hashPassword(password);
     await pool.query(
       `UPDATE families SET password_hash = $2 WHERE id = $1`,
-      [completed.resulting_family_id, passwordHash]
+      [sharedFamilyId, passwordHash]
     );
 
     res.status(201).json({
-      registration: completed,
+      registrations: completedRegistrations,
       portal_email: primary_parent_email,
       portal_password: password, // returned ONCE, here — never stored in plaintext, never retrievable again after this response
     });
