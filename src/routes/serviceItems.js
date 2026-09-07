@@ -48,6 +48,41 @@ router.post('/', async (req, res) => {
   }
 });
 
+// POST /service-items/bulk-import — create many services at once, e.g. from a
+// spreadsheet/CSV export. Each item follows the same shape as the single-create
+// route above. Inserted one at a time (not a single multi-row statement) so one
+// bad row doesn't block the rest — failures are collected and returned alongside
+// the successes rather than aborting the whole import.
+router.post('/bulk-import', async (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items must be a non-empty array' });
+  }
+
+  const created = [];
+  const failed = [];
+
+  for (const item of items) {
+    if (!item.name) {
+      failed.push({ item, error: 'name is required' });
+      continue;
+    }
+    try {
+      const result = await pool.query(
+        `INSERT INTO service_items (name, description, default_price)
+         VALUES ($1,$2,$3) RETURNING *`,
+        [item.name, item.description || null, item.default_price || 0]
+      );
+      created.push(result.rows[0]);
+    } catch (err) {
+      console.error('Bulk import row failed:', item.name, err.message);
+      failed.push({ item, error: err.message });
+    }
+  }
+
+  res.status(201).json({ created, failed });
+});
+
 // PUT /service-items/:id — allowlisted fields, same pattern as staff.js
 router.put('/:id(\\d+)', async (req, res) => {
   const allowedFields = ['name', 'description', 'default_price', 'is_active'];

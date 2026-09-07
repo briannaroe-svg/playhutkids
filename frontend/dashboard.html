@@ -4873,7 +4873,10 @@
           <h2>Services</h2>
           <p>Reusable line items for invoices — tuition, registration, late fees.</p>
         </div>
-        <button class="btn btn-coral" onclick="openServiceModal()">+ Add service</button>
+        <div style="display:flex; gap:8px;">
+          ${servicesCache.length === 0 ? '<button class="btn btn-ghost" onclick="importStripeServices()">Import from Stripe export</button>' : ''}
+          <button class="btn btn-coral" onclick="openServiceModal()">+ Add service</button>
+        </div>
       </div>
       <div class="card" id="services-table-wrap">
         <div class="empty-state"><p>Loading…</p></div>
@@ -4885,6 +4888,63 @@
       renderServicesTable();
     } catch (err) {
       document.getElementById('services-table-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load services</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  // One-time import of the daycare's Stripe Products/Prices export (30
+  // services). Prices reflect the CURRENT (card-fee-inclusive) amount where
+  // Stripe kept price history; a few descriptions flag where the billing
+  // interval looked like it changed unintentionally alongside that fee
+  // update — worth a quick look, but every field here is editable afterward
+  // the same as any manually-added service.
+  const STRIPE_IMPORT_DATA = [
+    { name: "Additional Daycare Time", description: "One-time charge", default_price: 41.46 },
+    { name: "Daycare Part Time-Preschool Age (3-5 Years Olds)", description: "Billed per week. Interval corrected on import: Stripe export showed \"month\" but this was billed weekly before a card-fee price update — confirm before relying on this.", default_price: 165.09 },
+    { name: "Drop in Care", description: "One-time charge", default_price: 62.10 },
+    { name: "Drop in care", description: "Billed per month. This was a one-time charge before a card-fee price update, which also changed it to \"month\" in Stripe — confirm actual billing frequency before invoicing.", default_price: 62.10 },
+    { name: "Forest Rangers- 4 Year Old AM or PM Class (+Full Time Daycare)", description: "Billed per week. Interval corrected on import: Stripe export showed \"month\" but this was billed weekly before a card-fee price update — confirm before relying on this.", default_price: 211.43 },
+    { name: "Forest Rangers- 4 Year Old AM or PM Class (+Part Time Daycare)", description: "Billed per week", default_price: 165.09 },
+    { name: "Forest Rangers- 4 Year Old AM/PM Class", description: "Billed per month", default_price: 237.18 },
+    { name: "Forest Rangers- Split Tuiton", description: "Billed per month. Not present in the products export — added from the prices export only.", default_price: 115.00 },
+    { name: "Full Time Daycare", description: "One-time charge", default_price: 230.00 },
+    { name: "Full Time Daycare- Infants (6 weeks-12 Months)", description: "Billed per week. Interval corrected on import: Stripe export showed \"month\" but this was billed weekly before a card-fee price update — confirm before relying on this.", default_price: 566.74 },
+    { name: "Full Time Daycare-Infants (6 Weeks-12 Months)", description: "Billed per week", default_price: 275.00 },
+    { name: "Full Time Daycare-Preschool Age (3-5 Year Olds)", description: "Billed per week", default_price: 245.00 },
+    { name: "Full Time- Older Toddler (24 Months-36 Months)", description: "Billed per week. Interval corrected on import: Stripe export showed \"month\" but this was billed weekly before a card-fee price update — confirm before relying on this.", default_price: 546.14 },
+    { name: "Full Time-Older Toddlers (24 Months-36 Months", description: "Billed per week", default_price: 265.00 },
+    { name: "Full Time-Young Toddlers (12 Months-24 Months)", description: "Billed per week", default_price: 265.00 },
+    { name: "Little Acorns- 3 Year Old AM or PM Class (+ Part Time Daycare)", description: "Billed per week. Interval corrected on import: Stripe export showed \"month\" but this was billed weekly before a card-fee price update — confirm before relying on this.", default_price: 201.13 },
+    { name: "Little Acorns- 3 Year Old AM or PM Class (+Full Time Daycare)", description: "Billed per week. Interval corrected on import: Stripe export showed \"month\" but this was billed weekly before a card-fee price update — confirm before relying on this. Note: a second, differently-priced service with this exact name was also imported — one may be a duplicate worth removing.", default_price: 494.64 },
+    { name: "Little Acorns- 3 Year Old AM or PM Class (+Full Time Daycare)", description: "Billed per week. Interval corrected on import: Stripe export showed \"month\" but this was billed weekly before a card-fee price update — confirm before relying on this. Note: a second, differently-priced service with this exact name was also imported — one may be a duplicate worth removing.", default_price: 247.48 },
+    { name: "Little Acorns- 3 Year Old AM/PM Class", description: "Billed per month", default_price: 211.43 },
+    { name: "Older Toddlers (24 Months-36 Months)", description: "Billed per week", default_price: 273.24 },
+    { name: "Part Time After School Care (Ages 5-12 Years Old)", description: "Billed per week. Interval corrected on import: Stripe export showed \"month\" but this was billed weekly before a card-fee price update — confirm before relying on this.", default_price: 170.24 },
+    { name: "Part Time Daycare-Infants (6 Weeks-12 Months)", description: "Billed per week", default_price: 200.00 },
+    { name: "Part Time Daycare-Older Toddlers (24 Months-36 Month", description: "Billed per week. Interval corrected on import: Stripe export showed \"month\" but this was billed weekly before a card-fee price update — confirm before relying on this.", default_price: 185.68 },
+    { name: "Part Time-Preschool Age (3-5 Years Olds)", description: "Billed per week. Interval corrected on import: Stripe export showed \"month\" but this was billed weekly before a card-fee price update — confirm before relying on this.", default_price: 165.09 },
+    { name: "Part time Daycare-Young Toddlers (12 Months-24 Months)", description: "Billed per week", default_price: 190.00 },
+    { name: "Preschool Age (3-5 Year Olds)", description: "Billed per week", default_price: 252.62 },
+    { name: "Preschool Fee for Tumbling", description: "Billed per month", default_price: 31.20 },
+    { name: "Preschool Registration", description: "One-time charge", default_price: 100.00 },
+    { name: "Registration Fee Preschool", description: "Billed per month. This was a one-time charge before a card-fee price update, which also changed it to \"month\" in Stripe — confirm actual billing frequency before invoicing.", default_price: 185.68 },
+    { name: "Split Tuition Cost", description: "Billed per month", default_price: 118.74 },
+  ];
+
+  async function importStripeServices() {
+    if (!confirm(`Import ${STRIPE_IMPORT_DATA.length} services from the Stripe export? This adds them as new services — it won't touch anything already in your catalog.`)) return;
+
+    try {
+      const result = await apiFetch('/service-items/bulk-import', {
+        method: 'POST',
+        body: JSON.stringify({ items: STRIPE_IMPORT_DATA }),
+      });
+      servicesCache = await apiFetch('/service-items');
+      renderServicesView();
+      const failedNote = result.failed.length > 0 ? `\n${result.failed.length} failed — check the browser console for details.` : '';
+      alert(`Imported ${result.created.length} of ${STRIPE_IMPORT_DATA.length} services.${failedNote}`);
+      if (result.failed.length > 0) console.error('Bulk import failures:', result.failed);
+    } catch (err) {
+      alert('Import failed: ' + err.message);
     }
   }
 
