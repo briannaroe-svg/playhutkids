@@ -4867,6 +4867,19 @@
 
   async function renderServicesView() {
     const main = document.getElementById('main-content');
+    main.innerHTML = `<div class="empty-state"><p>Loading…</p></div>`;
+
+    try {
+      servicesCache = await apiFetch('/service-items');
+    } catch (err) {
+      main.innerHTML = `<div class="empty-state"><h3>Couldn't load services</h3><p>${err.message}</p></div>`;
+      return;
+    }
+
+    // The Import button is only offered when the catalog is genuinely empty
+    // RIGHT NOW — checked only after the fetch above completes, not against
+    // servicesCache's possibly-stale value from whatever view was open before
+    // this one (it's a variable shared across several tabs in this app).
     main.innerHTML = `
       <div class="page-header">
         <div>
@@ -4882,13 +4895,7 @@
         <div class="empty-state"><p>Loading…</p></div>
       </div>
     `;
-
-    try {
-      servicesCache = await apiFetch('/service-items');
-      renderServicesTable();
-    } catch (err) {
-      document.getElementById('services-table-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load services</h3><p>${err.message}</p></div>`;
-    }
+    renderServicesTable();
   }
 
   // One-time import of the daycare's Stripe Products/Prices export (30
