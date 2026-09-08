@@ -1301,7 +1301,7 @@
     <div id="merge-modal-body"></div>
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" onclick="closeMergeModal()">Cancel</button>
-      <button type="button" class="btn" style="background:var(--forest-deep); color:#fff; flex:1; padding:13px; border-radius:10px; border:none; font-weight:600; cursor:pointer;" id="merge-confirm-btn" onclick="confirmMergeFamilies()">Merge families</button>
+      <button type="button" class="btn" style="background:var(--teal); color:#fff; flex:1; padding:13px; border-radius:10px; border:none; font-weight:600; cursor:pointer;" id="merge-confirm-btn" onclick="confirmMergeFamilies()">Merge families</button>
     </div>
   </div>
 </div>
@@ -1327,7 +1327,7 @@
     <div id="merge-child-modal-body"></div>
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" onclick="closeMergeChildModal()">Cancel</button>
-      <button type="button" class="btn" style="background:var(--forest-deep); color:#fff; flex:1; padding:13px; border-radius:10px; border:none; font-weight:600; cursor:pointer;" id="merge-child-confirm-btn" onclick="confirmMergeChildren()">Merge children</button>
+      <button type="button" class="btn" style="background:var(--teal); color:#fff; flex:1; padding:13px; border-radius:10px; border:none; font-weight:600; cursor:pointer;" id="merge-child-confirm-btn" onclick="confirmMergeChildren()">Merge children</button>
     </div>
   </div>
 </div>
@@ -3343,12 +3343,12 @@
       <div class="field">
         <label>Which record should survive?</label>
         <div style="display:flex; gap:10px;">
-          <label style="flex:1; border:1.5px solid ${keeperSide === 'a' ? 'var(--forest-deep)' : 'var(--sage-light)'}; border-radius:10px; padding:12px; cursor:pointer;">
+          <label style="flex:1; border:1.5px solid ${keeperSide === 'a' ? 'var(--teal)' : 'var(--sage-light)'}; border-radius:10px; padding:12px; cursor:pointer;">
             <input type="radio" name="merge-keeper-side" value="a" ${keeperSide === 'a' ? 'checked' : ''} onchange="setMergeKeeperSide('a')" style="width:auto; margin-right:6px;">
             <strong>${escapeHtml(a.primary_parent_name)}</strong>
             <div style="font-size:12px; color:#6B7A76; margin-left:20px;">${escapeHtml(a.primary_parent_email)}</div>
           </label>
-          <label style="flex:1; border:1.5px solid ${keeperSide === 'b' ? 'var(--forest-deep)' : 'var(--sage-light)'}; border-radius:10px; padding:12px; cursor:pointer;">
+          <label style="flex:1; border:1.5px solid ${keeperSide === 'b' ? 'var(--teal)' : 'var(--sage-light)'}; border-radius:10px; padding:12px; cursor:pointer;">
             <input type="radio" name="merge-keeper-side" value="b" ${keeperSide === 'b' ? 'checked' : ''} onchange="setMergeKeeperSide('b')" style="width:auto; margin-right:6px;">
             <strong>${escapeHtml(b.primary_parent_name)}</strong>
             <div style="font-size:12px; color:#6B7A76; margin-left:20px;">${escapeHtml(b.primary_parent_email)}</div>
@@ -3509,13 +3509,13 @@
       <div class="field">
         <label>Which record should survive?</label>
         <div style="display:flex; gap:10px;">
-          <label style="flex:1; border:1.5px solid ${keeperSide === 'a' ? 'var(--forest-deep)' : 'var(--sage-light)'}; border-radius:10px; padding:12px; cursor:pointer;">
+          <label style="flex:1; border:1.5px solid ${keeperSide === 'a' ? 'var(--teal)' : 'var(--sage-light)'}; border-radius:10px; padding:12px; cursor:pointer;">
             <input type="radio" name="merge-child-keeper-side" value="a" ${keeperSide === 'a' ? 'checked' : ''} onchange="setChildMergeKeeperSide('a')" style="width:auto; margin-right:6px;">
             <strong>${escapeHtml(a.first_name)} ${escapeHtml(a.last_name)}</strong>
             <div style="font-size:12px; color:#6B7A76; margin-left:20px;">Family: ${escapeHtml(a.primary_parent_name)}</div>
             <div style="font-size:12px; color:#6B7A76; margin-left:20px;">${a.enrollment_status === 'active' ? 'Active' : 'Withdrawn'}${a.room ? ' — ' + escapeHtml(a.room) : ''}</div>
           </label>
-          <label style="flex:1; border:1.5px solid ${keeperSide === 'b' ? 'var(--forest-deep)' : 'var(--sage-light)'}; border-radius:10px; padding:12px; cursor:pointer;">
+          <label style="flex:1; border:1.5px solid ${keeperSide === 'b' ? 'var(--teal)' : 'var(--sage-light)'}; border-radius:10px; padding:12px; cursor:pointer;">
             <input type="radio" name="merge-child-keeper-side" value="b" ${keeperSide === 'b' ? 'checked' : ''} onchange="setChildMergeKeeperSide('b')" style="width:auto; margin-right:6px;">
             <strong>${escapeHtml(b.first_name)} ${escapeHtml(b.last_name)}</strong>
             <div style="font-size:12px; color:#6B7A76; margin-left:20px;">Family: ${escapeHtml(b.primary_parent_name)}</div>
