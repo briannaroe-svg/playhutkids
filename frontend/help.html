@@ -180,22 +180,24 @@
     <section id="families">
       <h2 class="section-title">Families <span class="badge badge-admin">Admin</span></h2>
       <p class="section-sub">The parent/guardian contact address book.</p>
-      <p>Every family record holds a primary parent's name, email, phone, and mailing address, plus an optional secondary parent. This is where billing contact info lives — invoices are always addressed to a family, not directly to a child.</p>
+      <p>Every family record holds a primary parent's name, email, phone, and mailing address, plus an optional secondary parent, physician, emergency contacts, and authorized pick-up persons. This is where billing contact info lives — invoices are always addressed to a family, not directly to a child. A count next to the "Families" heading always reflects exactly what's currently listed below it, including search and the unenrolled toggle.</p>
       <h3 class="sub-heading">What you can do here</h3>
       <ul>
         <li>Search existing families by parent name or email</li>
+        <li>Click a parent's name to see everything on file for that family — household info and every child on the account, active or withdrawn. Click a child's name from there to jump straight into that child's own full detail.</li>
         <li><strong>+ Add family</strong> to create a new record by hand</li>
         <li>Click <strong>Edit</strong> on any row to update contact details</li>
         <li><strong>✕</strong> next to a family opens a confirmation to <strong>unenroll</strong> the whole household — withdraws every active child at once and pauses any recurring billing for them. The record, past invoices, and history are all kept.</li>
       </ul>
       <div class="note"><strong>Note:</strong> Families don't need to be created here one-by-one — the Registration tab creates a family and a child together in one signed step. Use Families directly when you just need to update contact info, or add a family without going through a full registration.</div>
       <div class="note"><strong>Show unenrolled families:</strong> by default this list only shows families with at least one active child. Check the box next to the search bar to switch to showing <em>only</em> unenrolled families instead — useful for finding a household to review their history or resume billing if they come back. It's a strict either/or toggle, not additive.</div>
+      <div class="note"><strong>Find duplicates:</strong> scans every family for likely duplicates (same email or same name) — common after bulk imports, or when the same household registers more than once. Review each pair side by side, pick which record survives, and choose which value wins for anything that differs. Merging moves every child, invoice, and record from the other one onto the keeper and deletes the now-empty duplicate — nothing is lost, and nothing is merged until you confirm it.</div>
     </section>
 
     <section id="children">
       <h2 class="section-title">Children <span class="badge badge-everyone">Everyone</span></h2>
       <p class="section-sub">Enrollment roster, room assignment, and daily check-in/check-out.</p>
-      <p>Every enrolled child belongs to a room. Everyone — admin and staff — currently sees the full roster, since staff aren't yet tied to a specific room themselves. As staffing grows and staff get assigned to a room, this view is expected to start filtering by that.</p>
+      <p>Every enrolled child belongs to a room. Everyone — admin and staff — currently sees the full roster, since staff aren't yet tied to a specific room themselves. As staffing grows and staff get assigned to a room, this view is expected to start filtering by that. A count next to the "Children" heading always reflects exactly what's currently listed below it, including any search or filter in effect.</p>
       <h3 class="sub-heading">The rooms</h3>
       <ul class="room-list">
         <li>Little Bunnies (Infant &amp; 1 year olds)</li>
@@ -215,6 +217,7 @@
         <li>Check any child in or out</li>
         <li><strong>Daily Report</strong> — fill out today's report for that child (see below)</li>
         <li><strong>✕</strong> next to an active child opens a confirmation to <strong>unenroll</strong> them — this withdraws the child but keeps their full history (past invoices, reports, documents). If it's the family's only remaining active child, any recurring billing for that family is automatically paused too. Withdrawn children are hidden by default — check <strong>Show unenrolled children</strong> above the search box to see them again.</li>
+        <li><strong>Find duplicates</strong> scans for children who share the same name AND date of birth — a stricter match than just a shared name, so two different kids named the same never get flagged by mistake. Review each pair, pick which record survives, and merge — every attendance record, invoice line, document, and daily report from the other one moves onto the keeper, which always keeps its own family (merging never moves a child between families).</li>
       </ul>
       <h3 class="sub-heading">For staff</h3>
       <ul>
@@ -236,8 +239,15 @@
     <section id="waitlist">
       <h2 class="section-title">Waitlist <span class="badge badge-admin">Admin</span></h2>
       <p class="section-sub">Enrollment inquiries — the step before Registration.</p>
-      <p>Log a family here when they call or ask about openings, even before you know their exact enrollment plans. Parent contact info is required; the child's name, birthdate, and room of interest are all optional, since not every inquiry has those details yet. Birthdate shows as a computed age in the list, useful for a quick sense of room fit.</p>
+      <p>Log a family here when they call or ask about openings. Parent name, email, and phone are required, along with the child's first name, date of birth, and the program they're interested in — last name, address, and any additional notes are optional. Birthdate shows as a computed age in the list, useful for a quick sense of room fit.</p>
+      <h3 class="sub-heading">Two ways to add an entry</h3>
+      <ul>
+        <li><strong>+ Add inquiry</strong> — staff logs it directly from this tab, same as before</li>
+        <li><strong>Waitlist sign-up QR</strong> — opens a printable QR code pointing at a public, standalone page (<code>waitlist-signup.html</code>) a family can fill out themselves on their own phone, or on a tablet at the front desk — no login needed. Same required fields either way; submissions land here automatically.</li>
+      </ul>
       <div class="note"><strong>Automatic conversion:</strong> When a Registration is later created using the same parent email, the matching waitlist entry is automatically marked <strong>Enrolled</strong> and linked to that registration — no manual cleanup needed. An enrolled entry can no longer be edited or removed from this tab.</div>
+      <div class="note"><strong>Mark enrolled manually:</strong> if a child was enrolled through a path that doesn't auto-convert the waitlist (like a bulk import, or added directly on Children), use the <strong>Mark enrolled</strong> button on that entry once they're actually enrolled.</div>
+      <div class="note"><strong>Sidebar count:</strong> a badge next to "Waitlist" in the left menu shows how many entries are still waiting (not yet enrolled) — it disappears entirely when there's nothing waiting, and updates as entries are added, edited, or marked enrolled.</div>
     </section>
 
     <section id="registration">
@@ -253,7 +263,7 @@
 
       <h3 class="sub-heading">What the form asks for</h3>
       <ol>
-        <li><strong>Parent / guardian</strong> — name, email, phone, mailing address, and an optional secondary parent</li>
+        <li><strong>Parent / guardian</strong> — name, email, and phone are required; mailing address and a secondary parent are optional</li>
         <li><strong>Household &amp; emergency info</strong> — physician name/phone, up to 3 emergency contacts, up to 3 authorized pick-up persons, photo/video consent, how they heard about the school, benefit eligibility (multi-student, military, first responder), and anything else worth knowing — all optional except the first emergency contact</li>
         <li><strong>One or more children</strong> — <strong>+ Add another child</strong> repeats the whole child section, so siblings can be enrolled together in one sitting. Each child gets their own name, birthdate, program (daycare or preschool), allergies, medical notes, an emergency contact, potty-trained status, sunscreen/outdoor play consent, field trip consent, bathroom assistance consent, immunization status, and interests/personality</li>
         <li><strong>Daycare Details</strong> <span style="font-weight:400; color:#8A9490;">(only shown when a child's program is set to Daycare)</span> — enrollment option, days needed, attendance type, drop-off/pick-up time estimates, an optional preschool add-on schedule, infant feeding plan, and infant care authorization. Switching that child to Preschool hides this section entirely.</li>
