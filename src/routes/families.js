@@ -280,4 +280,35 @@ router.post('/bulk-import-enrollment', async (req, res) => {
   }
 });
 
+// POST /families/:id/unenroll — withdraws EVERY active child under this
+// family and pauses every active recurring plan for it. Used for the
+// family-level "unenroll" action (as opposed to withdrawing one child at a
+// time from Children), when the whole household is leaving at once.
+router.post('/:id(\\d+)/unenroll', async (req, res) => {
+  try {
+    const familyResult = await pool.query(`SELECT * FROM families WHERE id = $1`, [req.params.id]);
+    if (familyResult.rows.length === 0) return res.status(404).json({ error: 'Family not found' });
+
+    const withdrawnChildren = await pool.query(
+      `UPDATE children SET enrollment_status = 'withdrawn', withdrawal_date = CURRENT_DATE, updated_at = now()
+       WHERE family_id = $1 AND enrollment_status = 'active' RETURNING id`,
+      [req.params.id]
+    );
+
+    const pausedPlans = await pool.query(
+      `UPDATE recurring_plans SET is_active = false, updated_at = now()
+       WHERE family_id = $1 AND is_active = true RETURNING id`,
+      [req.params.id]
+    );
+
+    res.json({
+      children_withdrawn: withdrawnChildren.rows.length,
+      recurring_plans_paused: pausedPlans.rows.length,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to unenroll family: ' + err.message });
+  }
+});
+
 module.exports = router;

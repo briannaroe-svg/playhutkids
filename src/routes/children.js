@@ -139,15 +139,39 @@ router.put('/:id(\\d+)', requireAdmin, async (req, res) => {
 });
 
 // PUT /children/:id/withdraw — admin only
+// PUT /children/:id/withdraw — marks one child withdrawn. If this was the
+// family's ONLY remaining active child, also pauses every active recurring
+// plan for that family — unenrolling a family's last child effectively
+// unenrolls the household, and an active plan left behind would otherwise
+// keep billing them with nobody enrolled.
 router.put('/:id(\\d+)/withdraw', requireAdmin, async (req, res) => {
   const { withdrawal_date } = req.body;
   try {
+    const childResult = await pool.query(`SELECT * FROM children WHERE id = $1`, [req.params.id]);
+    if (childResult.rows.length === 0) return res.status(404).json({ error: 'Child not found' });
+    const familyId = childResult.rows[0].family_id;
+
     const result = await pool.query(
       `UPDATE children SET enrollment_status = 'withdrawn', withdrawal_date = $2, updated_at = now()
        WHERE id = $1 RETURNING *`,
       [req.params.id, withdrawal_date || new Date().toISOString().slice(0, 10)]
     );
-    res.json(result.rows[0]);
+
+    const remainingActive = await pool.query(
+      `SELECT COUNT(*) FROM children WHERE family_id = $1 AND enrollment_status = 'active'`,
+      [familyId]
+    );
+    let plansPaused = 0;
+    if (Number(remainingActive.rows[0].count) === 0) {
+      const paused = await pool.query(
+        `UPDATE recurring_plans SET is_active = false, updated_at = now()
+         WHERE family_id = $1 AND is_active = true RETURNING id`,
+        [familyId]
+      );
+      plansPaused = paused.rows.length;
+    }
+
+    res.json({ ...result.rows[0], recurring_plans_paused: plansPaused });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to withdraw child' });

@@ -1347,6 +1347,19 @@
   </div>
 </div>
 
+<!-- ============ UNENROLL CONFIRMATION MODAL (admin only) ============ -->
+<div class="modal-overlay" id="unenroll-modal-overlay">
+  <div class="modal" style="max-width:420px;">
+    <h3>Unenroll <span id="unenroll-target-name">—</span>?</h3>
+    <p class="modal-sub" id="unenroll-modal-sub">This keeps their records but removes them from active lists.</p>
+    <div class="error-banner" id="unenroll-modal-error"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeUnenrollModal()">Cancel</button>
+      <button type="button" class="btn" style="background:var(--error-bg); color:var(--error); flex:1; padding:13px; border-radius:10px; border:none; font-weight:600; cursor:pointer;" id="unenroll-confirm-btn" onclick="confirmUnenroll()">Yes, unenroll</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ NEW INVOICE MODAL ============ -->
 <div class="modal-overlay" id="invoice-modal-overlay">
   <div class="modal" style="max-width:540px;">
@@ -2284,6 +2297,7 @@
                   ${isCheckedIn
                     ? `<button class="btn btn-sm" style="background:var(--error); color:#fff; padding:7px 14px; font-size:13px;" onclick="handleChildCheckOut(${c.id})">Check out</button>`
                     : `<button class="btn btn-sm btn-coral" style="padding:7px 14px; font-size:13px;" onclick="handleChildCheckIn(${c.id})">Check in</button>`}
+                  ${isAdmin && c.enrollment_status === 'active' ? `<button class="invoice-x-btn" title="Unenroll child" onclick="openUnenrollModal('child', ${c.id}, '${escapeHtml(c.first_name + ' ' + c.last_name).replace(/'/g, "\\'")}')">✕</button>` : ''}
                 </td>
               </tr>
             `;
@@ -5030,7 +5044,10 @@
               <td><strong>${escapeHtml(f.primary_parent_name)}</strong></td>
               <td>${escapeHtml(f.primary_parent_email)}</td>
               <td>${escapeHtml(f.primary_parent_phone || '—')}</td>
-              <td><button class="icon-btn" onclick="openFamilyModal(${f.id})">Edit</button></td>
+              <td>
+                <button class="icon-btn" onclick="openFamilyModal(${f.id})">Edit</button>
+                <button class="invoice-x-btn" title="Unenroll family" onclick="openUnenrollModal('family', ${f.id}, '${escapeHtml(f.primary_parent_name).replace(/'/g, "\\'")}')">✕</button>
+              </td>
             </tr>
           `).join('')}
         </tbody>
@@ -6003,6 +6020,62 @@
   function closeInvoiceVoidModal() {
     document.getElementById('invoice-void-modal-overlay').classList.remove('show');
     invoiceVoidTargetId = null;
+  }
+
+  // ---- Unenroll (family or single child) ----
+  let unenrollTarget = null; // { type: 'family' | 'child', id, name }
+
+  function openUnenrollModal(type, id, name) {
+    unenrollTarget = { type, id, name };
+    document.getElementById('unenroll-target-name').textContent = name;
+    document.getElementById('unenroll-modal-sub').textContent = type === 'family'
+      ? 'This withdraws every child in this family and pauses any recurring billing for them. Their records, past invoices, and history are kept — this can be undone from Children and Billing afterward.'
+      : 'This withdraws this child. Their records and history are kept. If this was the only active child in their family, any recurring billing for the family is also paused.';
+    document.getElementById('unenroll-modal-error').classList.remove('show');
+    document.getElementById('unenroll-modal-overlay').classList.add('show');
+  }
+
+  function closeUnenrollModal() {
+    document.getElementById('unenroll-modal-overlay').classList.remove('show');
+    unenrollTarget = null;
+  }
+
+  async function confirmUnenroll() {
+    if (!unenrollTarget) return;
+    const errorBox = document.getElementById('unenroll-modal-error');
+    const btn = document.getElementById('unenroll-confirm-btn');
+    errorBox.classList.remove('show');
+    btn.disabled = true;
+    btn.textContent = 'Unenrolling…';
+
+    try {
+      if (unenrollTarget.type === 'family') {
+        await apiFetch('/families/' + unenrollTarget.id + '/unenroll', { method: 'POST' });
+      } else {
+        await apiFetch('/children/' + unenrollTarget.id + '/withdraw', { method: 'PUT' });
+      }
+      closeUnenrollModal();
+
+      // Refresh whichever views are actually on screen right now — both
+      // Children and Families could be affected by either kind of unenroll
+      // (a family action withdraws children too), so check for each view's
+      // real DOM presence rather than assume which one triggered this.
+      if (document.getElementById('children-table-wrap')) {
+        try { childrenCache = await apiFetch('/children'); renderChildrenTable(); } catch (e) {}
+      }
+      if (document.getElementById('families-table-wrap')) {
+        try { familiesCache = await apiFetch('/families'); renderFamiliesTable(); } catch (e) {}
+      }
+      if (document.getElementById('recurring-plans-wrap')) {
+        try { recurringPlansCache = await apiFetch('/recurring-plans'); renderRecurringPlansTable(); } catch (e) {}
+      }
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Yes, unenroll';
+    }
   }
 
   async function handleVoidInvoice() {
