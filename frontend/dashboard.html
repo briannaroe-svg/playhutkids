@@ -1561,9 +1561,29 @@
       </div>
 
       <div class="field">
+        <label for="recurring-plan-frequency">Billing frequency</label>
+        <select id="recurring-plan-frequency" onchange="toggleRecurringPlanDayField()" style="max-width:160px;">
+          <option value="monthly">Monthly</option>
+          <option value="weekly">Weekly</option>
+        </select>
+      </div>
+
+      <div class="field" id="recurring-plan-monthly-day-wrap">
         <label for="recurring-plan-billing-day">Bill on day of month</label>
-        <input type="number" id="recurring-plan-billing-day" min="1" max="28" required style="max-width:100px;">
+        <input type="number" id="recurring-plan-billing-day" min="1" max="28" style="max-width:100px;">
         <p class="field-hint">Capped at 28 so it's a valid date in every month.</p>
+      </div>
+      <div class="field" id="recurring-plan-weekly-day-wrap" style="display:none;">
+        <label for="recurring-plan-billing-weekday">Bill on day of week</label>
+        <select id="recurring-plan-billing-weekday" style="max-width:160px;">
+          <option value="0">Sunday</option>
+          <option value="1">Monday</option>
+          <option value="2">Tuesday</option>
+          <option value="3">Wednesday</option>
+          <option value="4">Thursday</option>
+          <option value="5">Friday</option>
+          <option value="6">Saturday</option>
+        </select>
       </div>
 
       <div class="field">
@@ -6259,7 +6279,7 @@
                   <strong>${escapeHtml(p.primary_parent_name)}</strong>
                   ${!p.has_card_on_file ? '<div style="font-size:12px; color:var(--error); margin-top:2px;">No card on file</div>' : ''}
                 </td>
-                <td>Day ${p.billing_day} of each month</td>
+                <td>${p.billing_frequency === 'weekly' ? 'Every ' + ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][p.billing_day] : 'Day ' + p.billing_day + ' of each month'}</td>
                 <td>${formatCurrency(total)}</td>
                 <td><span class="badge ${p.is_active ? 'badge-active' : 'badge-staff'}">${p.is_active ? 'Active' : 'Paused'}</span></td>
                 <td>
@@ -6415,7 +6435,12 @@
     if (planId) {
       const p = recurringPlansCache.find(x => x.id === planId);
       document.getElementById('recurring-plan-modal-title').textContent = 'Edit recurring plan';
-      document.getElementById('recurring-plan-billing-day').value = p.billing_day;
+      document.getElementById('recurring-plan-frequency').value = p.billing_frequency || 'monthly';
+      if ((p.billing_frequency || 'monthly') === 'weekly') {
+        document.getElementById('recurring-plan-billing-weekday').value = p.billing_day;
+      } else {
+        document.getElementById('recurring-plan-billing-day').value = p.billing_day;
+      }
       recurringPlanLineItems = p.line_items.map(li => ({ ...li }));
       recurringPlanSelectedFamily = { id: p.family_id, name: p.primary_parent_name };
       document.getElementById('recurring-plan-selected-family').style.display = 'flex';
@@ -6424,7 +6449,9 @@
       document.getElementById('recurring-plan-submit-btn').textContent = 'Save changes';
     } else {
       document.getElementById('recurring-plan-modal-title').textContent = 'New recurring plan';
+      document.getElementById('recurring-plan-frequency').value = 'monthly';
       document.getElementById('recurring-plan-billing-day').value = '1';
+      document.getElementById('recurring-plan-billing-weekday').value = '1';
       recurringPlanLineItems = [];
       recurringPlanSelectedFamily = null;
       document.getElementById('recurring-plan-selected-family').style.display = 'none';
@@ -6432,8 +6459,18 @@
       document.getElementById('recurring-plan-submit-btn').textContent = 'Create plan';
     }
 
+    toggleRecurringPlanDayField();
     renderRecurringPlanLineItems();
     document.getElementById('recurring-plan-modal-overlay').classList.add('show');
+  }
+
+  // Shows the day-of-month input for a monthly plan, or the day-of-week
+  // dropdown for a weekly plan — never both, since billing_day means a
+  // different thing depending on frequency.
+  function toggleRecurringPlanDayField() {
+    const frequency = document.getElementById('recurring-plan-frequency').value;
+    document.getElementById('recurring-plan-monthly-day-wrap').style.display = frequency === 'monthly' ? 'block' : 'none';
+    document.getElementById('recurring-plan-weekly-day-wrap').style.display = frequency === 'weekly' ? 'block' : 'none';
   }
 
   function closeRecurringPlanModal() {
@@ -6525,10 +6562,20 @@
       return;
     }
 
+    const selectedFrequency = document.getElementById('recurring-plan-frequency').value;
+    const dayFieldId = selectedFrequency === 'weekly' ? 'recurring-plan-billing-weekday' : 'recurring-plan-billing-day';
+    const rawDay = document.getElementById(dayFieldId).value;
+    if (rawDay === '') {
+      errorBox.textContent = selectedFrequency === 'weekly' ? 'Pick a day of the week.' : 'Enter a day of the month.';
+      errorBox.classList.add('show');
+      return;
+    }
+
     const payload = {
       family_id: recurringPlanSelectedFamily ? recurringPlanSelectedFamily.id : undefined,
       line_items: recurringPlanLineItems,
-      billing_day: Number(document.getElementById('recurring-plan-billing-day').value),
+      billing_frequency: selectedFrequency,
+      billing_day: Number(rawDay),
     };
 
     btn.disabled = true;

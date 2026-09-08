@@ -7,21 +7,28 @@ const { sendEmail } = require('../utils/email');
 
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
-// POST /recurring-plans/run-due is deliberately NOT behind requireAdmin —
-// it's meant to be called once a day by an external scheduler (Render Cron
-// Job, cron-job.org, etc.) that has no staff login of its own. It's
-// protected instead by a shared secret, RECURRING_BILLING_SECRET, passed as
-// a header — same pattern as BOOTSTRAP_SECRET elsewhere in this app. This
-// route MUST be declared before router.use(requireAdmin) below, or the
-// admin-auth middleware would apply to it too.
-router.post('/run-due', async (req, res) => {
+// POST /recurring-plans/run-due-monthly and /run-due-weekly are deliberately
+// NOT behind requireAdmin — meant to be called by two SEPARATE external
+// scheduler triggers (one daily-checking-for-the-1st-of-month-style, one
+// checking day-of-week), since this app supports both monthly and weekly
+// billing plans on independent schedules. Both share the same secret-header
+// protection as the original single run-due route did. These routes MUST be
+// declared before router.use(requireAdmin) below, or the admin-auth
+// middleware would apply to them too.
+function checkRecurringBillingSecret(req, res) {
   const providedSecret = req.headers['x-recurring-billing-secret'];
   if (!process.env.RECURRING_BILLING_SECRET || providedSecret !== process.env.RECURRING_BILLING_SECRET) {
-    return res.status(401).json({ error: 'Invalid or missing secret' });
+    res.status(401).json({ error: 'Invalid or missing secret' });
+    return false;
   }
+  return true;
+}
+
+router.post('/run-due-monthly', async (req, res) => {
+  if (!checkRecurringBillingSecret(req, res)) return;
 
   const today = new Date();
-  const todayDay = today.getDate();
+  const todayDayOfMonth = today.getDate();
   const runDate = today.toISOString().slice(0, 10);
 
   try {
@@ -29,12 +36,12 @@ router.post('/run-due', async (req, res) => {
       `SELECT rp.*, f.primary_parent_name, f.stripe_customer_id, f.card_brand
        FROM recurring_plans rp
        JOIN families f ON rp.family_id = f.id
-       WHERE rp.is_active = true AND rp.billing_day = $1
+       WHERE rp.is_active = true AND rp.billing_frequency = 'monthly' AND rp.billing_day = $1
          AND NOT EXISTS (
            SELECT 1 FROM recurring_plan_runs
            WHERE recurring_plan_id = rp.id AND run_date = $2
          )`,
-      [todayDay, runDate]
+      [todayDayOfMonth, runDate]
     );
 
     const results = [];
@@ -45,7 +52,39 @@ router.post('/run-due', async (req, res) => {
     res.json({ checked: duePlans.rows.length, results });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to run due recurring plans' });
+    res.status(500).json({ error: 'Failed to run due monthly recurring plans' });
+  }
+});
+
+router.post('/run-due-weekly', async (req, res) => {
+  if (!checkRecurringBillingSecret(req, res)) return;
+
+  const today = new Date();
+  const todayDayOfWeek = today.getDay(); // 0=Sunday .. 6=Saturday, matches JS Date and how billing_day is stored for weekly plans
+  const runDate = today.toISOString().slice(0, 10);
+
+  try {
+    const duePlans = await pool.query(
+      `SELECT rp.*, f.primary_parent_name, f.stripe_customer_id, f.card_brand
+       FROM recurring_plans rp
+       JOIN families f ON rp.family_id = f.id
+       WHERE rp.is_active = true AND rp.billing_frequency = 'weekly' AND rp.billing_day = $1
+         AND NOT EXISTS (
+           SELECT 1 FROM recurring_plan_runs
+           WHERE recurring_plan_id = rp.id AND run_date = $2
+         )`,
+      [todayDayOfWeek, runDate]
+    );
+
+    const results = [];
+    for (const plan of duePlans.rows) {
+      results.push(await runOnePlan(plan, runDate));
+    }
+
+    res.json({ checked: duePlans.rows.length, results });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to run due weekly recurring plans' });
   }
 });
 
@@ -71,19 +110,27 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { family_id, line_items, billing_day } = req.body;
-  if (!family_id || !line_items || !line_items.length || !billing_day) {
+  const { family_id, line_items, billing_day, billing_frequency } = req.body;
+  const frequency = billing_frequency || 'monthly';
+
+  if (!family_id || !line_items || !line_items.length || billing_day === undefined || billing_day === null) {
     return res.status(400).json({ error: 'family_id, line_items, and billing_day are required' });
   }
-  if (billing_day < 1 || billing_day > 28) {
-    return res.status(400).json({ error: 'billing_day must be between 1 and 28' });
+  if (!['monthly', 'weekly'].includes(frequency)) {
+    return res.status(400).json({ error: 'billing_frequency must be "monthly" or "weekly"' });
+  }
+  if (frequency === 'monthly' && (billing_day < 1 || billing_day > 28)) {
+    return res.status(400).json({ error: 'For a monthly plan, billing_day must be between 1 and 28' });
+  }
+  if (frequency === 'weekly' && (billing_day < 0 || billing_day > 6)) {
+    return res.status(400).json({ error: 'For a weekly plan, billing_day must be between 0 (Sunday) and 6 (Saturday)' });
   }
 
   try {
     const result = await pool.query(
-      `INSERT INTO recurring_plans (family_id, line_items, billing_day, created_by)
-       VALUES ($1,$2,$3,$4) RETURNING *`,
-      [family_id, JSON.stringify(line_items), billing_day, req.staff.staff_id]
+      `INSERT INTO recurring_plans (family_id, line_items, billing_day, billing_frequency, created_by)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [family_id, JSON.stringify(line_items), billing_day, frequency, req.staff.staff_id]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -93,16 +140,37 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id(\\d+)', async (req, res) => {
-  const { line_items, billing_day, is_active } = req.body;
+  const { line_items, billing_day, billing_frequency, is_active } = req.body;
   const updates = [];
   const values = [];
   let i = 2;
 
-  if (line_items !== undefined) { updates.push(`line_items = $${i++}`); values.push(JSON.stringify(line_items)); }
-  if (billing_day !== undefined) {
-    if (billing_day < 1 || billing_day > 28) return res.status(400).json({ error: 'billing_day must be between 1 and 28' });
-    updates.push(`billing_day = $${i++}`); values.push(billing_day);
+  // Frequency and day are validated together, since which range is valid
+  // for billing_day depends on billing_frequency — if only one of the two
+  // is being changed, fall back to the plan's CURRENT value for the other
+  // so the validation checks the right range either way.
+  if (billing_day !== undefined || billing_frequency !== undefined) {
+    const current = await pool.query(`SELECT billing_day, billing_frequency FROM recurring_plans WHERE id = $1`, [req.params.id]);
+    if (current.rows.length === 0) return res.status(404).json({ error: 'Recurring plan not found' });
+
+    const effectiveFrequency = billing_frequency !== undefined ? billing_frequency : current.rows[0].billing_frequency;
+    const effectiveDay = billing_day !== undefined ? billing_day : current.rows[0].billing_day;
+
+    if (!['monthly', 'weekly'].includes(effectiveFrequency)) {
+      return res.status(400).json({ error: 'billing_frequency must be "monthly" or "weekly"' });
+    }
+    if (effectiveFrequency === 'monthly' && (effectiveDay < 1 || effectiveDay > 28)) {
+      return res.status(400).json({ error: 'For a monthly plan, billing_day must be between 1 and 28' });
+    }
+    if (effectiveFrequency === 'weekly' && (effectiveDay < 0 || effectiveDay > 6)) {
+      return res.status(400).json({ error: 'For a weekly plan, billing_day must be between 0 (Sunday) and 6 (Saturday)' });
+    }
+
+    if (billing_frequency !== undefined) { updates.push(`billing_frequency = $${i++}`); values.push(billing_frequency); }
+    if (billing_day !== undefined) { updates.push(`billing_day = $${i++}`); values.push(billing_day); }
   }
+
+  if (line_items !== undefined) { updates.push(`line_items = $${i++}`); values.push(JSON.stringify(line_items)); }
   if (is_active !== undefined) { updates.push(`is_active = $${i++}`); values.push(is_active); }
 
   if (updates.length === 0) return res.status(400).json({ error: 'No valid fields provided to update' });
