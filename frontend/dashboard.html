@@ -1222,6 +1222,18 @@
   </div>
 </div>
 
+<!-- ============ FAMILY DETAIL MODAL (admin, read-only) ============ -->
+<div class="modal-overlay" id="family-detail-modal-overlay">
+  <div class="modal" style="max-width:480px; max-height:85vh; overflow-y:auto;">
+    <h3 id="family-detail-name">—</h3>
+    <p class="modal-sub">Household info and every child on this account.</p>
+    <div id="family-detail-body"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-teal" onclick="closeFamilyDetailModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ ALLERGY CONFIRMATION GATE (blocks check-in, no click-outside dismiss) ============ -->
 <div class="allergy-gate-overlay" id="allergy-gate-overlay">
   <div class="allergy-gate-card">
@@ -2981,6 +2993,107 @@
 
   function closeChildDetailModal() {
     document.getElementById('child-detail-modal-overlay').classList.remove('show');
+  }
+
+  // ---- Family detail view (admin, read-only) — mirrors the child detail
+  // modal's structure: household info up top, then every child in this
+  // family listed below, each clickable into their own full detail (which
+  // in turn shows this same household info again, so either starting point
+  // gets you to the same complete picture).
+  async function openFamilyDetailModal(familyId) {
+    document.getElementById('family-detail-name').textContent = 'Loading…';
+    document.getElementById('family-detail-body').innerHTML = `<div class="empty-state-sm"><p>Loading…</p></div>`;
+    document.getElementById('family-detail-modal-overlay').classList.add('show');
+
+    try {
+      const family = await apiFetch('/families/' + familyId);
+      document.getElementById('family-detail-name').textContent = family.primary_parent_name;
+
+      const val = (v) => v ? escapeHtml(v) : '<span class="detail-value empty">None on file</span>';
+      const photoConsentLabel = {
+        social_media_marketing: 'Classroom, private updates, and social media/marketing',
+        private_parent_comms: 'Classroom and private parent updates only',
+        classroom_only: 'Classroom use only',
+        none: 'Does not give permission for photos/videos',
+      }[family.photo_video_consent] || null;
+      const pickupPersons = [family.pickup_person_1, family.pickup_person_2, family.pickup_person_3].filter(Boolean);
+      const emergencyContacts = [family.emergency_contact_1_name_phone, family.emergency_contact_2_name_phone, family.emergency_contact_3_name_phone].filter(Boolean);
+      const activeChildren = (family.children || []).filter(c => c.enrollment_status === 'active');
+      const otherChildren = (family.children || []).filter(c => c.enrollment_status !== 'active');
+
+      document.getElementById('family-detail-body').innerHTML = `
+        <div class="detail-row">
+          <div class="detail-label">Email</div>
+          <div class="detail-value">${val(family.primary_parent_email)}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Phone</div>
+          <div class="detail-value">${val(family.primary_parent_phone)}</div>
+        </div>
+        ${family.secondary_parent_name ? `
+        <div class="detail-row">
+          <div class="detail-label">Secondary parent</div>
+          <div class="detail-value">${val(family.secondary_parent_name)}${family.secondary_parent_phone ? ' — ' + escapeHtml(family.secondary_parent_phone) : ''}</div>
+        </div>` : ''}
+        <div class="detail-row">
+          <div class="detail-label">Mailing address</div>
+          <div class="detail-value">${val(family.mailing_address)}</div>
+        </div>
+
+        <div class="detail-section-title">Household &amp; Emergency Info</div>
+        <div class="detail-row">
+          <div class="detail-label">Physician</div>
+          <div class="detail-value">${val(family.physician_name_phone)}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Emergency contacts</div>
+          <div class="detail-value">${emergencyContacts.length > 0 ? emergencyContacts.map(escapeHtml).join('<br>') : '<span class="detail-value empty">None on file</span>'}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Authorized pick-up persons</div>
+          <div class="detail-value">${pickupPersons.length > 0 ? pickupPersons.map(escapeHtml).join('<br>') : '<span class="detail-value empty">None on file</span>'}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Photo / video consent</div>
+          <div class="detail-value">${val(photoConsentLabel)}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">How they heard about us</div>
+          <div class="detail-value">${val(family.referral_source)}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Benefit eligibility</div>
+          <div class="detail-value">${val(family.benefits_qualifications)}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Additional info</div>
+          <div class="detail-value">${val(family.additional_info)}</div>
+        </div>
+
+        <div class="detail-section-title">Children</div>
+        ${activeChildren.length === 0 && otherChildren.length === 0 ? `
+          <p style="color:#8A9490; font-size:13.5px; margin:6px 0;">No children on file yet.</p>
+        ` : ''}
+        ${[...activeChildren, ...otherChildren].map(c => `
+          <div class="detail-row">
+            <div class="detail-label" style="flex:0 0 auto;">
+              <a href="#" class="child-name-link" onclick="event.preventDefault(); closeFamilyDetailModal(); openChildDetailModal(${c.id});" style="font-weight:600; text-transform:none; letter-spacing:normal; font-size:14.5px;">
+                ${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}
+              </a>
+            </div>
+            <div class="detail-value" style="text-align:right; color:#8A9490;">
+              ${c.enrollment_status === 'active' ? escapeHtml(c.program === 'preschool' ? 'Preschool' : 'Daycare') : 'Withdrawn'}
+            </div>
+          </div>
+        `).join('')}
+      `;
+    } catch (err) {
+      document.getElementById('family-detail-body').innerHTML = `<div class="empty-state-sm"><p>Couldn't load family: ${err.message}</p></div>`;
+    }
+  }
+
+  function closeFamilyDetailModal() {
+    document.getElementById('family-detail-modal-overlay').classList.remove('show');
   }
 
   // ---- Add/Edit Child modal (admin only) ----
@@ -5599,7 +5712,7 @@
           ${familiesCache.map(f => `
             <tr>
               <td>
-                <strong>${escapeHtml(f.primary_parent_name)}</strong>
+                <strong><a href="#" class="child-name-link" onclick="event.preventDefault(); openFamilyDetailModal(${f.id});">${escapeHtml(f.primary_parent_name)}</a></strong>
                 ${!f.has_active_child ? '<span class="badge badge-inactive" style="margin-left:8px;">Unenrolled</span>' : ''}
               </td>
               <td>${escapeHtml(f.primary_parent_email)}</td>
