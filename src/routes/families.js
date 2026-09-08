@@ -18,6 +18,9 @@ const FAMILY_COLUMNS = `
   secondary_parent_name, secondary_parent_email, secondary_parent_phone,
   mailing_address, stripe_customer_id, card_brand, card_last4, card_saved_at,
   created_at, updated_at, is_unenrolled,
+  physician_name_phone, emergency_contact_1_name_phone, emergency_contact_2_name_phone,
+  emergency_contact_3_name_phone, pickup_person_1, pickup_person_2, pickup_person_3,
+  photo_video_consent, referral_source, benefits_qualifications, additional_info,
   (password_hash IS NOT NULL) AS has_portal_access,
   NOT is_unenrolled AS has_active_child
 `;

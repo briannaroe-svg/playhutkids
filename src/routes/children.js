@@ -21,16 +21,6 @@ router.get('/rooms', requireAuth, async (req, res) => {
 
 // GET /children/upcoming-birthdays?days=14 — active children whose birthday
 // (month/day, regardless of birth year) falls within the next N days, for
-// the Home page. Computed entirely from date_of_birth — no separate table,
-// since a birthday is fully derivable from data that already exists.
-// Implementation: for each child, compute this year's occurrence of their
-// birthday (swap in the current year, month, day). If that date already
-// passed, use next year's occurrence instead. Then just check whether that
-// resulting date falls within [today, today + days] — correctly handles the
-// year-end wraparound (e.g. today is Dec 28, window includes a Jan 3
-// birthday) without fragile day-of-year math.
-// GET /children/upcoming-birthdays?days=14 — active children whose birthday
-// (month/day, regardless of birth year) falls within the next N days, for
 // the Home page. The "next occurrence" math is done here in JS rather than
 // in SQL — computing "swap in this year, or next year if it already passed"
 // entirely in Postgres date arithmetic gets fragile fast (leap-year Feb 29
@@ -111,7 +101,10 @@ router.get('/', requireAuth, async (req, res) => {
       : `c.id, c.first_name, c.last_name, c.date_of_birth, c.program, c.room, c.enrollment_status,
          c.allergies, c.medical_notes, c.emergency_contact_name, c.emergency_contact_phone,
          c.potty_trained, c.sunscreen_outdoor_play_consent, c.field_trip_consent,
-         c.bathroom_assistance_consent, c.immunization_status, c.child_interests_personality`;
+         c.bathroom_assistance_consent, c.immunization_status, c.child_interests_personality,
+         c.daycare_enrollment_option, c.daycare_schedule_days, c.daycare_attendance_type,
+         c.daycare_dropoff_time, c.daycare_pickup_time, c.preschool_addon_schedule,
+         c.infant_feeding_plan, c.infant_care_authorization_consent`;
     const query = status
       ? `SELECT ${columns} FROM children c WHERE c.enrollment_status = $1 ORDER BY c.room, c.last_name`
       : `SELECT ${columns} FROM children c ORDER BY c.room, c.last_name`;

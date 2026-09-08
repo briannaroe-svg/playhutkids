@@ -383,6 +383,10 @@
   .detail-row .detail-value { flex: 1; font-size: 14.5px; color: var(--charcoal); }
   .detail-value.empty { color: #ADB8B4; font-style: italic; }
   .detail-alert { background: var(--error-bg); color: var(--error); border-radius: 8px; padding: 10px 14px; font-size: 13.5px; font-weight: 500; margin-bottom: 4px; }
+  .detail-section-title {
+    font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+    color: var(--wood); margin: 16px 0 4px; padding-top: 10px; border-top: 1.5px solid var(--sage-light);
+  }
 
   /* ---------- Allergy confirmation gate (blocks check-in) ---------- */
   .allergy-gate-overlay {
@@ -1205,12 +1209,13 @@
   </div>
 </div>
 
-<!-- ============ CHILD DETAIL MODAL (staff, read-only) ============ -->
+<!-- ============ CHILD & FAMILY DETAIL MODAL (everyone — admin sees the same view, no separate admin-only version) ============ -->
 <div class="modal-overlay" id="child-detail-modal-overlay">
-  <div class="modal" style="max-width:460px;">
+  <div class="modal" style="max-width:480px; max-height:85vh; overflow-y:auto;">
     <h3 id="child-detail-name">—</h3>
     <p class="modal-sub" id="child-detail-program">—</p>
     <div id="child-detail-body"></div>
+    <div id="child-detail-family-section"></div>
     <div class="modal-actions">
       <button type="button" class="btn btn-teal" onclick="closeChildDetailModal()">Close</button>
     </div>
@@ -2433,7 +2438,7 @@
 
             return `
               <tr>
-                <td><strong>${isAdmin ? '' : `<a href="#" class="child-name-link" onclick="event.preventDefault(); openChildDetailModal(${c.id});">`}${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}${isAdmin ? '' : '</a>'}</strong></td>
+                <td><strong><a href="#" class="child-name-link" onclick="event.preventDefault(); openChildDetailModal(${c.id});">${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</a></strong></td>
                 <td>${escapeHtml(c.program)}</td>
                 <td>${c.room ? escapeHtml(c.room) : '<span style="color:#8A9490;">Unassigned</span>'}</td>
                 <td>${statusBadge}</td>
@@ -2810,7 +2815,7 @@
   }
 
   // ---- Child detail modal (staff, read-only — allergy/medical/emergency info only) ----
-  function openChildDetailModal(childId) {
+  async function openChildDetailModal(childId) {
     const c = childrenCache.find(x => x.id === childId);
     if (!c) return;
 
@@ -2821,8 +2826,10 @@
     const hasAllergies = hasRealAllergy(c.allergies);
     const yesNo = (v) => v === true ? 'Yes' : v === false ? 'No' : 'Not on file';
     const immunizationLabel = { records_provided: 'Records on file', exemption_on_file: 'Exemption on file' }[c.immunization_status] || 'Not yet provided';
+    const enrollmentOptionLabel = { daycare_only: 'Daycare Only', daycare_plus_preschool: 'Daycare + Preschool Add-On', after_school_care: 'After-School Care' }[c.daycare_enrollment_option] || null;
+    const attendanceTypeLabel = { full_time: 'Full Time', part_time: 'Part Time' }[c.daycare_attendance_type] || null;
 
-    document.getElementById('child-detail-body').innerHTML = `
+    const childBodyHtml = `
       ${hasAllergies ? `<div class="detail-alert">⚠ Allergies: ${escapeHtml(c.allergies)}</div>` : ''}
       <div class="detail-row">
         <div class="detail-label">Date of birth</div>
@@ -2869,7 +2876,105 @@
         <div class="detail-label">Interests / personality</div>
         <div class="detail-value">${val(c.child_interests_personality)}</div>
       </div>
+      ${enrollmentOptionLabel ? `
+      <div class="detail-section-title">Daycare Details</div>
+      <div class="detail-row">
+        <div class="detail-label">Enrollment option</div>
+        <div class="detail-value">${enrollmentOptionLabel}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Days needed</div>
+        <div class="detail-value">${val(c.daycare_schedule_days)}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Attendance type</div>
+        <div class="detail-value">${val(attendanceTypeLabel)}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Drop-off / pick-up (est.)</div>
+        <div class="detail-value">${c.daycare_dropoff_time || c.daycare_pickup_time ? `${c.daycare_dropoff_time ? formatShiftTime(c.daycare_dropoff_time) : '—'} to ${c.daycare_pickup_time ? formatShiftTime(c.daycare_pickup_time) : '—'}` : val(null)}</div>
+      </div>
+      ${c.preschool_addon_schedule ? `
+      <div class="detail-row">
+        <div class="detail-label">Preschool add-on schedule</div>
+        <div class="detail-value">${val(c.preschool_addon_schedule)}</div>
+      </div>` : ''}
+      <div class="detail-row">
+        <div class="detail-label">Infant feeding plan</div>
+        <div class="detail-value">${val(c.infant_feeding_plan)}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Infant/personal care authorization</div>
+        <div class="detail-value">${yesNo(c.infant_care_authorization_consent)}</div>
+      </div>
+      ` : ''}
     `;
+
+    document.getElementById('child-detail-body').innerHTML = childBodyHtml;
+
+    // Household/family info lives on the family record, not the child — fetch
+    // it fresh so admin sees the full picture (physician, emergency contacts,
+    // pickup persons, photo consent, etc.) in the same place, not just what's
+    // on the child itself. Staff don't have access to Families at all, so
+    // this section is skipped entirely for them rather than showing a
+    // permission error.
+    const familySection = document.getElementById('child-detail-family-section');
+    const isAdminUser = currentUser.access_level === 'admin';
+    if (familySection && isAdminUser) {
+      familySection.innerHTML = `<div class="empty-state-sm"><p>Loading household info…</p></div>`;
+      try {
+        const family = await apiFetch('/families/' + c.family_id);
+        const photoConsentLabel = {
+          social_media_marketing: 'Classroom, private updates, and social media/marketing',
+          private_parent_comms: 'Classroom and private parent updates only',
+          classroom_only: 'Classroom use only',
+          none: 'Does not give permission for photos/videos',
+        }[family.photo_video_consent] || null;
+
+        const pickupPersons = [family.pickup_person_1, family.pickup_person_2, family.pickup_person_3].filter(Boolean);
+        const emergencyContacts = [family.emergency_contact_1_name_phone, family.emergency_contact_2_name_phone, family.emergency_contact_3_name_phone].filter(Boolean);
+
+        familySection.innerHTML = `
+          <div class="detail-section-title">Household &amp; Emergency Info</div>
+          <div class="detail-row">
+            <div class="detail-label">Parent / guardian</div>
+            <div class="detail-value">${val(family.primary_parent_name)}${family.secondary_parent_name ? ' &amp; ' + escapeHtml(family.secondary_parent_name) : ''}</div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-label">Physician</div>
+            <div class="detail-value">${val(family.physician_name_phone)}</div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-label">Emergency contacts</div>
+            <div class="detail-value">${emergencyContacts.length > 0 ? emergencyContacts.map(escapeHtml).join('<br>') : '<span class="detail-value empty">None on file</span>'}</div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-label">Authorized pick-up persons</div>
+            <div class="detail-value">${pickupPersons.length > 0 ? pickupPersons.map(escapeHtml).join('<br>') : '<span class="detail-value empty">None on file</span>'}</div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-label">Photo / video consent</div>
+            <div class="detail-value">${val(photoConsentLabel)}</div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-label">How they heard about us</div>
+            <div class="detail-value">${val(family.referral_source)}</div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-label">Benefit eligibility</div>
+            <div class="detail-value">${val(family.benefits_qualifications)}</div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-label">Additional info</div>
+            <div class="detail-value">${val(family.additional_info)}</div>
+          </div>
+        `;
+      } catch (err) {
+        familySection.innerHTML = `<div class="empty-state-sm"><p>Couldn't load household info: ${err.message}</p></div>`;
+      }
+    } else if (familySection) {
+      familySection.innerHTML = ''; // staff: no family section at all, not even a placeholder
+    }
 
     document.getElementById('child-detail-modal-overlay').classList.add('show');
   }
@@ -5254,7 +5359,7 @@
     const today = localDateString();
     wrap.innerHTML = `
       <table>
-        <thead><tr><th>Child</th><th>Room</th><th></th></tr></thead>
+        <thead><tr><th>Child</th><th>Room</th><th>Date</th></tr></thead>
         <tbody>
           ${birthdays.map(b => {
             const isToday = b.next_occurrence === today;
@@ -5263,7 +5368,7 @@
               <tr>
                 <td><strong>${escapeHtml(b.first_name)} ${escapeHtml(b.last_name)}</strong></td>
                 <td>${b.room ? escapeHtml(b.room) : '—'}</td>
-                <td><span class="badge ${isToday ? 'badge-active' : 'badge-staff'}">${isToday ? 'Today — turning ' + b.turning_age : dateLabel + ' — turning ' + b.turning_age}</span></td>
+                <td>${isToday ? `<strong style="color:var(--success);">Today</strong>` : dateLabel} — turning ${b.turning_age}</td>
               </tr>
             `;
           }).join('')}
