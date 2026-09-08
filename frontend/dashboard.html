@@ -5048,6 +5048,20 @@
     const canvas = document.getElementById('reg-sig-canvas');
     const ctx = canvas.getContext('2d');
     const rect = canvas.getBoundingClientRect();
+
+    // The modal switches from display:none to display:flex right before this
+    // runs — on some browsers/timing, a single requestAnimationFrame isn't
+    // always enough for layout to have settled yet, which left the canvas
+    // reading zero width/height here. Drawing onto a 0×0 canvas produces
+    // nothing visible even though every event handler still fires normally,
+    // which is exactly the "can't draw at all, no error" symptom. If that
+    // happens, retry shortly rather than silently leaving the canvas broken
+    // for the rest of the time the modal is open.
+    if (rect.width === 0 || rect.height === 0) {
+      setTimeout(initRegSignaturePad, 50);
+      return;
+    }
+
     canvas.width = rect.width;
     canvas.height = rect.height;
     ctx.strokeStyle = '#3A2E22';
@@ -5117,40 +5131,48 @@
       return;
     }
 
-    const regBenefits = [];
-    if (document.getElementById('reg-benefit-multi-student').checked) regBenefits.push('Multi-student');
-    if (document.getElementById('reg-benefit-military').checked) regBenefits.push('Military');
-    if (document.getElementById('reg-benefit-first-responder').checked) regBenefits.push('Nurse & First Responder');
-
-    const payload = {
-      primary_parent_name: document.getElementById('reg-primary-name').value.trim(),
-      primary_parent_email: document.getElementById('reg-primary-email').value.trim(),
-      primary_parent_phone: document.getElementById('reg-primary-phone').value.trim() || null,
-      secondary_parent_name: document.getElementById('reg-secondary-name').value.trim() || null,
-      secondary_parent_email: document.getElementById('reg-secondary-email').value.trim() || null,
-      secondary_parent_phone: document.getElementById('reg-secondary-phone').value.trim() || null,
-      mailing_address: document.getElementById('reg-address').value.trim() || null,
-      physician_name_phone: document.getElementById('reg-physician').value.trim() || null,
-      emergency_contact_1_name_phone: document.getElementById('reg-emergency-1').value.trim() || null,
-      emergency_contact_2_name_phone: document.getElementById('reg-emergency-2').value.trim() || null,
-      emergency_contact_3_name_phone: document.getElementById('reg-emergency-3').value.trim() || null,
-      pickup_person_1: document.getElementById('reg-pickup-1').value.trim() || null,
-      pickup_person_2: document.getElementById('reg-pickup-2').value.trim() || null,
-      pickup_person_3: document.getElementById('reg-pickup-3').value.trim() || null,
-      photo_video_consent: document.getElementById('reg-photo-consent').value,
-      referral_source: document.getElementById('reg-referral-source').value || null,
-      benefits_qualifications: regBenefits.length > 0 ? regBenefits.join(', ') : null,
-      additional_info: document.getElementById('reg-additional-info').value.trim() || null,
-      children: collectRegChildBlocks(),
-      signer_name: signerName,
-      signature_data: regModalSignaturePad.canvas.toDataURL('image/png'),
-      stripe_customer_id: regSavedStripeCustomerId,
-      setup_intent_id: regSavedSetupIntentId,
-    };
-
+    // Everything from here on — including building the payload itself, not
+    // just the network call — is wrapped in one try/catch. Building the
+    // payload calls collectRegChildBlocks() and reads ~20 form fields
+    // directly; if any of that throws (a null element, a canvas that isn't
+    // actually ready, etc.), the previous version of this handler had no
+    // catch around it, so the whole submit silently died right there — no
+    // error shown, button stuck enabled, looking exactly like "nothing
+    // happens when I click submit."
     btn.disabled = true;
     btn.textContent = 'Completing…';
     try {
+      const regBenefits = [];
+      if (document.getElementById('reg-benefit-multi-student').checked) regBenefits.push('Multi-student');
+      if (document.getElementById('reg-benefit-military').checked) regBenefits.push('Military');
+      if (document.getElementById('reg-benefit-first-responder').checked) regBenefits.push('Nurse & First Responder');
+
+      const payload = {
+        primary_parent_name: document.getElementById('reg-primary-name').value.trim(),
+        primary_parent_email: document.getElementById('reg-primary-email').value.trim(),
+        primary_parent_phone: document.getElementById('reg-primary-phone').value.trim() || null,
+        secondary_parent_name: document.getElementById('reg-secondary-name').value.trim() || null,
+        secondary_parent_email: document.getElementById('reg-secondary-email').value.trim() || null,
+        secondary_parent_phone: document.getElementById('reg-secondary-phone').value.trim() || null,
+        mailing_address: document.getElementById('reg-address').value.trim() || null,
+        physician_name_phone: document.getElementById('reg-physician').value.trim() || null,
+        emergency_contact_1_name_phone: document.getElementById('reg-emergency-1').value.trim() || null,
+        emergency_contact_2_name_phone: document.getElementById('reg-emergency-2').value.trim() || null,
+        emergency_contact_3_name_phone: document.getElementById('reg-emergency-3').value.trim() || null,
+        pickup_person_1: document.getElementById('reg-pickup-1').value.trim() || null,
+        pickup_person_2: document.getElementById('reg-pickup-2').value.trim() || null,
+        pickup_person_3: document.getElementById('reg-pickup-3').value.trim() || null,
+        photo_video_consent: document.getElementById('reg-photo-consent').value,
+        referral_source: document.getElementById('reg-referral-source').value || null,
+        benefits_qualifications: regBenefits.length > 0 ? regBenefits.join(', ') : null,
+        additional_info: document.getElementById('reg-additional-info').value.trim() || null,
+        children: collectRegChildBlocks(),
+        signer_name: signerName,
+        signature_data: regModalSignaturePad.canvas.toDataURL('image/png'),
+        stripe_customer_id: regSavedStripeCustomerId,
+        setup_intent_id: regSavedSetupIntentId,
+      };
+
       const result = await apiFetch('/registrations/self-register', { method: 'POST', body: JSON.stringify(payload) });
       closeRegistrationModal();
       registrationsCache = await apiFetch('/registrations');
@@ -5158,7 +5180,8 @@
       const firstCompleted = result.registrations[0];
       showPortalQrScreen(firstCompleted, signerName, { email: result.portal_email, password: result.portal_password });
     } catch (err) {
-      errorBox.textContent = err.message;
+      console.error('Registration submit failed:', err);
+      errorBox.textContent = err.message || 'Something went wrong building the registration — please check every field and try again.';
       errorBox.classList.add('show');
     } finally {
       btn.disabled = false;
