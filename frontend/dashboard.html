@@ -140,6 +140,7 @@
      catalog — th already has a background color set above, which sticky
      positioning needs to avoid content showing through underneath it. */
   #services-table-wrap th { position: sticky; top: 0; z-index: 1; }
+  #children-table-wrap th, #families-table-wrap th { position: sticky; top: 0; z-index: 1; }
   tr:last-child td { border-bottom: none; }
 
   .badge { display: inline-block; padding: 3px 10px; border-radius: 100px; font-size: 11.5px; font-weight: 600; }
@@ -2213,6 +2214,7 @@
   // Staff: full roster too (everyone floats across rooms for now), check-in/out buttons.
   // ============================================================
   let childrenCache = [];
+  let childSearchTerm = '';
   let attendanceToday = []; // keyed by matching child_id, from GET /attendance/today
 
   async function renderChildrenView() {
@@ -2227,10 +2229,18 @@
         </div>
         ${isAdmin ? '<button class="btn btn-coral" onclick="openChildModal()">+ Add child</button>' : ''}
       </div>
-      <div class="card" id="children-table-wrap">
+      <div class="field" style="max-width:320px; margin-bottom:18px;">
+        <input type="text" id="child-search-input" placeholder="Search by child's name…" value="${escapeHtml(childSearchTerm)}">
+      </div>
+      <div class="card" id="children-table-wrap" style="max-height:75vh; overflow-y:auto;">
         <div class="empty-state"><p>Loading…</p></div>
       </div>
     `;
+
+    document.getElementById('child-search-input').addEventListener('input', debounce((e) => {
+      childSearchTerm = e.target.value;
+      renderChildrenTable();
+    }, 250));
 
     try {
       const [children, attendance] = await Promise.all([
@@ -2254,6 +2264,11 @@
     const isAdmin = currentUser.access_level === 'admin';
     const wrap = document.getElementById('children-table-wrap');
 
+    const term = childSearchTerm.trim().toLowerCase();
+    const filtered = term
+      ? childrenCache.filter(c => (c.first_name + ' ' + c.last_name).toLowerCase().includes(term))
+      : childrenCache;
+
     if (childrenCache.length === 0) {
       wrap.innerHTML = `
         <div class="empty-state">
@@ -2262,6 +2277,10 @@
           ${isAdmin ? '<button class="btn btn-coral" onclick="openChildModal()">+ Add child</button>' : ''}
         </div>
       `;
+      return;
+    }
+    if (filtered.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>No children match that search</h3><p>Try a different name.</p></div>`;
       return;
     }
 
@@ -2274,7 +2293,7 @@
           </tr>
         </thead>
         <tbody>
-          ${childrenCache.map(c => {
+          ${filtered.map(c => {
             const att = attendanceFor(c.id);
             const isCheckedIn = att && att.checked_in_at && !att.checked_out_at;
             const wasCheckedOut = att && att.checked_out_at;
@@ -4996,7 +5015,7 @@
       <div class="field" style="max-width:320px; margin-bottom:18px;">
         <input type="text" id="family-search-input" placeholder="Search by parent name or email…" value="${escapeHtml(familySearchTerm)}">
       </div>
-      <div class="card" id="families-table-wrap">
+      <div class="card" id="families-table-wrap" style="max-height:75vh; overflow-y:auto;">
         <div class="empty-state"><p>Loading…</p></div>
       </div>
     `;
