@@ -141,9 +141,9 @@ router.put('/:id(\\d+)', requireAdmin, async (req, res) => {
 // PUT /children/:id/withdraw — admin only
 // PUT /children/:id/withdraw — marks one child withdrawn. If this was the
 // family's ONLY remaining active child, also pauses every active recurring
-// plan for that family — unenrolling a family's last child effectively
-// unenrolls the household, and an active plan left behind would otherwise
-// keep billing them with nobody enrolled.
+// plan for that family AND marks the family itself is_unenrolled — see
+// families.js's own /unenroll route for why that flag exists as a direct,
+// independent field rather than something derived purely from children.
 router.put('/:id(\\d+)/withdraw', requireAdmin, async (req, res) => {
   const { withdrawal_date } = req.body;
   try {
@@ -169,6 +169,10 @@ router.put('/:id(\\d+)/withdraw', requireAdmin, async (req, res) => {
         [familyId]
       );
       plansPaused = paused.rows.length;
+      await pool.query(
+        `UPDATE families SET is_unenrolled = true, unenrolled_at = now(), updated_at = now() WHERE id = $1`,
+        [familyId]
+      );
     }
 
     res.json({ ...result.rows[0], recurring_plans_paused: plansPaused });

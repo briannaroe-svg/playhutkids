@@ -17,26 +17,20 @@ const FAMILY_COLUMNS = `
   id, primary_parent_name, primary_parent_email, primary_parent_phone,
   secondary_parent_name, secondary_parent_email, secondary_parent_phone,
   mailing_address, stripe_customer_id, card_brand, card_last4, card_saved_at,
-  created_at, updated_at,
+  created_at, updated_at, is_unenrolled,
   (password_hash IS NOT NULL) AS has_portal_access,
-  (
-    NOT EXISTS (SELECT 1 FROM children c WHERE c.family_id = families.id)
-    OR EXISTS (SELECT 1 FROM children c WHERE c.family_id = families.id AND c.enrollment_status = 'active')
-  ) AS has_active_child
+  NOT is_unenrolled AS has_active_child
 `;
 
-// A family is treated as "unenrolled" (hidden by default) only when it has
-// AT LEAST ONE child AND every one of them is withdrawn — NOT when it simply
-// has zero children yet (e.g. a family just created via + Add family before
-// any child has been added). The filter clause below is written the same
-// way for that reason.
-const ACTIVE_OR_NO_CHILDREN_FILTER = `
-  NOT EXISTS (
-    SELECT 1 FROM children c WHERE c.family_id = families.id
-  ) OR EXISTS (
-    SELECT 1 FROM children c WHERE c.family_id = families.id AND c.enrollment_status = 'active'
-  )
-`;
+// A family is hidden from the default view whenever is_unenrolled is true —
+// a direct flag on the family itself, not derived from its children's
+// statuses. This matters for a family with ZERO children (e.g. created but
+// no child added yet, or a test record): under a purely children-derived
+// rule, such a family could never be marked unenrolled at all, since there's
+// no child to withdraw. Unenrolling still withdraws any active children and
+// pauses recurring plans as a side effect — see /unenroll below — but
+// whether the family itself counts as unenrolled no longer depends on that.
+const ACTIVE_FAMILY_FILTER = `NOT is_unenrolled`;
 
 router.get('/search', async (req, res) => {
   const { q, include_unenrolled } = req.query;
@@ -44,7 +38,7 @@ router.get('/search', async (req, res) => {
     const result = await pool.query(
       `SELECT ${FAMILY_COLUMNS} FROM families
        WHERE (primary_parent_name ILIKE $1 OR primary_parent_email ILIKE $1)
-         ${include_unenrolled === 'true' ? '' : `AND (${ACTIVE_OR_NO_CHILDREN_FILTER})`}`,
+         ${include_unenrolled === 'true' ? '' : `AND ${ACTIVE_FAMILY_FILTER}`}`,
       [`%${q || ''}%`]
     );
     res.json(result.rows);
@@ -59,7 +53,7 @@ router.get('/', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT ${FAMILY_COLUMNS} FROM families
-       ${include_unenrolled === 'true' ? '' : `WHERE (${ACTIVE_OR_NO_CHILDREN_FILTER})`}
+       ${include_unenrolled === 'true' ? '' : `WHERE ${ACTIVE_FAMILY_FILTER}`}
        ORDER BY primary_parent_name`
     );
     res.json(result.rows);
@@ -312,6 +306,11 @@ router.post('/:id(\\d+)/unenroll', async (req, res) => {
   try {
     const familyResult = await pool.query(`SELECT * FROM families WHERE id = $1`, [req.params.id]);
     if (familyResult.rows.length === 0) return res.status(404).json({ error: 'Family not found' });
+
+    await pool.query(
+      `UPDATE families SET is_unenrolled = true, unenrolled_at = now(), updated_at = now() WHERE id = $1`,
+      [req.params.id]
+    );
 
     const withdrawnChildren = await pool.query(
       `UPDATE children SET enrollment_status = 'withdrawn', withdrawal_date = CURRENT_DATE, updated_at = now()
