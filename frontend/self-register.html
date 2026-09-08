@@ -171,6 +171,69 @@
           </div>
         </div>
 
+        <div class="section-title">Household &amp; Emergency Info</div>
+        <div class="field">
+          <label for="physician-name-phone">Physician name &amp; phone</label>
+          <input type="text" id="physician-name-phone" placeholder="Dr. Smith, (208) 555-0100">
+        </div>
+        <div class="field">
+          <label for="emergency-contact-1">Emergency contact #1</label>
+          <input type="text" id="emergency-contact-1" required placeholder="Name and phone number">
+        </div>
+        <div class="field">
+          <label for="emergency-contact-2">Emergency contact #2 <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+          <input type="text" id="emergency-contact-2" placeholder="Name and phone number">
+        </div>
+        <div class="field">
+          <label for="emergency-contact-3">Emergency contact #3 <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+          <input type="text" id="emergency-contact-3" placeholder="Name and phone number">
+        </div>
+        <p class="field-hint" style="margin:16px 0 8px;">Authorized pick-up persons — anyone besides parents/guardians who may pick up your child. ID is required at pickup for anyone listed here.</p>
+        <div class="field">
+          <label for="pickup-person-1">Authorized pick-up person #1 <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+          <input type="text" id="pickup-person-1" placeholder="Name and phone number">
+        </div>
+        <div class="field">
+          <label for="pickup-person-2">Authorized pick-up person #2 <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+          <input type="text" id="pickup-person-2" placeholder="Name and phone number">
+        </div>
+        <div class="field">
+          <label for="pickup-person-3">Authorized pick-up person #3 <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+          <input type="text" id="pickup-person-3" placeholder="Name and phone number">
+        </div>
+        <div class="field">
+          <label for="photo-video-consent">Photo/video consent</label>
+          <select id="photo-video-consent">
+            <option value="social_media_marketing">Yes — classroom use, private parent updates, and social media/marketing</option>
+            <option value="private_parent_comms">Classroom use and private parent updates only (no public social media)</option>
+            <option value="classroom_only">Classroom use only</option>
+            <option value="none">I do not give permission for photos/videos</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="referral-source">How did you hear about us? <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+          <select id="referral-source">
+            <option value="">Prefer not to say</option>
+            <option value="Website">Website</option>
+            <option value="Facebook">Facebook</option>
+            <option value="Instagram">Instagram</option>
+            <option value="Referral">Referral</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Do any of these apply to you? <span style="font-weight:400; color:#8A9490;">(optional — for discount eligibility)</span></label>
+          <div style="display:flex; gap:16px; flex-wrap:wrap; padding-top:4px;">
+            <label style="display:flex; align-items:center; gap:6px; font-weight:400; font-size:14px;"><input type="checkbox" id="benefit-multi-student" style="width:auto;"> Multi-student</label>
+            <label style="display:flex; align-items:center; gap:6px; font-weight:400; font-size:14px;"><input type="checkbox" id="benefit-military" style="width:auto;"> Military</label>
+            <label style="display:flex; align-items:center; gap:6px; font-weight:400; font-size:14px;"><input type="checkbox" id="benefit-first-responder" style="width:auto;"> Nurse &amp; First Responder</label>
+          </div>
+        </div>
+        <div class="field">
+          <label for="additional-info">Anything we should know? <span style="font-weight:400; color:#8A9490;">(optional — behavior, routines, special needs, etc.)</span></label>
+          <input type="text" id="additional-info">
+        </div>
+
         <div class="section-title">Children</div>
         <div id="children-container"></div>
         <button type="button" class="clear-link" style="margin-bottom:20px;" onclick="addChildBlock()">+ Add another child</button>
@@ -269,6 +332,49 @@
         </div>
       </div>
       <div class="field">
+        <label>Potty trained?</label>
+        <select id="child-${id}-potty-trained">
+          <option value="">Not sure / N/A yet</option>
+          <option value="true">Yes</option>
+          <option value="false">Not yet</option>
+        </select>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="child-${id}-sunscreen">Sunscreen &amp; outdoor play</label>
+          <select id="child-${id}-sunscreen">
+            <option value="true">Yes — outdoor play and sunscreen application OK</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="child-${id}-field-trips">Field trips / walks</label>
+          <select id="child-${id}-field-trips">
+            <option value="true">Yes, permission given</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="child-${id}-bathroom-assist">Bathroom assistance consent</label>
+        <select id="child-${id}-bathroom-assist">
+          <option value="true">Yes — staff may assist with bathroom needs as necessary</option>
+          <option value="false">No</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="child-${id}-immunization">Immunization record <span style="font-weight:400; color:#8A9490;">(Idaho law requires this on file)</span></label>
+        <select id="child-${id}-immunization">
+          <option value="">Will provide separately / not yet uploaded</option>
+          <option value="records_provided">I'll provide current immunization records</option>
+          <option value="exemption_on_file">I have a valid Idaho Immunization Exemption Form</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="child-${id}-interests">Child's interests / personality <span style="font-weight:400; color:#8A9490;">(optional — favorite activities, what comforts them)</span></label>
+        <input type="text" id="child-${id}-interests">
+      </div>
+      <div class="field">
         <label>Services <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
         <div id="child-${id}-services"></div>
         <button type="button" class="clear-link" onclick="addChildServiceRow(${id})">+ Add a service</button>
@@ -298,6 +404,7 @@
     const blocks = document.querySelectorAll('.child-block');
     return Array.from(blocks).map(block => {
       const id = block.id.replace('child-block-', '');
+      const pottyVal = document.getElementById(`child-${id}-potty-trained`).value;
       return {
         first_name: document.getElementById(`child-${id}-first-name`).value.trim(),
         last_name: document.getElementById(`child-${id}-last-name`).value.trim(),
@@ -307,6 +414,12 @@
         medical_notes: document.getElementById(`child-${id}-medical-notes`).value.trim() || null,
         emergency_contact_name: document.getElementById(`child-${id}-emergency-name`).value.trim(),
         emergency_contact_phone: document.getElementById(`child-${id}-emergency-phone`).value.trim(),
+        potty_trained: pottyVal === '' ? null : pottyVal === 'true',
+        sunscreen_outdoor_play_consent: document.getElementById(`child-${id}-sunscreen`).value === 'true',
+        field_trip_consent: document.getElementById(`child-${id}-field-trips`).value === 'true',
+        bathroom_assistance_consent: document.getElementById(`child-${id}-bathroom-assist`).value === 'true',
+        immunization_status: document.getElementById(`child-${id}-immunization`).value || null,
+        child_interests_personality: document.getElementById(`child-${id}-interests`).value.trim() || null,
         services: collectChildServices(id),
       };
     });
@@ -538,6 +651,11 @@
       return;
     }
 
+    const benefits = [];
+    if (document.getElementById('benefit-multi-student').checked) benefits.push('Multi-student');
+    if (document.getElementById('benefit-military').checked) benefits.push('Military');
+    if (document.getElementById('benefit-first-responder').checked) benefits.push('Nurse & First Responder');
+
     const payload = {
       primary_parent_name: document.getElementById('parent-name').value.trim(),
       primary_parent_email: document.getElementById('parent-email').value.trim(),
@@ -545,6 +663,17 @@
       secondary_parent_name: document.getElementById('secondary-name').value.trim() || null,
       secondary_parent_phone: document.getElementById('secondary-phone').value.trim() || null,
       mailing_address: document.getElementById('mailing-address').value.trim() || null,
+      physician_name_phone: document.getElementById('physician-name-phone').value.trim() || null,
+      emergency_contact_1_name_phone: document.getElementById('emergency-contact-1').value.trim() || null,
+      emergency_contact_2_name_phone: document.getElementById('emergency-contact-2').value.trim() || null,
+      emergency_contact_3_name_phone: document.getElementById('emergency-contact-3').value.trim() || null,
+      pickup_person_1: document.getElementById('pickup-person-1').value.trim() || null,
+      pickup_person_2: document.getElementById('pickup-person-2').value.trim() || null,
+      pickup_person_3: document.getElementById('pickup-person-3').value.trim() || null,
+      photo_video_consent: document.getElementById('photo-video-consent').value,
+      referral_source: document.getElementById('referral-source').value || null,
+      benefits_qualifications: benefits.length > 0 ? benefits.join(', ') : null,
+      additional_info: document.getElementById('additional-info').value.trim() || null,
       children: collectChildBlocks(),
       signer_name: document.getElementById('signer-name').value.trim(),
       signature_data: signaturePad.canvas.toDataURL('image/png'),

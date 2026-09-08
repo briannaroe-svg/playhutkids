@@ -784,6 +784,68 @@
         <input type="text" id="reg-address">
       </div>
 
+      <p class="reg-section-title">Household &amp; Emergency Info</p>
+      <div class="field">
+        <label for="reg-physician">Physician name &amp; phone</label>
+        <input type="text" id="reg-physician" placeholder="Dr. Smith, (208) 555-0100">
+      </div>
+      <div class="field">
+        <label for="reg-emergency-1">Emergency contact #1</label>
+        <input type="text" id="reg-emergency-1" required placeholder="Name and phone number">
+      </div>
+      <div class="field">
+        <label for="reg-emergency-2">Emergency contact #2 <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="reg-emergency-2" placeholder="Name and phone number">
+      </div>
+      <div class="field">
+        <label for="reg-emergency-3">Emergency contact #3 <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="reg-emergency-3" placeholder="Name and phone number">
+      </div>
+      <div class="field">
+        <label for="reg-pickup-1">Authorized pick-up person #1 <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="reg-pickup-1" placeholder="Name and phone number">
+      </div>
+      <div class="field">
+        <label for="reg-pickup-2">Authorized pick-up person #2 <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="reg-pickup-2" placeholder="Name and phone number">
+      </div>
+      <div class="field">
+        <label for="reg-pickup-3">Authorized pick-up person #3 <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="reg-pickup-3" placeholder="Name and phone number">
+      </div>
+      <div class="field">
+        <label for="reg-photo-consent">Photo/video consent</label>
+        <select id="reg-photo-consent">
+          <option value="social_media_marketing">Yes — classroom, private parent updates, and social media/marketing</option>
+          <option value="private_parent_comms">Classroom and private parent updates only</option>
+          <option value="classroom_only">Classroom use only</option>
+          <option value="none">Does not give permission for photos/videos</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="reg-referral-source">How did you hear about us? <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <select id="reg-referral-source">
+          <option value="">—</option>
+          <option value="Website">Website</option>
+          <option value="Facebook">Facebook</option>
+          <option value="Instagram">Instagram</option>
+          <option value="Referral">Referral</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Benefit eligibility <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <div style="display:flex; gap:16px; flex-wrap:wrap; padding-top:4px;">
+          <label style="display:flex; align-items:center; gap:6px; font-weight:400; font-size:14px;"><input type="checkbox" id="reg-benefit-multi-student" style="width:auto;"> Multi-student</label>
+          <label style="display:flex; align-items:center; gap:6px; font-weight:400; font-size:14px;"><input type="checkbox" id="reg-benefit-military" style="width:auto;"> Military</label>
+          <label style="display:flex; align-items:center; gap:6px; font-weight:400; font-size:14px;"><input type="checkbox" id="reg-benefit-first-responder" style="width:auto;"> Nurse &amp; First Responder</label>
+        </div>
+      </div>
+      <div class="field">
+        <label for="reg-additional-info">Anything we should know? <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="reg-additional-info">
+      </div>
+
       <p class="reg-section-title">Children</p>
       <div id="reg-children-container"></div>
       <button type="button" class="clear-link" style="margin-bottom:14px;" onclick="addRegChildBlock()">+ Add another child</button>
@@ -1033,6 +1095,52 @@
           <label for="child-emergency-phone">Emergency phone</label>
           <input type="text" id="child-emergency-phone">
         </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="child-potty-trained">Potty trained?</label>
+          <select id="child-potty-trained">
+            <option value="">Not sure / N/A</option>
+            <option value="true">Yes</option>
+            <option value="false">Not yet</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="child-immunization">Immunization record</label>
+          <select id="child-immunization">
+            <option value="">Not yet provided</option>
+            <option value="records_provided">Records provided</option>
+            <option value="exemption_on_file">Exemption on file</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="child-sunscreen">Sunscreen &amp; outdoor play</label>
+          <select id="child-sunscreen">
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="child-field-trips">Field trips / walks</label>
+          <select id="child-field-trips">
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="child-bathroom-assist">Bathroom assistance</label>
+          <select id="child-bathroom-assist">
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="child-interests">Interests / personality <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="child-interests">
       </div>
 
       <div class="modal-actions">
@@ -2699,6 +2807,8 @@
 
     const val = (v) => v ? escapeHtml(v) : '<span class="detail-value empty">None on file</span>';
     const hasAllergies = c.allergies && c.allergies.trim();
+    const yesNo = (v) => v === true ? 'Yes' : v === false ? 'No' : 'Not on file';
+    const immunizationLabel = { records_provided: 'Records on file', exemption_on_file: 'Exemption on file' }[c.immunization_status] || 'Not yet provided';
 
     document.getElementById('child-detail-body').innerHTML = `
       ${hasAllergies ? `<div class="detail-alert">⚠ Allergies: ${escapeHtml(c.allergies)}</div>` : ''}
@@ -2722,6 +2832,30 @@
       <div class="detail-row">
         <div class="detail-label">Emergency phone</div>
         <div class="detail-value">${val(c.emergency_contact_phone)}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Potty trained</div>
+        <div class="detail-value">${yesNo(c.potty_trained)}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Sunscreen &amp; outdoor play</div>
+        <div class="detail-value">${yesNo(c.sunscreen_outdoor_play_consent)}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Field trips / walks</div>
+        <div class="detail-value">${yesNo(c.field_trip_consent)}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Bathroom assistance consent</div>
+        <div class="detail-value">${yesNo(c.bathroom_assistance_consent)}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Immunization record</div>
+        <div class="detail-value">${immunizationLabel}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Interests / personality</div>
+        <div class="detail-value">${val(c.child_interests_personality)}</div>
       </div>
     `;
 
@@ -2757,6 +2891,12 @@
       document.getElementById('child-medical-notes').value = c.medical_notes || '';
       document.getElementById('child-emergency-name').value = c.emergency_contact_name || '';
       document.getElementById('child-emergency-phone').value = c.emergency_contact_phone || '';
+      document.getElementById('child-potty-trained').value = c.potty_trained === true ? 'true' : c.potty_trained === false ? 'false' : '';
+      document.getElementById('child-sunscreen').value = c.sunscreen_outdoor_play_consent === false ? 'false' : 'true';
+      document.getElementById('child-field-trips').value = c.field_trip_consent === false ? 'false' : 'true';
+      document.getElementById('child-bathroom-assist').value = c.bathroom_assistance_consent === false ? 'false' : 'true';
+      document.getElementById('child-immunization').value = c.immunization_status || '';
+      document.getElementById('child-interests').value = c.child_interests_personality || '';
       window.childSelectedFamily = { id: c.family_id, name: '(current family)' };
       document.getElementById('child-selected-family').style.display = 'flex';
       document.getElementById('child-selected-family-name').textContent = '(current family kept unless changed)';
@@ -2817,6 +2957,7 @@
       return;
     }
 
+    const pottyVal = document.getElementById('child-potty-trained').value;
     const payload = {
       first_name: document.getElementById('child-first-name').value.trim(),
       last_name: document.getElementById('child-last-name').value.trim(),
@@ -2828,6 +2969,12 @@
       medical_notes: document.getElementById('child-medical-notes').value.trim() || null,
       emergency_contact_name: document.getElementById('child-emergency-name').value.trim() || null,
       emergency_contact_phone: document.getElementById('child-emergency-phone').value.trim() || null,
+      potty_trained: pottyVal === '' ? null : pottyVal === 'true',
+      sunscreen_outdoor_play_consent: document.getElementById('child-sunscreen').value === 'true',
+      field_trip_consent: document.getElementById('child-field-trips').value === 'true',
+      bathroom_assistance_consent: document.getElementById('child-bathroom-assist').value === 'true',
+      immunization_status: document.getElementById('child-immunization').value || null,
+      child_interests_personality: document.getElementById('child-interests').value.trim() || null,
     };
     if (!childId) {
       payload.family_id = window.childSelectedFamily.id;
@@ -3919,6 +4066,51 @@
           <input type="text" id="reg-child-${id}-emergency-phone">
         </div>
       </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="reg-child-${id}-potty-trained">Potty trained?</label>
+          <select id="reg-child-${id}-potty-trained">
+            <option value="">Not sure / N/A</option>
+            <option value="true">Yes</option>
+            <option value="false">Not yet</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="reg-child-${id}-immunization">Immunization record</label>
+          <select id="reg-child-${id}-immunization">
+            <option value="">Not yet provided</option>
+            <option value="records_provided">Records provided</option>
+            <option value="exemption_on_file">Exemption on file</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="reg-child-${id}-sunscreen">Sunscreen &amp; outdoor play</label>
+          <select id="reg-child-${id}-sunscreen">
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="reg-child-${id}-field-trips">Field trips / walks</label>
+          <select id="reg-child-${id}-field-trips">
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="reg-child-${id}-bathroom-assist">Bathroom assistance</label>
+          <select id="reg-child-${id}-bathroom-assist">
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="reg-child-${id}-interests">Child's interests / personality <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="reg-child-${id}-interests">
+      </div>
       <div class="field">
         <label>Services <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
         <div id="reg-child-${id}-services"></div>
@@ -3947,6 +4139,7 @@
     const blocks = document.querySelectorAll('#reg-children-container .child-block');
     return Array.from(blocks).map(block => {
       const id = block.id.replace('reg-child-block-', '');
+      const pottyVal = document.getElementById(`reg-child-${id}-potty-trained`).value;
       return {
         first_name: document.getElementById(`reg-child-${id}-first-name`).value.trim(),
         last_name: document.getElementById(`reg-child-${id}-last-name`).value.trim(),
@@ -3956,6 +4149,12 @@
         medical_notes: document.getElementById(`reg-child-${id}-medical-notes`).value.trim() || null,
         emergency_contact_name: document.getElementById(`reg-child-${id}-emergency-name`).value.trim() || null,
         emergency_contact_phone: document.getElementById(`reg-child-${id}-emergency-phone`).value.trim() || null,
+        potty_trained: pottyVal === '' ? null : pottyVal === 'true',
+        sunscreen_outdoor_play_consent: document.getElementById(`reg-child-${id}-sunscreen`).value === 'true',
+        field_trip_consent: document.getElementById(`reg-child-${id}-field-trips`).value === 'true',
+        bathroom_assistance_consent: document.getElementById(`reg-child-${id}-bathroom-assist`).value === 'true',
+        immunization_status: document.getElementById(`reg-child-${id}-immunization`).value || null,
+        child_interests_personality: document.getElementById(`reg-child-${id}-interests`).value.trim() || null,
         services: collectRegChildServices(id),
       };
     });
@@ -4149,6 +4348,11 @@
       return;
     }
 
+    const regBenefits = [];
+    if (document.getElementById('reg-benefit-multi-student').checked) regBenefits.push('Multi-student');
+    if (document.getElementById('reg-benefit-military').checked) regBenefits.push('Military');
+    if (document.getElementById('reg-benefit-first-responder').checked) regBenefits.push('Nurse & First Responder');
+
     const payload = {
       primary_parent_name: document.getElementById('reg-primary-name').value.trim(),
       primary_parent_email: document.getElementById('reg-primary-email').value.trim(),
@@ -4157,6 +4361,17 @@
       secondary_parent_email: document.getElementById('reg-secondary-email').value.trim() || null,
       secondary_parent_phone: document.getElementById('reg-secondary-phone').value.trim() || null,
       mailing_address: document.getElementById('reg-address').value.trim() || null,
+      physician_name_phone: document.getElementById('reg-physician').value.trim() || null,
+      emergency_contact_1_name_phone: document.getElementById('reg-emergency-1').value.trim() || null,
+      emergency_contact_2_name_phone: document.getElementById('reg-emergency-2').value.trim() || null,
+      emergency_contact_3_name_phone: document.getElementById('reg-emergency-3').value.trim() || null,
+      pickup_person_1: document.getElementById('reg-pickup-1').value.trim() || null,
+      pickup_person_2: document.getElementById('reg-pickup-2').value.trim() || null,
+      pickup_person_3: document.getElementById('reg-pickup-3').value.trim() || null,
+      photo_video_consent: document.getElementById('reg-photo-consent').value,
+      referral_source: document.getElementById('reg-referral-source').value || null,
+      benefits_qualifications: regBenefits.length > 0 ? regBenefits.join(', ') : null,
+      additional_info: document.getElementById('reg-additional-info').value.trim() || null,
       children: collectRegChildBlocks(),
       signer_name: signerName,
       signature_data: regModalSignaturePad.canvas.toDataURL('image/png'),
@@ -4857,6 +5072,11 @@
         ` : ''}
 
         <div class="home-panel">
+          <div class="home-panel-header"><h3>Upcoming birthdays</h3></div>
+          <div id="home-birthdays-wrap"><div class="empty-state-sm"><p>Loading…</p></div></div>
+        </div>
+
+        <div class="home-panel">
           <div class="home-panel-header"><h3>Today's events</h3></div>
           <div id="home-events-wrap"><div class="empty-state-sm"><p>Loading…</p></div></div>
         </div>
@@ -4892,6 +5112,13 @@
     }
 
     try {
+      const birthdays = await apiFetch('/children/upcoming-birthdays?days=14');
+      renderHomeBirthdays(birthdays);
+    } catch (err) {
+      document.getElementById('home-birthdays-wrap').innerHTML = `<div class="empty-state-sm"><p>${err.message}</p></div>`;
+    }
+
+    try {
       const params = new URLSearchParams({ start: today, end: today });
       const [events, shifts] = await Promise.all([
         apiFetch('/schedule-events?' + params.toString()),
@@ -4913,6 +5140,33 @@
     } catch (err) {
       document.getElementById('home-week-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load this week's schedule</h3><p>${err.message}</p></div>`;
     }
+  }
+
+  function renderHomeBirthdays(birthdays) {
+    const wrap = document.getElementById('home-birthdays-wrap');
+    if (birthdays.length === 0) {
+      wrap.innerHTML = `<div class="empty-state-sm"><p>No birthdays in the next two weeks.</p></div>`;
+      return;
+    }
+    const today = localDateString();
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Child</th><th>Room</th><th></th></tr></thead>
+        <tbody>
+          ${birthdays.map(b => {
+            const isToday = b.next_occurrence === today;
+            const dateLabel = new Date(b.next_occurrence + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            return `
+              <tr>
+                <td><strong>${escapeHtml(b.first_name)} ${escapeHtml(b.last_name)}</strong></td>
+                <td>${b.room ? escapeHtml(b.room) : '—'}</td>
+                <td><span class="badge ${isToday ? 'badge-active' : 'badge-staff'}">${isToday ? 'Today — turning ' + b.turning_age : dateLabel + ' — turning ' + b.turning_age}</span></td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
   }
 
   function renderHomeExpiringDocs(docs) {

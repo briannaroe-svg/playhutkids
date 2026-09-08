@@ -19,6 +19,69 @@ router.get('/rooms', requireAuth, async (req, res) => {
   res.json(VALID_ROOMS);
 });
 
+// GET /children/upcoming-birthdays?days=14 — active children whose birthday
+// (month/day, regardless of birth year) falls within the next N days, for
+// the Home page. Computed entirely from date_of_birth — no separate table,
+// since a birthday is fully derivable from data that already exists.
+// Implementation: for each child, compute this year's occurrence of their
+// birthday (swap in the current year, month, day). If that date already
+// passed, use next year's occurrence instead. Then just check whether that
+// resulting date falls within [today, today + days] — correctly handles the
+// year-end wraparound (e.g. today is Dec 28, window includes a Jan 3
+// birthday) without fragile day-of-year math.
+// GET /children/upcoming-birthdays?days=14 — active children whose birthday
+// (month/day, regardless of birth year) falls within the next N days, for
+// the Home page. The "next occurrence" math is done here in JS rather than
+// in SQL — computing "swap in this year, or next year if it already passed"
+// entirely in Postgres date arithmetic gets fragile fast (leap-year Feb 29
+// birthdays, year-end wraparound), and this table is never large enough for
+// doing it in JS to be a real performance concern.
+router.get('/upcoming-birthdays', requireAuth, async (req, res) => {
+  const days = Math.min(Number(req.query.days) || 14, 60); // capped — a "heads up" list, not a full calendar
+  try {
+    const result = await pool.query(
+      `SELECT id, first_name, last_name, date_of_birth, room
+       FROM children WHERE enrollment_status = 'active'`
+    );
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const windowEnd = new Date(today);
+    windowEnd.setDate(windowEnd.getDate() + days);
+
+    const upcoming = result.rows
+      .map((child) => {
+        const dob = new Date(child.date_of_birth);
+        const birthMonth = dob.getUTCMonth();
+        const birthDay = dob.getUTCDate();
+
+        // This year's occurrence, safely handling Feb 29 in a non-leap year
+        // by clamping to the last real day of that month (Feb 28).
+        const daysInThisYearsBirthMonth = new Date(today.getFullYear(), birthMonth + 1, 0).getDate();
+        let occurrence = new Date(today.getFullYear(), birthMonth, Math.min(birthDay, daysInThisYearsBirthMonth));
+        if (occurrence < today) {
+          const daysInNextYearsBirthMonth = new Date(today.getFullYear() + 1, birthMonth + 1, 0).getDate();
+          occurrence = new Date(today.getFullYear() + 1, birthMonth, Math.min(birthDay, daysInNextYearsBirthMonth));
+        }
+
+        return {
+          ...child,
+          next_occurrence: occurrence.toISOString().slice(0, 10),
+          turning_age: occurrence.getFullYear() - dob.getUTCFullYear(),
+          _sortDate: occurrence,
+        };
+      })
+      .filter((c) => c._sortDate >= today && c._sortDate <= windowEnd)
+      .sort((a, b) => a._sortDate - b._sortDate)
+      .map(({ _sortDate, ...rest }) => rest); // drop the internal sort helper before responding
+
+    res.json(upcoming);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch upcoming birthdays' });
+  }
+});
+
 // GET /children/search?q=...  (must come before /:id so it isn't shadowed) — admin only
 router.get('/search', requireAdmin, async (req, res) => {
   const { q } = req.query;
@@ -46,7 +109,9 @@ router.get('/', requireAuth, async (req, res) => {
     const columns = isAdmin
       ? 'c.*'
       : `c.id, c.first_name, c.last_name, c.date_of_birth, c.program, c.room, c.enrollment_status,
-         c.allergies, c.medical_notes, c.emergency_contact_name, c.emergency_contact_phone`;
+         c.allergies, c.medical_notes, c.emergency_contact_name, c.emergency_contact_phone,
+         c.potty_trained, c.sunscreen_outdoor_play_consent, c.field_trip_consent,
+         c.bathroom_assistance_consent, c.immunization_status, c.child_interests_personality`;
     const query = status
       ? `SELECT ${columns} FROM children c WHERE c.enrollment_status = $1 ORDER BY c.room, c.last_name`
       : `SELECT ${columns} FROM children c ORDER BY c.room, c.last_name`;
@@ -91,6 +156,8 @@ router.post('/', requireAdmin, async (req, res) => {
     family_id, first_name, last_name, date_of_birth, program, room,
     enrollment_date, allergies, medical_notes,
     emergency_contact_name, emergency_contact_phone, base_tuition_rate,
+    potty_trained, sunscreen_outdoor_play_consent, field_trip_consent,
+    bathroom_assistance_consent, immunization_status, child_interests_personality,
   } = req.body;
 
   if (room && !VALID_ROOMS.includes(room)) {
@@ -101,11 +168,15 @@ router.post('/', requireAdmin, async (req, res) => {
     const result = await pool.query(
       `INSERT INTO children
         (family_id, first_name, last_name, date_of_birth, program, room, enrollment_date,
-         allergies, medical_notes, emergency_contact_name, emergency_contact_phone, base_tuition_rate)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         allergies, medical_notes, emergency_contact_name, emergency_contact_phone, base_tuition_rate,
+         potty_trained, sunscreen_outdoor_play_consent, field_trip_consent,
+         bathroom_assistance_consent, immunization_status, child_interests_personality)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
        RETURNING *`,
       [family_id, first_name, last_name, date_of_birth, program, room || null, enrollment_date,
-       allergies, medical_notes, emergency_contact_name, emergency_contact_phone, base_tuition_rate]
+       allergies, medical_notes, emergency_contact_name, emergency_contact_phone, base_tuition_rate,
+       potty_trained ?? null, sunscreen_outdoor_play_consent ?? null, field_trip_consent ?? null,
+       bathroom_assistance_consent ?? null, immunization_status || null, child_interests_personality || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

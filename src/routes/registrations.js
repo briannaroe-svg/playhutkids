@@ -169,11 +169,18 @@ async function completeRegistration(registration, { signer_name, signature_data,
       const familyResult = await client.query(
         `INSERT INTO families
           (primary_parent_name, primary_parent_email, primary_parent_phone,
-           secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address)
-         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+           secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address,
+           physician_name_phone, emergency_contact_1_name_phone, emergency_contact_2_name_phone, emergency_contact_3_name_phone,
+           pickup_person_1, pickup_person_2, pickup_person_3,
+           photo_video_consent, referral_source, benefits_qualifications, additional_info)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
         [registration.primary_parent_name, registration.primary_parent_email, registration.primary_parent_phone,
          registration.secondary_parent_name, registration.secondary_parent_email, registration.secondary_parent_phone,
-         registration.mailing_address]
+         registration.mailing_address,
+         registration.physician_name_phone,
+         registration.emergency_contact_1_name_phone, registration.emergency_contact_2_name_phone, registration.emergency_contact_3_name_phone,
+         registration.pickup_person_1, registration.pickup_person_2, registration.pickup_person_3,
+         registration.photo_video_consent, registration.referral_source, registration.benefits_qualifications, registration.additional_info]
       );
       familyId = familyResult.rows[0].id;
     }
@@ -181,13 +188,18 @@ async function completeRegistration(registration, { signer_name, signature_data,
     const childResult = await client.query(
       `INSERT INTO children
         (family_id, first_name, last_name, date_of_birth, program, enrollment_date,
-         allergies, medical_notes, emergency_contact_name, emergency_contact_phone, base_tuition_rate)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+         allergies, medical_notes, emergency_contact_name, emergency_contact_phone, base_tuition_rate,
+         potty_trained, sunscreen_outdoor_play_consent, field_trip_consent, bathroom_assistance_consent,
+         immunization_status, child_interests_personality)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
       [familyId, registration.child_first_name, registration.child_last_name, registration.child_date_of_birth,
        registration.child_program, new Date().toISOString().slice(0, 10),
        registration.child_allergies, registration.child_medical_notes,
        registration.child_emergency_contact_name, registration.child_emergency_contact_phone,
-       registration.child_base_tuition_rate]
+       registration.child_base_tuition_rate,
+       registration.child_potty_trained, registration.child_sunscreen_outdoor_play_consent,
+       registration.child_field_trip_consent, registration.child_bathroom_assistance_consent,
+       registration.child_immunization_status, registration.child_interests_personality]
     );
     const childId = childResult.rows[0].id;
 
@@ -350,7 +362,11 @@ router.post('/self-register', async (req, res) => {
   const {
     primary_parent_name, primary_parent_email, primary_parent_phone,
     secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address,
-    children, // [{ first_name, last_name, date_of_birth, program, allergies, medical_notes, emergency_contact_name, emergency_contact_phone, services: [{ service_item_id, quantity }] }, ...]
+    physician_name_phone,
+    emergency_contact_1_name_phone, emergency_contact_2_name_phone, emergency_contact_3_name_phone,
+    pickup_person_1, pickup_person_2, pickup_person_3,
+    photo_video_consent, referral_source, benefits_qualifications, additional_info,
+    children, // [{ first_name, last_name, date_of_birth, program, allergies, medical_notes, emergency_contact_name, emergency_contact_phone, potty_trained, sunscreen_outdoor_play_consent, field_trip_consent, bathroom_assistance_consent, immunization_status, child_interests_personality, services: [{ service_item_id, quantity }] }, ...]
     signer_name, signature_data,
     stripe_customer_id, setup_intent_id,
   } = req.body;
@@ -407,16 +423,31 @@ router.post('/self-register', async (req, res) => {
         `INSERT INTO registrations (
           primary_parent_name, primary_parent_email, primary_parent_phone,
           secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address,
+          physician_name_phone, emergency_contact_1_name_phone, emergency_contact_2_name_phone, emergency_contact_3_name_phone,
+          pickup_person_1, pickup_person_2, pickup_person_3,
+          photo_video_consent, referral_source, benefits_qualifications, additional_info,
           child_first_name, child_last_name, child_date_of_birth, child_program,
           child_allergies, child_medical_notes, child_emergency_contact_name,
-          child_emergency_contact_phone, sign_method
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'self_service')
+          child_emergency_contact_phone,
+          child_potty_trained, child_sunscreen_outdoor_play_consent, child_field_trip_consent,
+          child_bathroom_assistance_consent, child_immunization_status, child_interests_personality,
+          sign_method
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,'self_service')
         RETURNING *`,
         [primary_parent_name, primary_parent_email, primary_parent_phone,
          secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address,
+         physician_name_phone || null,
+         emergency_contact_1_name_phone || null, emergency_contact_2_name_phone || null, emergency_contact_3_name_phone || null,
+         pickup_person_1 || null, pickup_person_2 || null, pickup_person_3 || null,
+         photo_video_consent || null, referral_source || null, benefits_qualifications || null, additional_info || null,
          c.first_name, c.last_name, c.date_of_birth, c.program,
          c.allergies || null, c.medical_notes || null, c.emergency_contact_name || null,
-         c.emergency_contact_phone || null]
+         c.emergency_contact_phone || null,
+         c.potty_trained === undefined ? null : c.potty_trained,
+         c.sunscreen_outdoor_play_consent === undefined ? null : c.sunscreen_outdoor_play_consent,
+         c.field_trip_consent === undefined ? null : c.field_trip_consent,
+         c.bathroom_assistance_consent === undefined ? null : c.bathroom_assistance_consent,
+         c.immunization_status || null, c.child_interests_personality || null]
       );
       const registration = insertResult.rows[0];
 
