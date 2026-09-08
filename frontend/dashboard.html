@@ -1252,6 +1252,32 @@
   </div>
 </div>
 
+<!-- ============ FIND DUPLICATES MODAL (admin only) ============ -->
+<div class="modal-overlay" id="duplicates-modal-overlay">
+  <div class="modal" style="max-width:640px; max-height:85vh; overflow-y:auto;">
+    <h3>Possible duplicate families</h3>
+    <p class="modal-sub">Matched by same email or same name. Nothing is merged until you confirm a specific pair below.</p>
+    <div id="duplicates-list"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeDuplicatesModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MERGE FAMILIES MODAL (admin only) ============ -->
+<div class="modal-overlay" id="merge-modal-overlay">
+  <div class="modal" style="max-width:560px; max-height:85vh; overflow-y:auto;">
+    <h3>Merge these families</h3>
+    <p class="modal-sub">Pick which record to keep, and which value wins for anything that differs. Every child, invoice, and record from the other one moves onto the keeper — nothing is lost.</p>
+    <div class="error-banner" id="merge-modal-error"></div>
+    <div id="merge-modal-body"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeMergeModal()">Cancel</button>
+      <button type="button" class="btn" style="background:var(--forest-deep); color:#fff; flex:1; padding:13px; border-radius:10px; border:none; font-weight:600; cursor:pointer;" id="merge-confirm-btn" onclick="confirmMergeFamilies()">Merge families</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ ALLERGY CONFIRMATION GATE (blocks check-in, no click-outside dismiss) ============ -->
 <div class="allergy-gate-overlay" id="allergy-gate-overlay">
   <div class="allergy-gate-card">
@@ -3133,6 +3159,207 @@
 
   function closeFamilyDetailModal() {
     document.getElementById('family-detail-modal-overlay').classList.remove('show');
+  }
+
+  // ---- Find duplicates / merge families ----
+  let duplicatePairsCache = [];
+  let mergeCandidate = null; // { keeper, duplicate } — set when a specific pair is selected to merge
+
+  async function openDuplicatesModal() {
+    document.getElementById('duplicates-list').innerHTML = `<div class="empty-state-sm"><p>Looking for duplicates…</p></div>`;
+    document.getElementById('duplicates-modal-overlay').classList.add('show');
+    try {
+      duplicatePairsCache = await apiFetch('/families/duplicates');
+      renderDuplicatesList();
+    } catch (err) {
+      document.getElementById('duplicates-list').innerHTML = `<div class="empty-state-sm"><p>${err.message}</p></div>`;
+    }
+  }
+
+  function closeDuplicatesModal() {
+    document.getElementById('duplicates-modal-overlay').classList.remove('show');
+  }
+
+  function renderDuplicatesList() {
+    const wrap = document.getElementById('duplicates-list');
+    if (duplicatePairsCache.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>No likely duplicates found</h3><p>Nothing shares the same email or name right now.</p></div>`;
+      return;
+    }
+    const reasonLabel = { email_and_name: 'Same email & name', email: 'Same email', name: 'Same name' };
+    wrap.innerHTML = duplicatePairsCache.map((pair, i) => `
+      <div style="border:1px solid var(--sage-light); border-radius:10px; padding:14px 16px; margin-bottom:10px;">
+        <div style="font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; color:var(--wood); margin-bottom:8px;">${reasonLabel[pair.match_reason]}</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+          <div style="flex:1;">
+            <strong>${escapeHtml(pair.family_a.primary_parent_name)}</strong>
+            <div style="font-size:12.5px; color:#6B7A76;">${escapeHtml(pair.family_a.primary_parent_email)} — ${pair.family_a.children.length} ${pair.family_a.children.length === 1 ? 'child' : 'children'}</div>
+          </div>
+          <div style="font-size:12px; color:#8A9490;">vs</div>
+          <div style="flex:1; text-align:right;">
+            <strong>${escapeHtml(pair.family_b.primary_parent_name)}</strong>
+            <div style="font-size:12.5px; color:#6B7A76;">${escapeHtml(pair.family_b.primary_parent_email)} — ${pair.family_b.children.length} ${pair.family_b.children.length === 1 ? 'child' : 'children'}</div>
+          </div>
+        </div>
+        <div style="margin-top:10px; text-align:right;">
+          <button class="btn btn-ghost" style="padding:8px 16px; font-size:13px; width:auto;" onclick="startMerge(${i})">Review &amp; merge</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function startMerge(pairIndex) {
+    const pair = duplicatePairsCache[pairIndex];
+    mergeCandidate = { a: pair.family_a, b: pair.family_b, keeperSide: 'a', overrides: {} };
+    closeDuplicatesModal();
+    renderMergeModal();
+    document.getElementById('merge-modal-overlay').classList.add('show');
+  }
+
+  // Fields worth showing a side-by-side choice for when they differ between
+  // the two records — anything not listed here (card info, timestamps,
+  // is_unenrolled, etc.) is never offered as a manual override, since those
+  // either aren't meaningful to pick between or are handled automatically
+  // by the merge itself (e.g. the saved card).
+  const MERGE_COMPARABLE_FIELDS = [
+    { key: 'primary_parent_name', label: 'Primary parent name' },
+    { key: 'primary_parent_email', label: 'Email' },
+    { key: 'primary_parent_phone', label: 'Phone' },
+    { key: 'secondary_parent_name', label: 'Secondary parent' },
+    { key: 'secondary_parent_email', label: 'Secondary email' },
+    { key: 'secondary_parent_phone', label: 'Secondary phone' },
+    { key: 'mailing_address', label: 'Mailing address' },
+    { key: 'physician_name_phone', label: 'Physician' },
+    { key: 'emergency_contact_1_name_phone', label: 'Emergency contact #1' },
+    { key: 'emergency_contact_2_name_phone', label: 'Emergency contact #2' },
+    { key: 'emergency_contact_3_name_phone', label: 'Emergency contact #3' },
+    { key: 'pickup_person_1', label: 'Pick-up person #1' },
+    { key: 'pickup_person_2', label: 'Pick-up person #2' },
+    { key: 'pickup_person_3', label: 'Pick-up person #3' },
+    { key: 'referral_source', label: 'Referral source' },
+    { key: 'benefits_qualifications', label: 'Benefits' },
+    { key: 'additional_info', label: 'Additional info' },
+  ];
+
+  function renderMergeModal() {
+    const { a, b, keeperSide } = mergeCandidate;
+    const errorBox = document.getElementById('merge-modal-error');
+    errorBox.classList.remove('show');
+
+    const keeper = keeperSide === 'a' ? a : b;
+    const other = keeperSide === 'a' ? b : a;
+
+    const allChildren = [
+      ...a.children.map(c => ({ ...c, from: 'A' })),
+      ...b.children.map(c => ({ ...c, from: 'B' })),
+    ];
+
+    const differingFields = MERGE_COMPARABLE_FIELDS.filter(f => (a[f.key] || '') !== (b[f.key] || ''));
+
+    document.getElementById('merge-modal-body').innerHTML = `
+      <div class="field">
+        <label>Which record should survive?</label>
+        <div style="display:flex; gap:10px;">
+          <label style="flex:1; border:1.5px solid ${keeperSide === 'a' ? 'var(--forest-deep)' : 'var(--sage-light)'}; border-radius:10px; padding:12px; cursor:pointer;">
+            <input type="radio" name="merge-keeper-side" value="a" ${keeperSide === 'a' ? 'checked' : ''} onchange="setMergeKeeperSide('a')" style="width:auto; margin-right:6px;">
+            <strong>${escapeHtml(a.primary_parent_name)}</strong>
+            <div style="font-size:12px; color:#6B7A76; margin-left:20px;">${escapeHtml(a.primary_parent_email)}</div>
+          </label>
+          <label style="flex:1; border:1.5px solid ${keeperSide === 'b' ? 'var(--forest-deep)' : 'var(--sage-light)'}; border-radius:10px; padding:12px; cursor:pointer;">
+            <input type="radio" name="merge-keeper-side" value="b" ${keeperSide === 'b' ? 'checked' : ''} onchange="setMergeKeeperSide('b')" style="width:auto; margin-right:6px;">
+            <strong>${escapeHtml(b.primary_parent_name)}</strong>
+            <div style="font-size:12px; color:#6B7A76; margin-left:20px;">${escapeHtml(b.primary_parent_email)}</div>
+          </label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Children moving to the surviving record</label>
+        <div style="background:var(--cream); border-radius:8px; padding:10px 14px;">
+          ${allChildren.length === 0 ? '<p style="font-size:13px; color:#8A9490; margin:0;">No children on either record.</p>' : allChildren.map(c => `
+            <div style="font-size:13.5px; padding:3px 0;">${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)} <span style="color:#8A9490;">(from ${c.from}${c.enrollment_status !== 'active' ? ', withdrawn' : ''})</span></div>
+          `).join('')}
+        </div>
+      </div>
+
+      ${differingFields.length > 0 ? `
+        <div class="field">
+          <label>These differ between the two — pick which value to keep</label>
+          ${differingFields.map(f => `
+            <div style="margin-bottom:10px;">
+              <div style="font-size:12px; font-weight:600; color:var(--wood); margin-bottom:4px;">${f.label}</div>
+              <div style="display:flex; gap:8px;">
+                <label style="flex:1; border:1.5px solid var(--sage-light); border-radius:8px; padding:8px 10px; font-size:13px; cursor:pointer;">
+                  <input type="radio" name="merge-field-${f.key}" value="a" ${(mergeCandidate.overrides[f.key] || 'keeper') === 'a' ? 'checked' : ''} onchange="setMergeFieldOverride('${f.key}', 'a')" style="width:auto; margin-right:6px;">
+                  ${a[f.key] ? escapeHtml(a[f.key]) : '<span style="color:#ADB8B4; font-style:italic;">blank</span>'}
+                </label>
+                <label style="flex:1; border:1.5px solid var(--sage-light); border-radius:8px; padding:8px 10px; font-size:13px; cursor:pointer;">
+                  <input type="radio" name="merge-field-${f.key}" value="b" ${mergeCandidate.overrides[f.key] === 'b' ? 'checked' : ''} onchange="setMergeFieldOverride('${f.key}', 'b')" style="width:auto; margin-right:6px;">
+                  ${b[f.key] ? escapeHtml(b[f.key]) : '<span style="color:#ADB8B4; font-style:italic;">blank</span>'}
+                </label>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    `;
+  }
+
+  function setMergeKeeperSide(side) {
+    mergeCandidate.keeperSide = side;
+    renderMergeModal();
+  }
+
+  function setMergeFieldOverride(fieldKey, side) {
+    mergeCandidate.overrides[fieldKey] = side;
+    // no full re-render needed here — the radio state already reflects the
+    // click; re-rendering would just redraw the same thing
+  }
+
+  function closeMergeModal() {
+    document.getElementById('merge-modal-overlay').classList.remove('show');
+    mergeCandidate = null;
+  }
+
+  async function confirmMergeFamilies() {
+    if (!mergeCandidate) return;
+    const { a, b, keeperSide, overrides } = mergeCandidate;
+    const keeper = keeperSide === 'a' ? a : b;
+    const other = keeperSide === 'a' ? b : a;
+
+    if (!confirm(`Merge ${other.primary_parent_name} into ${keeper.primary_parent_name}? This moves every child, invoice, and record onto ${keeper.primary_parent_name} and permanently deletes the other record. This cannot be undone.`)) return;
+
+    // Resolve each field override (a/b choice) into the actual value to
+    // write onto the keeper — only include ones that differ from what the
+    // keeper already has, since the backend only needs actual changes.
+    const fieldOverrides = {};
+    for (const f of MERGE_COMPARABLE_FIELDS) {
+      const chosenSide = overrides[f.key] || 'keeper';
+      if (chosenSide === 'keeper') continue;
+      const chosenRecord = chosenSide === 'a' ? a : b;
+      fieldOverrides[f.key] = chosenRecord[f.key];
+    }
+
+    const btn = document.getElementById('merge-confirm-btn');
+    const errorBox = document.getElementById('merge-modal-error');
+    btn.disabled = true;
+    btn.textContent = 'Merging…';
+    errorBox.classList.remove('show');
+
+    try {
+      await apiFetch('/families/merge', {
+        method: 'POST',
+        body: JSON.stringify({ keep_id: keeper.id, duplicate_id: other.id, field_overrides: fieldOverrides }),
+      });
+      closeMergeModal();
+      await loadFamilies();
+      alert(`Merged successfully. ${keeper.primary_parent_name} now has everything from both records.`);
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Merge families';
+    }
   }
 
   // ---- Add/Edit Child modal (admin only) ----
@@ -5681,7 +5908,10 @@
           <h2>Families</h2>
           <p>Parent and guardian contact records — the billing address book.</p>
         </div>
-        <button class="btn btn-coral" onclick="openFamilyModal()">+ Add family</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost" onclick="openDuplicatesModal()">Find duplicates</button>
+          <button class="btn btn-coral" onclick="openFamilyModal()">+ Add family</button>
+        </div>
       </div>
       <div style="display:flex; align-items:center; gap:16px; margin-bottom:18px; flex-wrap:wrap;">
         <div class="field" style="max-width:320px; margin-bottom:0;">

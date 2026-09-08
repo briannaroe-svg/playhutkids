@@ -341,4 +341,155 @@ router.post('/:id(\\d+)/unenroll', async (req, res) => {
   }
 });
 
+// GET /families/duplicates — admin only. Flags pairs of family records that
+// look like the same real household: exact email match, or a
+// normalized-name match (case/whitespace-insensitive) — either signal is
+// enough to surface a pair for review, since the actual decision (are these
+// really the same family, and if so which wins on conflicting fields) needs
+// a human, not an automated guess. Never merges or deletes anything itself.
+router.get('/duplicates', requireAdmin, async (req, res) => {
+  try {
+    const allFamilies = await pool.query(`SELECT ${FAMILY_COLUMNS} FROM families ORDER BY created_at ASC`);
+    const families = allFamilies.rows;
+
+    const normalize = (s) => (s || '').trim().toLowerCase();
+    const pairs = [];
+    const seenPairKeys = new Set();
+
+    for (let i = 0; i < families.length; i++) {
+      for (let j = i + 1; j < families.length; j++) {
+        const a = families[i], b = families[j];
+        const sameEmail = normalize(a.primary_parent_email) === normalize(b.primary_parent_email) && a.primary_parent_email;
+        const sameName = normalize(a.primary_parent_name) === normalize(b.primary_parent_name) && a.primary_parent_name;
+        if (sameEmail || sameName) {
+          const pairKey = `${a.id}-${b.id}`;
+          if (seenPairKeys.has(pairKey)) continue;
+          seenPairKeys.add(pairKey);
+          pairs.push({
+            match_reason: sameEmail && sameName ? 'email_and_name' : sameEmail ? 'email' : 'name',
+            family_a: a,
+            family_b: b,
+          });
+        }
+      }
+    }
+
+    // Attach each family's children so admin can see what's actually at
+    // stake in the merge (which kids belong to which side) without a
+    // separate round trip per pair.
+    const familyIds = [...new Set(pairs.flatMap(p => [p.family_a.id, p.family_b.id]))];
+    let childrenByFamily = {};
+    if (familyIds.length > 0) {
+      const childrenResult = await pool.query(
+        `SELECT id, family_id, first_name, last_name, enrollment_status FROM children WHERE family_id = ANY($1::int[])`,
+        [familyIds]
+      );
+      childrenByFamily = childrenResult.rows.reduce((acc, c) => {
+        (acc[c.family_id] = acc[c.family_id] || []).push(c);
+        return acc;
+      }, {});
+    }
+
+    const enrichedPairs = pairs.map(p => ({
+      ...p,
+      family_a: { ...p.family_a, children: childrenByFamily[p.family_a.id] || [] },
+      family_b: { ...p.family_b, children: childrenByFamily[p.family_b.id] || [] },
+    }));
+
+    res.json(enrichedPairs);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to find duplicate families' });
+  }
+});
+
+// POST /families/merge — admin only. Merges TWO family records into one:
+// every child, invoice, agreement, message, and recurring plan from
+// `duplicate_id` is re-pointed to `keep_id`, any field overrides supplied
+// are applied to the surviving record, and the now-empty duplicate is
+// deleted. All of this happens in one transaction — either the whole merge
+// succeeds, or none of it does, so a failure partway through never leaves
+// a child or invoice pointing at a half-merged state.
+router.post('/merge', requireAdmin, async (req, res) => {
+  const { keep_id, duplicate_id, field_overrides } = req.body;
+  if (!keep_id || !duplicate_id) {
+    return res.status(400).json({ error: 'keep_id and duplicate_id are required' });
+  }
+  if (keep_id === duplicate_id) {
+    return res.status(400).json({ error: 'keep_id and duplicate_id must be different families' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const keepResult = await client.query(`SELECT * FROM families WHERE id = $1 FOR UPDATE`, [keep_id]);
+    const dupResult = await client.query(`SELECT * FROM families WHERE id = $1 FOR UPDATE`, [duplicate_id]);
+    if (keepResult.rows.length === 0 || dupResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'One or both families were not found' });
+    }
+
+    // Re-point every table that references the duplicate family onto the
+    // surviving one. Order doesn't matter here since these are independent
+    // tables, none reference each other through family_id.
+    await client.query(`UPDATE children SET family_id = $1 WHERE family_id = $2`, [keep_id, duplicate_id]);
+    await client.query(`UPDATE invoices SET family_id = $1 WHERE family_id = $2`, [keep_id, duplicate_id]);
+    await client.query(`UPDATE agreements SET family_id = $1 WHERE family_id = $2`, [keep_id, duplicate_id]);
+    await client.query(`UPDATE messages SET family_id = $1 WHERE family_id = $2`, [keep_id, duplicate_id]);
+    await client.query(`UPDATE recurring_plans SET family_id = $1 WHERE family_id = $2`, [keep_id, duplicate_id]);
+    await client.query(`UPDATE registrations SET resulting_family_id = $1 WHERE resulting_family_id = $2`, [keep_id, duplicate_id]);
+
+    // Apply any field overrides the admin picked (e.g. "use the duplicate's
+    // phone number instead of the keeper's") to the surviving record.
+    if (field_overrides && Object.keys(field_overrides).length > 0) {
+      const allowedFields = [
+        'primary_parent_name', 'primary_parent_email', 'primary_parent_phone',
+        'secondary_parent_name', 'secondary_parent_email', 'secondary_parent_phone',
+        'mailing_address', 'physician_name_phone',
+        'emergency_contact_1_name_phone', 'emergency_contact_2_name_phone', 'emergency_contact_3_name_phone',
+        'pickup_person_1', 'pickup_person_2', 'pickup_person_3',
+        'photo_video_consent', 'referral_source', 'benefits_qualifications', 'additional_info',
+      ];
+      const setClauses = [];
+      const values = [];
+      let i = 2;
+      for (const [field, value] of Object.entries(field_overrides)) {
+        if (!allowedFields.includes(field)) continue; // ignore anything not in the allowlist — never let this update stripe_customer_id, card info, etc. via override
+        setClauses.push(`${field} = $${i++}`);
+        values.push(value);
+      }
+      if (setClauses.length > 0) {
+        await client.query(`UPDATE families SET ${setClauses.join(', ')}, updated_at = now() WHERE id = $1`, [keep_id, ...values]);
+      }
+    }
+
+    // If the duplicate had a saved card and the keeper doesn't, carry it
+    // over rather than losing it — but never overwrite a card the keeper
+    // already has, since that's real payment info and shouldn't be silently
+    // replaced by a merge.
+    const keeper = keepResult.rows[0];
+    const duplicate = dupResult.rows[0];
+    if (!keeper.stripe_customer_id && duplicate.stripe_customer_id) {
+      await client.query(
+        `UPDATE families SET stripe_customer_id = $2, card_brand = $3, card_last4 = $4, card_saved_at = $5, updated_at = now() WHERE id = $1`,
+        [keep_id, duplicate.stripe_customer_id, duplicate.card_brand, duplicate.card_last4, duplicate.card_saved_at]
+      );
+    }
+
+    await client.query(`DELETE FROM families WHERE id = $1`, [duplicate_id]);
+
+    const finalResult = await client.query(`SELECT ${FAMILY_COLUMNS} FROM families WHERE id = $1`, [keep_id]);
+    await client.query('COMMIT');
+
+    res.json({ merged_family: finalResult.rows[0] });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err);
+    res.status(500).json({ error: 'Failed to merge families: ' + err.message });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
