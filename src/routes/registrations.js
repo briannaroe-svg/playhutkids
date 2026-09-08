@@ -378,8 +378,8 @@ router.post('/self-register', async (req, res) => {
     stripe_customer_id, setup_intent_id,
   } = req.body;
 
-  if (!primary_parent_name || !primary_parent_email) {
-    return res.status(400).json({ error: 'Primary parent name and email are required' });
+  if (!primary_parent_name || !primary_parent_email || !primary_parent_phone) {
+    return res.status(400).json({ error: 'Primary parent name, email, and phone are required' });
   }
   if (!Array.isArray(children) || children.length === 0) {
     return res.status(400).json({ error: 'At least one child is required' });
