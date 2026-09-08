@@ -30,16 +30,18 @@ const FAMILY_COLUMNS = `
 // no child to withdraw. Unenrolling still withdraws any active children and
 // pauses recurring plans as a side effect — see /unenroll below — but
 // whether the family itself counts as unenrolled no longer depends on that.
-const ACTIVE_FAMILY_FILTER = `NOT is_unenrolled`;
-
+// The checkbox is a strict toggle, not additive: unchecked shows ONLY
+// enrolled families, checked shows ONLY unenrolled ones — never both mixed
+// together, since that reads as "nothing changed" when checked.
 router.get('/search', async (req, res) => {
   const { q, include_unenrolled } = req.query;
+  const wantUnenrolled = include_unenrolled === 'true';
   try {
     const result = await pool.query(
       `SELECT ${FAMILY_COLUMNS} FROM families
        WHERE (primary_parent_name ILIKE $1 OR primary_parent_email ILIKE $1)
-         ${include_unenrolled === 'true' ? '' : `AND ${ACTIVE_FAMILY_FILTER}`}`,
-      [`%${q || ''}%`]
+         AND is_unenrolled = $2`,
+      [`%${q || ''}%`, wantUnenrolled]
     );
     res.json(result.rows);
   } catch (err) {
@@ -50,11 +52,13 @@ router.get('/search', async (req, res) => {
 
 router.get('/', async (req, res) => {
   const { include_unenrolled } = req.query;
+  const wantUnenrolled = include_unenrolled === 'true';
   try {
     const result = await pool.query(
       `SELECT ${FAMILY_COLUMNS} FROM families
-       ${include_unenrolled === 'true' ? '' : `WHERE ${ACTIVE_FAMILY_FILTER}`}
-       ORDER BY primary_parent_name`
+       WHERE is_unenrolled = $1
+       ORDER BY primary_parent_name`,
+      [wantUnenrolled]
     );
     res.json(result.rows);
   } catch (err) {

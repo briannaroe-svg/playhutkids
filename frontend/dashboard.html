@@ -2216,6 +2216,7 @@
   let childrenCache = [];
   let childSearchTerm = '';
   let attendanceToday = []; // keyed by matching child_id, from GET /attendance/today
+  let childShowUnenrolled = false;
 
   async function renderChildrenView() {
     const isAdmin = currentUser.access_level === 'admin';
@@ -2229,8 +2230,16 @@
         </div>
         ${isAdmin ? '<button class="btn btn-coral" onclick="openChildModal()">+ Add child</button>' : ''}
       </div>
-      <div class="field" style="max-width:320px; margin-bottom:18px;">
-        <input type="text" id="child-search-input" placeholder="Search by child's name…" value="${escapeHtml(childSearchTerm)}">
+      <div style="display:flex; align-items:center; gap:16px; margin-bottom:18px; flex-wrap:wrap;">
+        <div class="field" style="max-width:320px; margin-bottom:0;">
+          <input type="text" id="child-search-input" placeholder="Search by child's name…" value="${escapeHtml(childSearchTerm)}">
+        </div>
+        ${isAdmin ? `
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:#6B7A76; cursor:pointer;">
+            <input type="checkbox" id="child-show-unenrolled" ${childShowUnenrolled ? 'checked' : ''}>
+            Show unenrolled children
+          </label>
+        ` : ''}
       </div>
       <div class="card" id="children-table-wrap" style="max-height:75vh; overflow-y:auto;">
         <div class="empty-state"><p>Loading…</p></div>
@@ -2241,10 +2250,21 @@
       childSearchTerm = e.target.value;
       renderChildrenTable();
     }, 250));
+    if (isAdmin) {
+      document.getElementById('child-show-unenrolled').addEventListener('change', async (e) => {
+        childShowUnenrolled = e.target.checked;
+        await loadChildrenList();
+      });
+    }
 
+    await loadChildrenList();
+  }
+
+  async function loadChildrenList() {
     try {
+      const statusParam = childShowUnenrolled ? 'withdrawn' : 'active';
       const [children, attendance] = await Promise.all([
-        apiFetch('/children?status=active'),
+        apiFetch('/children?status=' + statusParam),
         apiFetch('/attendance/today'),
       ]);
       childrenCache = children;
@@ -2270,7 +2290,9 @@
       : childrenCache;
 
     if (childrenCache.length === 0) {
-      wrap.innerHTML = `
+      wrap.innerHTML = childShowUnenrolled
+        ? `<div class="empty-state"><h3>No unenrolled children</h3><p>Every child currently in the system is active.</p></div>`
+        : `
         <div class="empty-state">
           <h3>No children enrolled yet</h3>
           <p>${isAdmin ? 'Add your first enrolled child.' : 'Check back once children are enrolled.'}</p>
@@ -2822,8 +2844,7 @@
         await apiFetch('/children', { method: 'POST', body: JSON.stringify(payload) });
       }
       closeChildModal();
-      childrenCache = await apiFetch('/children?status=active');
-      renderChildrenTable();
+      await loadChildrenList();
     } catch (err) {
       errorBox.textContent = err.message;
       errorBox.classList.add('show');
@@ -5094,11 +5115,16 @@
   function renderFamiliesTable() {
     const wrap = document.getElementById('families-table-wrap');
     if (familiesCache.length === 0) {
+      const noResultsMsg = familyIncludeUnenrolled
+        ? { h: 'No unenrolled families', p: 'Every family currently shown is enrolled.' }
+        : familySearchTerm
+          ? { h: 'No families match that search', p: 'Try a different name or email.' }
+          : { h: 'No families yet', p: 'Add your first family to start invoicing.' };
       wrap.innerHTML = `
         <div class="empty-state">
-          <h3>${familySearchTerm ? 'No families match that search' : 'No families yet'}</h3>
-          <p>${familySearchTerm ? 'Try a different name or email.' : 'Add your first family to start invoicing.'}</p>
-          ${familySearchTerm ? '' : '<button class="btn btn-coral" onclick="openFamilyModal()">+ Add family</button>'}
+          <h3>${noResultsMsg.h}</h3>
+          <p>${noResultsMsg.p}</p>
+          ${(!familySearchTerm && !familyIncludeUnenrolled) ? '<button class="btn btn-coral" onclick="openFamilyModal()">+ Add family</button>' : ''}
         </div>
       `;
       return;
@@ -6132,11 +6158,16 @@
       // Children and Families could be affected by either kind of unenroll
       // (a family action withdraws children too), so check for each view's
       // real DOM presence rather than assume which one triggered this.
+      // Calling loadFamilies()/the children reload directly (rather than a
+      // separate hand-rolled fetch here) keeps this in sync with whatever
+      // search term or "show unenrolled" checkbox state the person actually
+      // has active — a separate simplified fetch here previously ignored
+      // that and always re-fetched the enrolled-only list.
       if (document.getElementById('children-table-wrap')) {
-        try { childrenCache = await apiFetch('/children'); renderChildrenTable(); } catch (e) {}
+        try { await loadChildrenList(); } catch (e) {}
       }
       if (document.getElementById('families-table-wrap')) {
-        try { familiesCache = await apiFetch('/families'); renderFamiliesTable(); } catch (e) {}
+        try { await loadFamilies(); } catch (e) {}
       }
       if (document.getElementById('recurring-plans-wrap')) {
         try { recurringPlansCache = await apiFetch('/recurring-plans'); renderRecurringPlansTable(); } catch (e) {}
