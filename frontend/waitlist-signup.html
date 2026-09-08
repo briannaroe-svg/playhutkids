@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Join the Waitlist — The Little Playhut</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --forest-deep: #1B2E22;
+    --sage-light: #E4EBDE;
+    --meadow: #CFDCC3;
+    --birch: #F4EDE0;
+    --wood: #8B5E34;
+    --gold: #D9A441;
+    --gold-dark: #BF8A2E;
+    --bark: #3A2E22;
+    --moss: #6B7A5E;
+    --error: #B3462E;
+    --error-bg: #FBEAE4;
+    --success: #4A7A5C;
+    --success-bg: #E7F1EA;
+    --sand-line: rgba(139,94,52,0.18);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(160deg, var(--sage-light) 0%, var(--meadow) 100%);
+    color: var(--bark);
+    min-height: 100vh;
+    padding: 24px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 { font-family: 'Fredoka', sans-serif; font-weight: 600; letter-spacing: -0.01em; }
+
+  .wrap { max-width: 560px; margin: 0 auto; }
+
+  .card {
+    background: var(--birch); border: 1px solid var(--sand-line); border-radius: 20px;
+    padding: 40px 36px; box-shadow: 0 24px 64px rgba(15,27,20,0.18), 0 2px 8px rgba(15,27,20,0.10);
+  }
+
+  .card img.mark { width: 76px; height: 76px; margin: 0 auto 16px; display: block; object-fit: contain; }
+  .card h1 { font-size: 22px; text-align: center; color: var(--forest-deep); margin: 0 0 6px; }
+  .sub { text-align: center; font-size: 14px; color: var(--moss); margin: 0 0 30px; }
+
+  .field { margin-bottom: 16px; }
+  .field-row { display: flex; gap: 12px; }
+  .field-row .field { flex: 1; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--bark); margin-bottom: 6px; }
+  .field input, .field select {
+    width: 100%; padding: 12px 14px; border: 1.5px solid rgba(139,94,52,0.25); border-radius: 10px;
+    font-family: 'Inter', sans-serif; font-size: 15px; color: var(--bark); background: #FFFDF8;
+  }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--gold); background: #fff; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 13px 20px; border-radius: 10px; border: none; font-family: 'Inter', sans-serif;
+    font-size: 15px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 10px;
+  }
+  .btn-primary { background: var(--forest-deep); color: var(--birch); }
+  .btn-primary:hover { background: #12241A; }
+  .btn-primary:disabled { background: #B9BFB2; cursor: not-allowed; }
+
+  .error-banner {
+    display: none; background: var(--error-bg); color: var(--error); font-size: 13px; font-weight: 500;
+    padding: 10px 14px; border-radius: 8px; margin-bottom: 18px;
+  }
+  .error-banner.visible { display: block; }
+
+  .center-state { text-align: center; padding: 20px 0; }
+  .center-state h2 { font-size: 20px; color: var(--forest-deep); margin: 14px 0 8px; }
+  .center-state p { font-size: 14px; color: var(--moss); margin: 0 0 8px; }
+  .success-icon {
+    width: 52px; height: 52px; border-radius: 50%; margin: 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--success-bg); color: var(--success);
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="card">
+    <img class="mark" src="https://res.cloudinary.com/dhlymdlu/image/upload/v1788058962/Screenshot_2026-08-04_at_8.42.07_PM.png" alt="The Little Playhut">
+    <h1>Join the Waitlist</h1>
+    <p class="sub">Tell us a bit about your family and we'll be in touch as a spot opens up.</p>
+
+    <div id="content">
+      <div class="error-banner" id="form-error"></div>
+
+      <form id="waitlist-form">
+        <div class="field">
+          <label for="parent-name">Your name</label>
+          <input type="text" id="parent-name" required>
+        </div>
+        <div class="field">
+          <label for="parent-email">Email</label>
+          <input type="email" id="parent-email" required>
+        </div>
+        <div class="field">
+          <label for="parent-address">Address <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+          <input type="text" id="parent-address">
+        </div>
+        <div class="field">
+          <label for="parent-phone">Phone number</label>
+          <input type="text" id="parent-phone" required>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="child-first-name">Child's first name</label>
+            <input type="text" id="child-first-name" required>
+          </div>
+          <div class="field">
+            <label for="child-last-name">Child's last name <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+            <input type="text" id="child-last-name">
+          </div>
+        </div>
+        <div class="field">
+          <label for="child-dob">Child's date of birth</label>
+          <input type="date" id="child-dob" required>
+        </div>
+        <div class="field">
+          <label for="interested-room">What program are you interested in?</label>
+          <select id="interested-room">
+            <option value="">Not sure yet</option>
+            <option value="3 Year Old Preschool-AM">3 Year Old AM Class (8:30–11:30 AM)</option>
+            <option value="3 Year Old Preschool-PM">3 Year Old PM Class (12:30–3:30 PM)</option>
+            <option value="4 Year Old Preschool-AM">4 Year Old AM Class (8:30–11:30 AM)</option>
+            <option value="4 Year Old Preschool-PM">4 Year Old PM Class (12:30–3:30 PM)</option>
+            <option value="Little Bunnies">Infant / 1-Year-Old (Little Bunnies)</option>
+            <option value="Little Raccoons">2-Year-Old (Little Raccoons)</option>
+            <option value="Little Cubs">3-4-Year-Old Daycare (Little Cubs)</option>
+            <option value="Wolf Den">School Age (Wolf Den)</option>
+          </select>
+        </div>
+
+        <button type="button" class="btn btn-primary" id="submit-btn" onclick="submitWaitlist()">Join the waitlist</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = 'https://little-playhut-backend.onrender.com';
+
+  async function submitWaitlist() {
+    const errorBox = document.getElementById('form-error');
+    errorBox.classList.remove('visible');
+
+    const form = document.getElementById('waitlist-form');
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    const payload = {
+      parent_name: document.getElementById('parent-name').value.trim(),
+      parent_email: document.getElementById('parent-email').value.trim(),
+      parent_address: document.getElementById('parent-address').value.trim() || null,
+      parent_phone: document.getElementById('parent-phone').value.trim(),
+      child_first_name: document.getElementById('child-first-name').value.trim(),
+      child_last_name: document.getElementById('child-last-name').value.trim() || null,
+      child_date_of_birth: document.getElementById('child-dob').value,
+      interested_room: document.getElementById('interested-room').value || null,
+    };
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+
+    try {
+      const res = await fetch(API_BASE + '/waitlist/public-submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
+
+      document.getElementById('content').innerHTML = `
+        <div class="center-state">
+          <div class="success-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h2>You're on the list!</h2>
+          <p>Thanks for your interest in The Little Playhut. We'll reach out as soon as a spot opens up.</p>
+        </div>
+      `;
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('visible');
+      btn.disabled = false;
+      btn.textContent = 'Join the waitlist';
+    }
+  }
+</script>
+
+</body>
+</html>

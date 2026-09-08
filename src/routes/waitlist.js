@@ -3,13 +3,52 @@ const router = express.Router();
 const pool = require('../db/pool');
 const { requireAdmin } = require('../middleware/auth');
 
-router.use(requireAdmin);
-
 const VALID_ROOMS = [
   'Little Bunnies', 'Little Raccoons', 'Little Cubs',
   '3 Year Old Preschool-AM', '3 Year Old Preschool-PM',
   '4 Year Old Preschool-AM', '4 Year Old Preschool-PM', 'Wolf Den',
 ];
+
+// POST /waitlist/public-submit — PUBLIC, no login needed. Lets a parent (or
+// staff, on a tablet, on the parent's behalf) submit a waitlist inquiry
+// directly from a QR code/link, mirroring the paper waitlist form. This
+// MUST be declared before router.use(requireAdmin) below, or the admin-auth
+// middleware would apply to it too. created_by is left null here (nullable
+// in the schema) since there's no staff login behind a public submission —
+// distinct from the admin-side POST / below, which records who added it.
+router.post('/public-submit', async (req, res) => {
+  const {
+    parent_name, parent_email, parent_phone, parent_address,
+    child_first_name, child_last_name, child_date_of_birth,
+    interested_room,
+  } = req.body;
+
+  if (!parent_name || !parent_email) {
+    return res.status(400).json({ error: 'Name and email are required' });
+  }
+  if (interested_room && !VALID_ROOMS.includes(interested_room)) {
+    return res.status(400).json({ error: 'Invalid room' });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO waitlist_entries
+        (parent_name, parent_email, parent_phone, parent_address, child_first_name, child_last_name,
+         child_date_of_birth, interested_room)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING *`,
+      [parent_name, parent_email, parent_phone || null, parent_address || null, child_first_name || null, child_last_name || null,
+       child_date_of_birth || null, interested_room || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to submit — please try again' });
+  }
+});
+
+// Everything below this line requires a real admin login.
+router.use(requireAdmin);
 
 // GET /waitlist?status=waiting
 router.get('/', async (req, res) => {
@@ -27,10 +66,10 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /waitlist — log a new inquiry
+// POST /waitlist — log a new inquiry, added by staff
 router.post('/', async (req, res) => {
   const {
-    parent_name, parent_email, parent_phone,
+    parent_name, parent_email, parent_phone, parent_address,
     child_first_name, child_last_name, child_date_of_birth,
     interested_room, notes,
   } = req.body;
@@ -45,11 +84,11 @@ router.post('/', async (req, res) => {
   try {
     const result = await pool.query(
       `INSERT INTO waitlist_entries
-        (parent_name, parent_email, parent_phone, child_first_name, child_last_name,
+        (parent_name, parent_email, parent_phone, parent_address, child_first_name, child_last_name,
          child_date_of_birth, interested_room, notes, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        RETURNING *`,
-      [parent_name, parent_email, parent_phone || null, child_first_name || null, child_last_name || null,
+      [parent_name, parent_email, parent_phone || null, parent_address || null, child_first_name || null, child_last_name || null,
        child_date_of_birth || null, interested_room || null, notes || null, req.staff.staff_id]
     );
     res.status(201).json(result.rows[0]);
@@ -62,7 +101,7 @@ router.post('/', async (req, res) => {
 // PUT /waitlist/:id — edit an entry
 router.put('/:id(\\d+)', async (req, res) => {
   const allowedFields = [
-    'parent_name', 'parent_email', 'parent_phone',
+    'parent_name', 'parent_email', 'parent_phone', 'parent_address',
     'child_first_name', 'child_last_name', 'child_date_of_birth',
     'interested_room', 'notes',
   ];

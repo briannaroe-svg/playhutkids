@@ -720,6 +720,10 @@
           <input type="text" id="waitlist-parent-phone">
         </div>
       </div>
+      <div class="field">
+        <label for="waitlist-parent-address">Address <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <input type="text" id="waitlist-parent-address">
+      </div>
 
       <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:18px 0 10px;">Child <span style="font-weight:400; text-transform:none; letter-spacing:normal;">(optional)</span></p>
       <div class="field-row">
@@ -983,6 +987,29 @@
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" onclick="printSelfRegisterQr()">Print</button>
       <button type="button" class="btn btn-teal" onclick="closeSelfRegisterQr()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ WAITLIST SIGNUP QR MODAL (admin only) ============ -->
+<div class="modal-overlay" id="waitlist-qr-modal-overlay">
+  <div class="modal" style="max-width:420px;">
+    <h3>Waitlist sign-up</h3>
+    <p class="modal-sub">A family can scan this to join the waitlist themselves — no login needed, works on any phone, tablet, or computer.</p>
+
+    <div style="text-align:center; padding:10px 0 18px;">
+      <img id="waitlist-qr-image" src="" alt="QR code to the waitlist sign-up page" style="border-radius:12px; border:1px solid var(--sage-light); width:260px; height:260px;">
+      <p style="font-size:13px; color:#8A9490; margin-top:14px;">Scan to join the waitlist</p>
+      <p id="waitlist-qr-url-text" style="font-size:12.5px; word-break:break-all; color:var(--wood);"></p>
+    </div>
+
+    <div class="note" style="text-align:left;">
+      Submissions show up right here on the Waitlist tab automatically.
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="printWaitlistQr()">Print</button>
+      <button type="button" class="btn btn-teal" onclick="closeWaitlistQr()">Done</button>
     </div>
   </div>
 </div>
@@ -4385,7 +4412,10 @@
           <h2>Waitlist</h2>
           <p>Enrollment inquiries — automatically marked enrolled once a matching Registration is created.</p>
         </div>
-        <button class="btn btn-coral" onclick="openWaitlistModal()">+ Add inquiry</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost" onclick="openWaitlistQr()">Waitlist sign-up QR</button>
+          <button class="btn btn-coral" onclick="openWaitlistModal()">+ Add inquiry</button>
+        </div>
       </div>
       <div class="card" id="waitlist-table-wrap">
         <div class="empty-state"><p>Loading…</p></div>
@@ -4485,6 +4515,7 @@
       document.getElementById('waitlist-parent-name').value = w.parent_name;
       document.getElementById('waitlist-parent-email').value = w.parent_email;
       document.getElementById('waitlist-parent-phone').value = w.parent_phone || '';
+      document.getElementById('waitlist-parent-address').value = w.parent_address || '';
       document.getElementById('waitlist-child-first-name').value = w.child_first_name || '';
       document.getElementById('waitlist-child-last-name').value = w.child_last_name || '';
       document.getElementById('waitlist-child-dob').value = w.child_date_of_birth ? w.child_date_of_birth.slice(0, 10) : '';
@@ -4514,6 +4545,7 @@
       parent_name: document.getElementById('waitlist-parent-name').value.trim(),
       parent_email: document.getElementById('waitlist-parent-email').value.trim(),
       parent_phone: document.getElementById('waitlist-parent-phone').value.trim() || null,
+      parent_address: document.getElementById('waitlist-parent-address').value.trim() || null,
       child_first_name: document.getElementById('waitlist-child-first-name').value.trim() || null,
       child_last_name: document.getElementById('waitlist-child-last-name').value.trim() || null,
       child_date_of_birth: document.getElementById('waitlist-child-dob').value || null,
@@ -4593,6 +4625,22 @@
   }
 
   function printSelfRegisterQr() {
+    window.print();
+  }
+
+  function openWaitlistQr() {
+    const waitlistUrl = window.location.origin + '/waitlist-signup.html';
+    const qrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=' + encodeURIComponent(waitlistUrl);
+    document.getElementById('waitlist-qr-image').src = qrImageUrl;
+    document.getElementById('waitlist-qr-url-text').textContent = waitlistUrl;
+    document.getElementById('waitlist-qr-modal-overlay').classList.add('show');
+  }
+
+  function closeWaitlistQr() {
+    document.getElementById('waitlist-qr-modal-overlay').classList.remove('show');
+  }
+
+  function printWaitlistQr() {
     window.print();
   }
 
