@@ -5016,6 +5016,7 @@
   // ============================================================
   let familiesCache = [];
   let familySearchTerm = '';
+  let familyIncludeUnenrolled = false;
 
   async function renderFamiliesView() {
     const main = document.getElementById('main-content');
@@ -5027,8 +5028,14 @@
         </div>
         <button class="btn btn-coral" onclick="openFamilyModal()">+ Add family</button>
       </div>
-      <div class="field" style="max-width:320px; margin-bottom:18px;">
-        <input type="text" id="family-search-input" placeholder="Search by parent name or email…" value="${escapeHtml(familySearchTerm)}">
+      <div style="display:flex; align-items:center; gap:16px; margin-bottom:18px; flex-wrap:wrap;">
+        <div class="field" style="max-width:320px; margin-bottom:0;">
+          <input type="text" id="family-search-input" placeholder="Search by parent name or email…" value="${escapeHtml(familySearchTerm)}">
+        </div>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:#6B7A76; cursor:pointer;">
+          <input type="checkbox" id="family-include-unenrolled" ${familyIncludeUnenrolled ? 'checked' : ''}>
+          Show unenrolled families
+        </label>
       </div>
       <div class="card" id="families-table-wrap" style="max-height:75vh; overflow-y:auto;">
         <div class="empty-state"><p>Loading…</p></div>
@@ -5039,6 +5046,10 @@
       familySearchTerm = e.target.value;
       loadFamilies();
     }, 300));
+    document.getElementById('family-include-unenrolled').addEventListener('change', (e) => {
+      familyIncludeUnenrolled = e.target.checked;
+      loadFamilies();
+    });
 
     await loadFamilies();
   }
@@ -5046,9 +5057,13 @@
   async function loadFamilies() {
     const wrap = document.getElementById('families-table-wrap');
     try {
-      const path = familySearchTerm.trim()
-        ? '/families/search?q=' + encodeURIComponent(familySearchTerm.trim())
-        : '/families';
+      const term = familySearchTerm.trim();
+      const params = new URLSearchParams();
+      if (familyIncludeUnenrolled) params.set('include_unenrolled', 'true');
+      if (term) params.set('q', term);
+      const path = term
+        ? '/families/search?' + params.toString()
+        : '/families' + (params.toString() ? '?' + params.toString() : '');
       familiesCache = await apiFetch(path);
       renderFamiliesTable();
     } catch (err) {
@@ -5075,12 +5090,15 @@
         <tbody>
           ${familiesCache.map(f => `
             <tr>
-              <td><strong>${escapeHtml(f.primary_parent_name)}</strong></td>
+              <td>
+                <strong>${escapeHtml(f.primary_parent_name)}</strong>
+                ${!f.has_active_child ? '<span class="badge badge-inactive" style="margin-left:8px;">Unenrolled</span>' : ''}
+              </td>
               <td>${escapeHtml(f.primary_parent_email)}</td>
               <td>${escapeHtml(f.primary_parent_phone || '—')}</td>
               <td>
                 <button class="icon-btn" onclick="openFamilyModal(${f.id})">Edit</button>
-                <button class="invoice-x-btn" title="Unenroll family" onclick="openUnenrollModal('family', ${f.id}, '${escapeHtml(f.primary_parent_name).replace(/'/g, "\\'")}')">✕</button>
+                ${f.has_active_child ? `<button class="invoice-x-btn" title="Unenroll family" onclick="openUnenrollModal('family', ${f.id}, '${escapeHtml(f.primary_parent_name).replace(/'/g, "\\'")}')">✕</button>` : ''}
               </td>
             </tr>
           `).join('')}

@@ -18,14 +18,33 @@ const FAMILY_COLUMNS = `
   secondary_parent_name, secondary_parent_email, secondary_parent_phone,
   mailing_address, stripe_customer_id, card_brand, card_last4, card_saved_at,
   created_at, updated_at,
-  (password_hash IS NOT NULL) AS has_portal_access
+  (password_hash IS NOT NULL) AS has_portal_access,
+  (
+    NOT EXISTS (SELECT 1 FROM children c WHERE c.family_id = families.id)
+    OR EXISTS (SELECT 1 FROM children c WHERE c.family_id = families.id AND c.enrollment_status = 'active')
+  ) AS has_active_child
+`;
+
+// A family is treated as "unenrolled" (hidden by default) only when it has
+// AT LEAST ONE child AND every one of them is withdrawn — NOT when it simply
+// has zero children yet (e.g. a family just created via + Add family before
+// any child has been added). The filter clause below is written the same
+// way for that reason.
+const ACTIVE_OR_NO_CHILDREN_FILTER = `
+  NOT EXISTS (
+    SELECT 1 FROM children c WHERE c.family_id = families.id
+  ) OR EXISTS (
+    SELECT 1 FROM children c WHERE c.family_id = families.id AND c.enrollment_status = 'active'
+  )
 `;
 
 router.get('/search', async (req, res) => {
-  const { q } = req.query;
+  const { q, include_unenrolled } = req.query;
   try {
     const result = await pool.query(
-      `SELECT ${FAMILY_COLUMNS} FROM families WHERE primary_parent_name ILIKE $1 OR primary_parent_email ILIKE $1`,
+      `SELECT ${FAMILY_COLUMNS} FROM families
+       WHERE (primary_parent_name ILIKE $1 OR primary_parent_email ILIKE $1)
+         ${include_unenrolled === 'true' ? '' : `AND (${ACTIVE_OR_NO_CHILDREN_FILTER})`}`,
       [`%${q || ''}%`]
     );
     res.json(result.rows);
@@ -36,8 +55,13 @@ router.get('/search', async (req, res) => {
 });
 
 router.get('/', async (req, res) => {
+  const { include_unenrolled } = req.query;
   try {
-    const result = await pool.query(`SELECT ${FAMILY_COLUMNS} FROM families ORDER BY primary_parent_name`);
+    const result = await pool.query(
+      `SELECT ${FAMILY_COLUMNS} FROM families
+       ${include_unenrolled === 'true' ? '' : `WHERE (${ACTIVE_OR_NO_CHILDREN_FILTER})`}
+       ORDER BY primary_parent_name`
+    );
     res.json(result.rows);
   } catch (err) {
     console.error(err);
