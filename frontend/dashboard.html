@@ -1795,11 +1795,32 @@
           ${item.label}
           ${item.id === 'scheduling' && isAdmin ? '<span class="nav-badge" id="scheduling-nav-badge" style="display:none;"></span>' : ''}
           ${item.id === 'messages' ? '<span class="nav-badge" id="messages-nav-badge" style="display:none;"></span>' : ''}
+          ${item.id === 'waitlist' && isAdmin ? '<span class="nav-badge" id="waitlist-nav-badge" style="display:none;"></span>' : ''}
         </li>
       `).join('');
 
     if (isAdmin) refreshPendingTimeOffBadge();
     refreshMessagesBadge();
+    if (isAdmin) refreshWaitlistBadge();
+  }
+
+  // Counts entries still waiting (i.e. anything not yet marked enrolled) —
+  // shown as a badge next to "Waitlist" in the sidebar so admin can see at a
+  // glance whether there's anyone to follow up with, without opening the tab.
+  async function refreshWaitlistBadge() {
+    const badge = document.getElementById('waitlist-nav-badge');
+    if (!badge) return;
+    try {
+      const waiting = await apiFetch('/waitlist?status=waiting');
+      if (waiting.length > 0) {
+        badge.textContent = waiting.length;
+        badge.style.display = 'inline-flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    } catch (err) {
+      badge.style.display = 'none'; // fail quietly — a missing badge shouldn't be alarming, and the tab itself still shows the real list
+    }
   }
 
   async function refreshMessagesBadge() {
@@ -4374,6 +4395,7 @@
     try {
       waitlistCache = await apiFetch('/waitlist');
       renderWaitlistTable();
+      refreshWaitlistBadge(); // catches conversions from Registration too, not just direct edits here
     } catch (err) {
       document.getElementById('waitlist-table-wrap').innerHTML = `<div class="empty-state"><h3>Couldn't load the waitlist</h3><p>${err.message}</p></div>`;
     }
@@ -4431,6 +4453,7 @@
       await apiFetch('/waitlist/' + id, { method: 'DELETE' });
       waitlistCache = await apiFetch('/waitlist');
       renderWaitlistTable();
+      refreshWaitlistBadge();
     } catch (err) {
       alert('Could not remove entry: ' + err.message);
     }
@@ -4445,6 +4468,7 @@
       await apiFetch('/waitlist/' + id + '/mark-enrolled', { method: 'POST' });
       waitlistCache = await apiFetch('/waitlist');
       renderWaitlistTable();
+      refreshWaitlistBadge();
     } catch (err) {
       alert('Could not update entry: ' + err.message);
     }
@@ -4508,6 +4532,7 @@
       closeWaitlistModal();
       waitlistCache = await apiFetch('/waitlist');
       renderWaitlistTable();
+      refreshWaitlistBadge();
     } catch (err) {
       errorBox.textContent = err.message;
       errorBox.classList.add('show');
