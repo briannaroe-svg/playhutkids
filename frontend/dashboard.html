@@ -154,6 +154,26 @@
   }
   .icon-btn:hover { background: var(--sage-light); color: var(--teal); }
 
+  .invoice-x-btn {
+    background: none; border: none; cursor: pointer; color: #B9BFB2;
+    font-size: 13px; font-weight: 700; padding: 4px 7px; border-radius: 6px; margin-left: 2px;
+  }
+  .invoice-x-btn:hover { background: var(--error-bg); color: var(--error); }
+
+  /* ---------- Invoice row color-coding by status ---------- */
+  .invoice-row-draft { border-left: 4px solid var(--sage); }
+  .invoice-row-sent { border-left: 4px solid var(--coral); }
+  .invoice-row-paid { border-left: 4px solid var(--success); }
+  .invoice-row-overdue { border-left: 4px solid var(--error); }
+  .invoice-row-void { border-left: 4px solid #B9BFB2; }
+  .invoice-row-draft td:first-child, .invoice-row-sent td:first-child,
+  .invoice-row-paid td:first-child, .invoice-row-overdue td:first-child,
+  .invoice-row-void td:first-child { padding-left: 16px; }
+  .invoice-total-paid { color: var(--success); }
+  .invoice-total-overdue { color: var(--error); }
+  .invoice-total-void { color: #B9BFB2; text-decoration: line-through; }
+  .invoice-total-draft, .invoice-total-sent { color: var(--teal-dark); }
+
   .empty-state { text-align: center; padding: 56px 20px; color: #6B7A76; }
   .empty-state h3 { color: var(--charcoal); margin: 0 0 8px; font-size: 16px; }
   .empty-state p { font-size: 13.5px; margin: 0 0 18px; }
@@ -1308,6 +1328,22 @@
         <button type="submit" class="btn btn-teal" id="service-submit-btn">Add service</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ============ VOID / DELETE INVOICE MODAL ============ -->
+<div class="modal-overlay" id="invoice-void-modal-overlay">
+  <div class="modal" style="max-width:400px;">
+    <h3>Invoice <span id="invoice-void-number">—</span></h3>
+    <p class="modal-sub" id="invoice-void-sub">Choose an action for this invoice.</p>
+    <div class="error-banner" id="invoice-void-error"></div>
+    <div style="display:flex; flex-direction:column; gap:10px; margin-top:6px;">
+      <button type="button" class="btn btn-ghost" onclick="handleVoidInvoice()">Void invoice</button>
+      <button type="button" class="btn" style="background:var(--error-bg); color:var(--error); width:100%; padding:13px; border-radius:10px; border:none; font-weight:600; cursor:pointer;" onclick="handleDeleteInvoice()">Delete invoice permanently</button>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeInvoiceVoidModal()">Cancel</button>
+    </div>
   </div>
 </div>
 
@@ -5717,20 +5753,19 @@
         <thead><tr><th>Invoice #</th><th>Family</th><th>Date</th><th>Total</th><th>Status</th><th></th></tr></thead>
         <tbody>
           ${invoicesCache.map(inv => `
-            <tr>
+            <tr class="invoice-row invoice-row-${inv.status}">
               <td><strong>${escapeHtml(inv.invoice_number)}</strong></td>
               <td>${escapeHtml(inv.primary_parent_name || '—')}</td>
               <td>${formatDate(inv.invoice_date)}</td>
-              <td>${formatCurrency(inv.grand_total)}</td>
+              <td><strong class="invoice-total-${inv.status}">${formatCurrency(inv.grand_total)}</strong></td>
               <td><span class="badge ${STATUS_BADGE_CLASS[inv.status] || 'badge-staff'}">${escapeHtml(inv.status)}</span></td>
               <td>
                 ${inv.status !== 'paid' && inv.status !== 'void' && inv.has_card_on_file ? `<button class="icon-btn" id="invoice-charge-btn-${inv.id}" onclick="chargeInvoiceCard(${inv.id})">Charge card</button>` : ''}
-                ${inv.status !== 'paid' && inv.status !== 'void' ? `<button class="icon-btn" onclick="createPaymentLink(${inv.id})">Get payment link</button>` : ''}
-                ${inv.stripe_payment_link_url ? `<button class="icon-btn" onclick="copyPaymentLink('${inv.stripe_payment_link_url}')">Copy link</button>` : ''}
                 ${inv.status !== 'paid' && inv.status !== 'void' ? `<button class="icon-btn" onclick="markInvoicePaid(${inv.id})">Mark paid</button>` : ''}
                 ${inv.status === 'paid' && inv.stripe_payment_intent_id ? `<button class="icon-btn" style="color:var(--error);" onclick="refundInvoice(${inv.id})">Refund</button>` : ''}
                 <button class="icon-btn" id="invoice-pdf-btn-${inv.id}" onclick="downloadInvoicePdf(${inv.id})">PDF</button>
                 <button class="icon-btn" id="invoice-email-btn-${inv.id}" onclick="emailInvoice(${inv.id})">Email</button>
+                <button class="invoice-x-btn" title="Void or delete" onclick="openInvoiceVoidModal(${inv.id})">✕</button>
               </td>
             </tr>
           `).join('')}
@@ -5845,6 +5880,52 @@
       renderInvoicesTable();
     } catch (err) {
       alert('Refund failed: ' + err.message);
+    }
+  }
+
+  // ---- Void / Delete invoice modal ----
+  let invoiceVoidTargetId = null;
+
+  function openInvoiceVoidModal(invoiceId) {
+    const inv = invoicesCache.find(i => i.id === invoiceId);
+    invoiceVoidTargetId = invoiceId;
+    document.getElementById('invoice-void-number').textContent = inv.invoice_number;
+    document.getElementById('invoice-void-sub').textContent = `${inv.primary_parent_name} — ${formatCurrency(inv.grand_total)}`;
+    document.getElementById('invoice-void-error').classList.remove('show');
+    document.getElementById('invoice-void-modal-overlay').classList.add('show');
+  }
+
+  function closeInvoiceVoidModal() {
+    document.getElementById('invoice-void-modal-overlay').classList.remove('show');
+    invoiceVoidTargetId = null;
+  }
+
+  async function handleVoidInvoice() {
+    const errorBox = document.getElementById('invoice-void-error');
+    errorBox.classList.remove('show');
+    try {
+      await apiFetch('/invoices/' + invoiceVoidTargetId + '/void', { method: 'POST' });
+      closeInvoiceVoidModal();
+      invoicesCache = await apiFetch('/invoices');
+      renderInvoicesTable();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    }
+  }
+
+  async function handleDeleteInvoice() {
+    const errorBox = document.getElementById('invoice-void-error');
+    errorBox.classList.remove('show');
+    if (!confirm('Permanently delete this invoice? This cannot be undone.')) return;
+    try {
+      await apiFetch('/invoices/' + invoiceVoidTargetId, { method: 'DELETE' });
+      closeInvoiceVoidModal();
+      invoicesCache = await apiFetch('/invoices');
+      renderInvoicesTable();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
     }
   }
 

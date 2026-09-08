@@ -69,16 +69,68 @@ router.post('/:id(\\d+)/send-email', async (req, res) => {
       `invoice-${data.invoice.invoice_number}`,
       'little-playhut/invoices'
     );
-    await pool.query(`UPDATE invoices SET pdf_url = $2, updated_at = now() WHERE id = $1`, [req.params.id, pdfUrl]);
+
+    // Reuse an existing Stripe payment link if this invoice already has one
+    // (links don't expire) — only generate a fresh one if it's missing, and
+    // only when there's actually something left to pay.
+    let paymentLinkUrl = data.invoice.stripe_payment_link_url;
+    const stillOwed = data.invoice.status !== 'paid' && data.invoice.status !== 'void';
+    if (stillOwed && !paymentLinkUrl) {
+      const amountCents = Math.round(Number(data.invoice.grand_total) * 100);
+      const price = await stripe.prices.create({
+        currency: 'usd',
+        unit_amount: amountCents,
+        product_data: { name: `Invoice ${data.invoice.invoice_number}` },
+      });
+      const paymentLink = await stripe.paymentLinks.create({
+        line_items: [{ price: price.id, quantity: 1 }],
+        metadata: { invoice_id: String(data.invoice.id), invoice_number: data.invoice.invoice_number },
+        payment_intent_data: {
+          metadata: { invoice_id: String(data.invoice.id), invoice_number: data.invoice.invoice_number },
+        },
+      });
+      paymentLinkUrl = paymentLink.url;
+    }
+
+    await pool.query(
+      `UPDATE invoices SET pdf_url = $2, stripe_payment_link_url = COALESCE($3, stripe_payment_link_url),
+              status = CASE WHEN status = 'draft' THEN 'sent' ELSE status END, updated_at = now()
+       WHERE id = $1`,
+      [req.params.id, pdfUrl, paymentLinkUrl]
+    );
 
     const grandTotal = Number(data.invoice.grand_total).toFixed(2);
+    const dueLabel = data.invoice.due_date
+      ? new Date(data.invoice.due_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      : 'upon receipt';
+
+    // Inline styles throughout — most email clients strip <style> blocks, so
+    // colors/spacing have to live on each element directly to render
+    // consistently. Palette matches the dashboard's own forest green / gold
+    // (see dashboard.html :root) rather than generic email-template colors.
+    const payButtonHtml = stillOwed && paymentLinkUrl
+      ? `
+        <div style="text-align:center; margin:28px 0;">
+          <a href="${paymentLinkUrl}" style="background:#1B2E22; color:#F4EDE0; text-decoration:none; font-weight:600; font-size:15px; padding:14px 32px; border-radius:10px; display:inline-block;">
+            Pay $${grandTotal} now
+          </a>
+        </div>
+      `
+      : '';
+
     const sent = await sendEmail({
       to: [data.family.primary_parent_email],
       subject: `Invoice ${data.invoice.invoice_number} from The Little Playhut`,
       html: `
-        <p>Hi ${data.family.primary_parent_name},</p>
-        <p>Please find attached invoice <strong>${data.invoice.invoice_number}</strong> for <strong>$${grandTotal}</strong>, due ${data.invoice.due_date ? new Date(data.invoice.due_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'upon receipt'}.</p>
-        <p>Thank you!<br>The Little Playhut</p>
+        <div style="font-family:'Helvetica Neue',Arial,sans-serif; max-width:480px; margin:0 auto; background:#F4EDE0; padding:32px 28px; border-radius:16px;">
+          <img src="https://res.cloudinary.com/dhlymdlu/image/upload/v1788058962/Screenshot_2026-08-04_at_8.42.07_PM.png" alt="The Little Playhut" width="64" height="64" style="display:block; margin:0 auto 16px;">
+          <h2 style="text-align:center; color:#1B2E22; font-size:20px; margin:0 0 4px;">The Little Playhut</h2>
+          <p style="text-align:center; color:#6B7A5E; font-size:13px; margin:0 0 24px;">Preschool &amp; Daycare</p>
+          <p style="color:#3A2E22; font-size:15px;">Hi ${data.family.primary_parent_name},</p>
+          <p style="color:#3A2E22; font-size:15px;">Please find attached invoice <strong>${data.invoice.invoice_number}</strong> for <strong>$${grandTotal}</strong>, due ${dueLabel}.</p>
+          ${payButtonHtml}
+          <p style="color:#3A2E22; font-size:15px;">Thank you!<br>The Little Playhut</p>
+        </div>
       `,
       attachments: [
         { filename: `Invoice-${data.invoice.invoice_number}.pdf`, content: pdfBuffer, contentType: 'application/pdf' },
@@ -89,7 +141,7 @@ router.post('/:id(\\d+)/send-email', async (req, res) => {
       return res.status(502).json({ error: 'The PDF was generated, but the email could not be sent. Email may not be configured yet — check EMAIL_USER/EMAIL_PASS.' });
     }
 
-    res.json({ sent: true, pdf_url: pdfUrl });
+    res.json({ sent: true, pdf_url: pdfUrl, payment_link_url: paymentLinkUrl });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to email invoice' });
@@ -308,5 +360,58 @@ router.post('/:id(\\d+)/charge-card', async (req, res) => {
     res.status(500).json({ error: 'Failed to charge card: ' + err.message });
   }
 });
+
+// POST /invoices/:id/void — void an invoice WITHOUT refunding (e.g. a draft
+// created by mistake, or one that was never actually charged). If it was
+// genuinely charged through Stripe and needs money back, use /refund instead
+// — this route deliberately refuses that case so a paid, charged invoice
+// can't be silently voided without the money actually being returned.
+router.post('/:id(\\d+)/void', async (req, res) => {
+  try {
+    const invoiceResult = await pool.query(`SELECT * FROM invoices WHERE id = $1`, [req.params.id]);
+    if (invoiceResult.rows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
+    const invoice = invoiceResult.rows[0];
+
+    if (invoice.status === 'void') return res.status(400).json({ error: 'This invoice is already void' });
+    if (invoice.status === 'paid' && invoice.stripe_payment_intent_id) {
+      return res.status(400).json({ error: 'This invoice was charged through Stripe — use Refund instead of Void so the money is actually returned.' });
+    }
+
+    const result = await pool.query(
+      `UPDATE invoices SET status = 'void', updated_at = now() WHERE id = $1 RETURNING *`,
+      [req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to void invoice: ' + err.message });
+  }
+});
+
+// DELETE /invoices/:id — permanently remove an invoice and its line items.
+// Refuses to delete anything charged through Stripe (paid with a real
+// payment_intent) — that needs a Refund first, so the money movement stays
+// on record even after the invoice itself is gone. Draft/sent/void invoices
+// with no real charge behind them can be deleted outright.
+router.delete('/:id(\\d+)', async (req, res) => {
+  try {
+    const invoiceResult = await pool.query(`SELECT * FROM invoices WHERE id = $1`, [req.params.id]);
+    if (invoiceResult.rows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
+    const invoice = invoiceResult.rows[0];
+
+    if (invoice.status === 'paid' && invoice.stripe_payment_intent_id) {
+      return res.status(400).json({ error: 'This invoice was charged through Stripe — refund it first before deleting.' });
+    }
+
+    await pool.query(`DELETE FROM invoice_line_items WHERE invoice_id = $1`, [req.params.id]);
+    await pool.query(`DELETE FROM invoices WHERE id = $1`, [req.params.id]);
+    res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete invoice: ' + err.message });
+  }
+});
+
+
 
 module.exports = router;
