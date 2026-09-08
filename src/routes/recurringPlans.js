@@ -252,15 +252,20 @@ router.post('/import-from-stripe', requireAdmin, async (req, res) => {
       [family.id, customer.id, cardBrand, cardLast4]
     );
 
-    // Step 3: create the recurring plan
+    // Step 3: create the recurring plan — PAUSED (is_active = false) rather
+    // than active by default. The amount here is copied straight from the
+    // old Stripe subscription, which may predate a price change (e.g. the
+    // card-processing fee added to tuition later) — coming in paused gives
+    // admin a safe window to review/correct the line items before this plan
+    // can ever actually charge anyone.
     const lineItems = [{
       description: price.nickname || sub.description || 'Recurring tuition (imported from Stripe)',
       quantity: 1,
       unit_price: amount,
     }];
     const planResult = await pool.query(
-      `INSERT INTO recurring_plans (family_id, line_items, billing_day, created_by)
-       VALUES ($1,$2,$3,$4) RETURNING *`,
+      `INSERT INTO recurring_plans (family_id, line_items, billing_day, created_by, is_active)
+       VALUES ($1,$2,$3,$4,false) RETURNING *`,
       [family.id, JSON.stringify(lineItems), billing_day, req.staff.staff_id]
     );
 

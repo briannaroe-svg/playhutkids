@@ -1428,7 +1428,7 @@
 <div class="modal-overlay" id="stripe-import-modal-overlay">
   <div class="modal" style="max-width:640px;">
     <h3>Import from Stripe</h3>
-    <p class="modal-sub">Active Stripe subscriptions. Importing one creates (or reuses) a family here, attaches its saved card, sets up the same monthly billing in this app, and cancels the Stripe subscription so it isn't charged twice.</p>
+    <p class="modal-sub">Active Stripe subscriptions. Importing one creates (or reuses) a family here, attaches its saved card, and sets up the same monthly billing in this app — paused by default so you can review or correct the price first — then cancels the Stripe subscription so it isn't charged twice.</p>
     <div class="error-banner" id="stripe-import-error"></div>
     <div id="stripe-import-list" style="max-height:60vh; overflow-y:auto;">
       <div class="empty-state"><p>Loading…</p></div>
@@ -5642,6 +5642,7 @@
       renderStripeImportList();
       recurringPlansCache = await apiFetch('/recurring-plans');
       renderRecurringPlansTable();
+      alert(`Imported and cancelled in Stripe. The new plan for ${sub.customer_name} was created PAUSED — review its price on the Recurring plans list and click Resume when it's ready to bill.`);
     } catch (err) {
       errorBox.textContent = err.message;
       errorBox.classList.add('show');
