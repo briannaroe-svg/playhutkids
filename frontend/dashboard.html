@@ -35,6 +35,7 @@
     background: var(--cream);
     color: var(--charcoal);
     -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: contain; /* stops the browser's pull-to-refresh gesture from firing when a scroll reaches the top */
   }
 
   h1, h2, h3 { font-family: 'Fredoka', sans-serif; font-weight: 600; letter-spacing: -0.01em; }
@@ -141,6 +142,7 @@
     overflow-y: auto !important;
     overflow-x: hidden !important;
     -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-y: contain !important; /* stops a scroll-to-top-then-swipe-up from chaining into the page's own pull-to-refresh gesture */
   }
 
   table { width: 100%; border-collapse: collapse; }
