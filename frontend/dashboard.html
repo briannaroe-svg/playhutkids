@@ -2386,6 +2386,7 @@
         <div class="empty-state"><p>Loading…</p></div>
       </div>
     `;
+    preventPullToRefresh('children-table-wrap');
 
     document.getElementById('child-search-input').addEventListener('input', debounce((e) => {
       childSearchTerm = e.target.value;
@@ -5675,6 +5676,7 @@
         <div class="empty-state"><p>Loading…</p></div>
       </div>
     `;
+    preventPullToRefresh('families-table-wrap');
 
     document.getElementById('family-search-input').addEventListener('input', debounce((e) => {
       familySearchTerm = e.target.value;
@@ -5983,6 +5985,7 @@
         <div class="empty-state"><p>Loading…</p></div>
       </div>
     `;
+    preventPullToRefresh('services-table-wrap');
     renderServicesTable();
   }
 
@@ -6976,6 +6979,34 @@
   function debounce(fn, delay) {
     let timer;
     return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), delay); };
+  }
+
+  // Directly intercepts touch gestures on a scrollable container to stop the
+  // browser's native pull-to-refresh from firing — used because
+  // overscroll-behavior (a pure-CSS fix for this) isn't reliably supported
+  // on every Android WebView/browser combination, and this device is hitting
+  // exactly that gap. The only case this actually blocks is: user is at the
+  // very top of the container AND dragging further downward (the exact
+  // gesture that triggers pull-to-refresh) — every other drag, including
+  // scrolling up from partway down the list, is left completely alone so
+  // normal scrolling still works.
+  function preventPullToRefresh(containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    let startY = 0;
+
+    el.addEventListener('touchstart', (e) => {
+      startY = e.touches[0].clientY;
+    }, { passive: true });
+
+    el.addEventListener('touchmove', (e) => {
+      const currentY = e.touches[0].clientY;
+      const draggingDown = currentY > startY;
+      const atTop = el.scrollTop <= 0;
+      if (atTop && draggingDown) {
+        e.preventDefault();
+      }
+    }, { passive: false }); // passive:false is required for preventDefault() to have any effect
   }
 
   // ============================================================
