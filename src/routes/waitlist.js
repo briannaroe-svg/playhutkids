@@ -20,13 +20,13 @@ router.post('/public-submit', async (req, res) => {
   const {
     parent_name, parent_email, parent_phone, parent_address,
     child_first_name, child_last_name, child_date_of_birth,
-    interested_room,
+    interested_room, notes,
   } = req.body;
 
-  if (!parent_name || !parent_email) {
-    return res.status(400).json({ error: 'Name and email are required' });
+  if (!parent_name || !parent_email || !parent_phone || !child_first_name || !child_date_of_birth || !interested_room) {
+    return res.status(400).json({ error: 'Name, email, phone, child\'s first name, date of birth, and program are all required' });
   }
-  if (interested_room && !VALID_ROOMS.includes(interested_room)) {
+  if (!VALID_ROOMS.includes(interested_room)) {
     return res.status(400).json({ error: 'Invalid room' });
   }
 
@@ -34,11 +34,11 @@ router.post('/public-submit', async (req, res) => {
     const result = await pool.query(
       `INSERT INTO waitlist_entries
         (parent_name, parent_email, parent_phone, parent_address, child_first_name, child_last_name,
-         child_date_of_birth, interested_room)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+         child_date_of_birth, interested_room, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        RETURNING *`,
       [parent_name, parent_email, parent_phone || null, parent_address || null, child_first_name || null, child_last_name || null,
-       child_date_of_birth || null, interested_room || null]
+       child_date_of_birth || null, interested_room || null, notes || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -74,10 +74,10 @@ router.post('/', async (req, res) => {
     interested_room, notes,
   } = req.body;
 
-  if (!parent_name || !parent_email) {
-    return res.status(400).json({ error: 'parent_name and parent_email are required' });
+  if (!parent_name || !parent_email || !parent_phone || !child_first_name || !child_date_of_birth || !interested_room) {
+    return res.status(400).json({ error: 'Parent name, email, phone, child\'s first name, date of birth, and program are all required' });
   }
-  if (interested_room && !VALID_ROOMS.includes(interested_room)) {
+  if (!VALID_ROOMS.includes(interested_room)) {
     return res.status(400).json({ error: 'Invalid room' });
   }
 

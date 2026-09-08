@@ -717,7 +717,7 @@
         </div>
         <div class="field">
           <label for="waitlist-parent-phone">Phone</label>
-          <input type="text" id="waitlist-parent-phone">
+          <input type="text" id="waitlist-parent-phone" required>
         </div>
       </div>
       <div class="field">
@@ -725,25 +725,25 @@
         <input type="text" id="waitlist-parent-address">
       </div>
 
-      <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:18px 0 10px;">Child <span style="font-weight:400; text-transform:none; letter-spacing:normal;">(optional)</span></p>
+      <p class="field-hint" style="font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--teal); margin:18px 0 10px;">Child</p>
       <div class="field-row">
         <div class="field">
           <label for="waitlist-child-first-name">First name</label>
-          <input type="text" id="waitlist-child-first-name">
+          <input type="text" id="waitlist-child-first-name" required>
         </div>
         <div class="field">
-          <label for="waitlist-child-last-name">Last name</label>
+          <label for="waitlist-child-last-name">Last name <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
           <input type="text" id="waitlist-child-last-name">
         </div>
       </div>
       <div class="field">
         <label for="waitlist-child-dob">Date of birth</label>
-        <input type="date" id="waitlist-child-dob">
+        <input type="date" id="waitlist-child-dob" required>
       </div>
       <div class="field">
-        <label for="waitlist-room">Room interested in <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
-        <select id="waitlist-room">
-          <option value="">Undecided</option>
+        <label for="waitlist-room">Program interested in</label>
+        <select id="waitlist-room" required>
+          <option value="" disabled selected>Select a program…</option>
           <option value="Little Bunnies">Little Bunnies</option>
           <option value="Little Raccoons">Little Raccoons</option>
           <option value="Little Cubs">Little Cubs</option>
@@ -755,7 +755,7 @@
         </select>
       </div>
       <div class="field">
-        <label for="waitlist-notes">Notes <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+        <label for="waitlist-notes">Anything else? <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
         <input type="text" id="waitlist-notes" placeholder="Anything worth remembering for the follow-up">
       </div>
 

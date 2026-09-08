@@ -129,8 +129,8 @@
         </div>
         <div class="field">
           <label for="interested-room">What program are you interested in?</label>
-          <select id="interested-room">
-            <option value="">Not sure yet</option>
+          <select id="interested-room" required>
+            <option value="" disabled selected>Select a program…</option>
             <option value="3 Year Old Preschool-AM">3 Year Old AM Class (8:30–11:30 AM)</option>
             <option value="3 Year Old Preschool-PM">3 Year Old PM Class (12:30–3:30 PM)</option>
             <option value="4 Year Old Preschool-AM">4 Year Old AM Class (8:30–11:30 AM)</option>
@@ -140,6 +140,10 @@
             <option value="Little Cubs">3-4-Year-Old Daycare (Little Cubs)</option>
             <option value="Wolf Den">School Age (Wolf Den)</option>
           </select>
+        </div>
+        <div class="field">
+          <label for="waitlist-notes">Anything else? <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+          <input type="text" id="waitlist-notes">
         </div>
 
         <button type="button" class="btn btn-primary" id="submit-btn" onclick="submitWaitlist()">Join the waitlist</button>
@@ -170,6 +174,7 @@
       child_last_name: document.getElementById('child-last-name').value.trim() || null,
       child_date_of_birth: document.getElementById('child-dob').value,
       interested_room: document.getElementById('interested-room').value || null,
+      notes: document.getElementById('waitlist-notes').value.trim() || null,
     };
 
     const btn = document.getElementById('submit-btn');
