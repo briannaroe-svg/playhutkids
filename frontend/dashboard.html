@@ -125,7 +125,7 @@
   .page-header h2 { font-size: 24px; color: var(--teal-dark); margin: 0 0 5px; }
   .page-header p { color: #6B7A76; font-size: 14px; margin: 0; }
 
-  .card { background: #fff; border: 1px solid var(--sage-light); border-radius: 14px; box-shadow: var(--shadow); }
+  .card { background: #fff; border: 1px solid var(--sage-light); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
 
   table { width: 100%; border-collapse: collapse; }
   th {
@@ -133,8 +133,6 @@
     letter-spacing: 0.04em; color: #6B7A76; padding: 13px 20px;
     border-bottom: 1.5px solid var(--sage-light); background: var(--sage-light);
   }
-  th:first-child { border-top-left-radius: 14px; }
-  th:last-child { border-top-right-radius: 14px; }
   td { padding: 14px 20px; font-size: 14px; border-bottom: 1px solid #F1ECE3; color: var(--charcoal); }
   /* Keeps the Services table's column headers visible while scrolling a long
      catalog — th already has a background color set above, which sticky
@@ -2349,7 +2347,7 @@
           </label>
         ` : ''}
       </div>
-      <div class="card" id="children-table-wrap" style="max-height:75vh; overflow-y:auto;">
+      <div class="card" id="children-table-wrap" style="max-height:75vh; overflow-y:auto; -webkit-overflow-scrolling:touch;">
         <div class="empty-state"><p>Loading…</p></div>
       </div>
     `;
@@ -2456,9 +2454,23 @@
     `;
   }
 
+  // A real allergy entry vs. a parent explicitly saying there isn't one —
+  // "None", "N/A", "none", "no allergies", etc. should NOT trigger the
+  // check-in safety popup, since that's the opposite of what it's for.
+  // Only an empty/blank field OR one of these explicit negatives counts as
+  // "no allergies" — anything else (including a real allergy name that
+  // happens to contain one of these words, which is vanishingly unlikely
+  // given the exact-match check below) is treated as a genuine allergy.
+  const NO_ALLERGY_PHRASES = ['none', 'n/a', 'na', 'no', 'nil', 'no allergies', 'no known allergies', 'nka'];
+  function hasRealAllergy(allergiesText) {
+    if (!allergiesText) return false;
+    const normalized = allergiesText.trim().toLowerCase().replace(/[.!]+$/, '');
+    return normalized.length > 0 && !NO_ALLERGY_PHRASES.includes(normalized);
+  }
+
   function handleChildCheckIn(childId) {
     const c = childrenCache.find(x => x.id === childId);
-    const hasAllergies = c && c.allergies && c.allergies.trim();
+    const hasAllergies = c && hasRealAllergy(c.allergies);
 
     if (hasAllergies) {
       showAllergyGate(c);
@@ -2806,7 +2818,7 @@
     document.getElementById('child-detail-program').textContent = c.program === 'preschool' ? 'Preschool' : 'Daycare';
 
     const val = (v) => v ? escapeHtml(v) : '<span class="detail-value empty">None on file</span>';
-    const hasAllergies = c.allergies && c.allergies.trim();
+    const hasAllergies = hasRealAllergy(c.allergies);
     const yesNo = (v) => v === true ? 'Yes' : v === false ? 'No' : 'Not on file';
     const immunizationLabel = { records_provided: 'Records on file', exemption_on_file: 'Exemption on file' }[c.immunization_status] || 'Not yet provided';
 
@@ -5423,7 +5435,7 @@
           Show unenrolled families
         </label>
       </div>
-      <div class="card" id="families-table-wrap" style="max-height:75vh; overflow-y:auto;">
+      <div class="card" id="families-table-wrap" style="max-height:75vh; overflow-y:auto; -webkit-overflow-scrolling:touch;">
         <div class="empty-state"><p>Loading…</p></div>
       </div>
     `;
@@ -5730,7 +5742,7 @@
           <button class="btn btn-coral" onclick="openServiceModal()">+ Add service</button>
         </div>
       </div>
-      <div class="card" id="services-table-wrap" style="max-height:75vh; overflow-y:auto;">
+      <div class="card" id="services-table-wrap" style="max-height:75vh; overflow-y:auto; -webkit-overflow-scrolling:touch;">
 
         <div class="empty-state"><p>Loading…</p></div>
       </div>
