@@ -336,20 +336,22 @@
       <h3 class="sub-heading">Getting paid</h3>
       <ul>
         <li><strong>Charge card</strong> — only shown when the family has a card on file. Charges that saved card for the invoice's exact total immediately, after a confirmation showing the amount and family name. This uses live Stripe — it's a real charge.</li>
-        <li><strong>Get payment link</strong> creates a real Stripe payment link and copies it to your clipboard — also live Stripe.</li>
-        <li><strong>Copy link</strong> re-copies a link that already exists for that invoice</li>
         <li><strong>Mark paid</strong> manually flips an invoice to paid — useful for cash or check payments, or any payment collected outside Stripe</li>
-        <li><strong>Refund</strong> — shown on any invoice that was actually charged through Stripe (via Charge card or a payment link). Refunds the full amount immediately and flips the invoice to void. Cash/check payments marked paid manually have nothing to refund here — handle those directly with the family.</li>
+        <li><strong>Refund</strong> — shown on any invoice that was actually charged through Stripe (via Charge card or the payment link in an emailed invoice). Refunds the full amount immediately and flips the invoice to void. Cash/check payments marked paid manually have nothing to refund here — handle those directly with the family.</li>
+        <li><strong>✕</strong> next to any invoice opens a small menu to <strong>void</strong> it (keeps the record, marks it uncollectible) or <strong>delete it permanently</strong> — deleting cannot be undone.</li>
       </ul>
-      <div class="note"><strong>Note:</strong> There's no automatic sync between a Stripe payment link and this dashboard — even if a family pays through the link, an admin still needs to click <strong>Mark paid</strong> to reflect that here. Charging the saved card directly (Charge card) does update the status automatically, since that action happens inside the dashboard itself.</div>
+      <h3 class="sub-heading">Emailing an invoice</h3>
+      <p>Click <strong>Email</strong> to send the invoice to the family — this generates a real Stripe payment link automatically (no separate "get payment link" step needed) and sends a branded email with your logo, the invoice PDF attached, and a "Pay now" button linking straight to that Stripe payment page. Once an invoice has been emailed once, the button relabels to <strong>Resend</strong> — useful if the first one got missed or buried; it reuses the same payment link rather than generating a new one each time.</p>
+      <p>Every invoice row is also color-coded by status — a colored stripe down the left edge and a colored total (gold for draft/sent, green for paid, red for overdue, struck-through gray for void) — so you can scan the list at a glance without reading every status badge.</p>
+      <div class="note"><strong>Stripe webhook:</strong> If the Stripe webhook is configured (Developers → Webhooks in your Stripe dashboard, pointed at this app), a payment made through the emailed link marks the invoice paid automatically — no manual "Mark paid" click needed. Without it configured, payments still go through on Stripe's side, but you'll need to mark the invoice paid here yourself once you see it in Stripe.</div>
     </section>
 
     <section id="scheduling">
       <h2 class="section-title">Scheduling <span class="badge badge-everyone">Everyone</span></h2>
-      <p class="section-sub">Shifts, school-wide events, and time-off requests.</p>
+      <p class="section-sub">Shifts, the weekly room schedule, school-wide events, and time-off requests.</p>
       <h3 class="sub-heading">For admins</h3>
       <ul>
-        <li><strong>+ Add shift</strong> — assign a staff member to a specific date and time</li>
+        <li><strong>+ Add shift</strong> — assign a staff member to a specific date and time, with an optional room</li>
         <li><strong>+ Add event</strong> — post something everyone should see, like a staff meeting or a closure day</li>
         <li>Review time-off requests below the calendar — <strong>Approve</strong> or <strong>Deny</strong> each one. A small badge on the Scheduling tab itself shows how many requests are waiting</li>
         <li>Click <strong>Who's seen this?</strong> on any event to see which staff have acknowledged it</li>
@@ -360,6 +362,17 @@
         <li><strong>Request time off</strong> — submit dates and an optional reason; it shows up for admins to review, along with your own request history and its status</li>
       </ul>
       <div class="note"><strong>Event popups:</strong> When admin posts a new event, every staff member sees a one-time popup the next time they log in, describing the event. They must click <strong>I understand</strong> to dismiss it — this is what admin is checking in "Who's seen this?"</div>
+
+      <h3 class="sub-heading">Weekly Room Schedule <span class="badge badge-admin" style="font-size:10.5px; padding:2px 8px;">Admin</span></h3>
+      <p>A grid view of the week, laid out by room instead of by staff member — the digital version of the paper weekly schedule. Switch between viewing it <strong>by room</strong> (the 8 specific rooms) or <strong>by age group</strong> (four broader bands: Infant/1-Year-Old, 2-Year-Old, 3-4-Year-Old, and School Age for Wolf Den). Click an empty spot in a cell to add a shift there; click an existing shift to edit or delete it. This is the same shift data as the rest of Scheduling — just a different view of it, so anything added here shows up everywhere shifts are used (Home, staff's own schedule, licensing ratios).</p>
+
+      <h3 class="sub-heading">Finalize Week <span class="badge badge-admin" style="font-size:10.5px; padding:2px 8px;">Admin</span></h3>
+      <p>Once a week's shifts are set, click <strong>Finalize week</strong> on the room schedule grid. This immediately notifies every staff member who has a shift that week, two ways at once:</p>
+      <ul>
+        <li><strong>Email</strong> — each person gets their own email listing just their shifts for that week (day, time, room). Staff with no email on file are skipped for this part only.</li>
+        <li><strong>In-app notice</strong> — a one-time popup, "Your schedule is ready," shown the next time they log in, listing their shifts. It requires clicking <strong>I understand</strong> to dismiss, same as an event popup — if someone has both a pending event and a pending schedule notice, they're shown one after the other, never stacked on top of each other.</li>
+      </ul>
+      <p>Admin also gets a confirmation email summarizing how many staff were notified and how many emails actually went out.</p>
     </section>
 
     <section id="timesheets">
