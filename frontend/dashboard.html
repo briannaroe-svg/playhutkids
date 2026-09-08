@@ -5764,7 +5764,7 @@
                 ${inv.status !== 'paid' && inv.status !== 'void' ? `<button class="icon-btn" onclick="markInvoicePaid(${inv.id})">Mark paid</button>` : ''}
                 ${inv.status === 'paid' && inv.stripe_payment_intent_id ? `<button class="icon-btn" style="color:var(--error);" onclick="refundInvoice(${inv.id})">Refund</button>` : ''}
                 <button class="icon-btn" id="invoice-pdf-btn-${inv.id}" onclick="downloadInvoicePdf(${inv.id})">PDF</button>
-                <button class="icon-btn" id="invoice-email-btn-${inv.id}" onclick="emailInvoice(${inv.id})">Email</button>
+                <button class="icon-btn" id="invoice-email-btn-${inv.id}" onclick="emailInvoice(${inv.id})">${inv.status === 'draft' ? 'Email' : 'Resend'}</button>
                 <button class="invoice-x-btn" title="Void or delete" onclick="openInvoiceVoidModal(${inv.id})">✕</button>
               </td>
             </tr>
