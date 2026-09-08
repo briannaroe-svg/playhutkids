@@ -246,4 +246,107 @@ router.put('/:id(\\d+)/withdraw', requireAdmin, async (req, res) => {
   }
 });
 
+// GET /children/duplicates — admin only. Flags pairs of child records that
+// look like the same real kid: same first + last name (case/whitespace
+// insensitive) AND same date of birth — both signals together, since name
+// alone would false-positive on two different children who happen to share
+// a common name. Never merges or deletes anything itself.
+router.get('/duplicates', requireAdmin, async (req, res) => {
+  try {
+    const allChildren = await pool.query(
+      `SELECT c.*, f.primary_parent_name, f.primary_parent_email
+       FROM children c JOIN families f ON c.family_id = f.id
+       ORDER BY c.created_at ASC`
+    );
+    const children = allChildren.rows;
+
+    const normalize = (s) => (s || '').trim().toLowerCase();
+    const pairs = [];
+
+    for (let i = 0; i < children.length; i++) {
+      for (let j = i + 1; j < children.length; j++) {
+        const a = children[i], b = children[j];
+        const sameName = normalize(a.first_name) === normalize(b.first_name) && normalize(a.last_name) === normalize(b.last_name);
+        const sameDob = a.date_of_birth && b.date_of_birth &&
+          new Date(a.date_of_birth).getTime() === new Date(b.date_of_birth).getTime();
+        if (sameName && sameDob) {
+          pairs.push({ child_a: a, child_b: b });
+        }
+      }
+    }
+
+    res.json(pairs);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to find duplicate children' });
+  }
+});
+
+// POST /children/merge — admin only. Merges TWO child records into one:
+// every fee adjustment, invoice line item, staff assignment, attendance
+// record, agreement, daily report, and document from `duplicate_id` is
+// re-pointed to `keep_id`, then the now-empty duplicate is deleted. The
+// keeper's own family_id never changes — merging never moves a child
+// between families, only combines two records for what is judged to be the
+// same real child. All in one transaction: either the whole merge succeeds,
+// or none of it does.
+router.post('/merge', requireAdmin, async (req, res) => {
+  const { keep_id, duplicate_id } = req.body;
+  if (!keep_id || !duplicate_id) {
+    return res.status(400).json({ error: 'keep_id and duplicate_id are required' });
+  }
+  if (keep_id === duplicate_id) {
+    return res.status(400).json({ error: 'keep_id and duplicate_id must be different children' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const keepResult = await client.query(`SELECT * FROM children WHERE id = $1 FOR UPDATE`, [keep_id]);
+    const dupResult = await client.query(`SELECT * FROM children WHERE id = $1 FOR UPDATE`, [duplicate_id]);
+    if (keepResult.rows.length === 0 || dupResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'One or both children were not found' });
+    }
+
+    // child_staff_assignments has a UNIQUE(child_id, staff_id) constraint —
+    // if both the keeper and the duplicate are already assigned to the same
+    // staff member, blindly re-pointing the duplicate's row would violate
+    // that constraint. Delete any of the duplicate's assignment rows that
+    // would collide, then re-point whatever's left.
+    await client.query(
+      `DELETE FROM child_staff_assignments dup_csa
+       WHERE dup_csa.child_id = $2
+         AND EXISTS (
+           SELECT 1 FROM child_staff_assignments keep_csa
+           WHERE keep_csa.child_id = $1 AND keep_csa.staff_id = dup_csa.staff_id
+         )`,
+      [keep_id, duplicate_id]
+    );
+    await client.query(`UPDATE child_staff_assignments SET child_id = $1 WHERE child_id = $2`, [keep_id, duplicate_id]);
+
+    await client.query(`UPDATE fee_adjustments SET child_id = $1 WHERE child_id = $2`, [keep_id, duplicate_id]);
+    await client.query(`UPDATE invoice_line_items SET child_id = $1 WHERE child_id = $2`, [keep_id, duplicate_id]);
+    await client.query(`UPDATE attendance_records SET child_id = $1 WHERE child_id = $2`, [keep_id, duplicate_id]);
+    await client.query(`UPDATE agreements SET child_id = $1 WHERE child_id = $2`, [keep_id, duplicate_id]);
+    await client.query(`UPDATE daily_reports SET child_id = $1 WHERE child_id = $2`, [keep_id, duplicate_id]);
+    await client.query(`UPDATE child_documents SET child_id = $1 WHERE child_id = $2`, [keep_id, duplicate_id]);
+    await client.query(`UPDATE registrations SET resulting_child_id = $1 WHERE resulting_child_id = $2`, [keep_id, duplicate_id]);
+
+    await client.query(`DELETE FROM children WHERE id = $1`, [duplicate_id]);
+
+    const finalResult = await client.query(`SELECT * FROM children WHERE id = $1`, [keep_id]);
+    await client.query('COMMIT');
+
+    res.json({ merged_child: finalResult.rows[0] });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err);
+    res.status(500).json({ error: 'Failed to merge children: ' + err.message });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;

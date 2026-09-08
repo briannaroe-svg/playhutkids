@@ -1278,6 +1278,32 @@
   </div>
 </div>
 
+<!-- ============ FIND DUPLICATE CHILDREN MODAL (admin only) ============ -->
+<div class="modal-overlay" id="child-duplicates-modal-overlay">
+  <div class="modal" style="max-width:640px; max-height:85vh; overflow-y:auto;">
+    <h3>Possible duplicate children</h3>
+    <p class="modal-sub">Matched by same name AND same date of birth. Nothing is merged until you confirm a specific pair below.</p>
+    <div id="child-duplicates-list"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeChildDuplicatesModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MERGE CHILDREN MODAL (admin only) ============ -->
+<div class="modal-overlay" id="merge-child-modal-overlay">
+  <div class="modal" style="max-width:520px; max-height:85vh; overflow-y:auto;">
+    <h3>Merge these children</h3>
+    <p class="modal-sub">Pick which record to keep. Every attendance record, invoice line, document, and daily report from the other one moves onto the keeper — nothing is lost. The keeper's own family never changes.</p>
+    <div class="error-banner" id="merge-child-modal-error"></div>
+    <div id="merge-child-modal-body"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeMergeChildModal()">Cancel</button>
+      <button type="button" class="btn" style="background:var(--forest-deep); color:#fff; flex:1; padding:13px; border-radius:10px; border:none; font-weight:600; cursor:pointer;" id="merge-child-confirm-btn" onclick="confirmMergeChildren()">Merge children</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ ALLERGY CONFIRMATION GATE (blocks check-in, no click-outside dismiss) ============ -->
 <div class="allergy-gate-overlay" id="allergy-gate-overlay">
   <div class="allergy-gate-card">
@@ -2415,7 +2441,12 @@
           <h2>Children</h2>
           <p>${isAdmin ? 'Enrolled children, their rooms, and who\'s checked in today.' : 'Enrolled children — check them in when they arrive.'}</p>
         </div>
-        ${isAdmin ? '<button class="btn btn-coral" onclick="openChildModal()">+ Add child</button>' : ''}
+        ${isAdmin ? `
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-ghost" onclick="openChildDuplicatesModal()">Find duplicates</button>
+            <button class="btn btn-coral" onclick="openChildModal()">+ Add child</button>
+          </div>
+        ` : ''}
       </div>
       <div style="display:flex; align-items:center; gap:16px; margin-bottom:18px; flex-wrap:wrap;">
         <div class="field" style="max-width:320px; margin-bottom:0;">
@@ -3359,6 +3390,128 @@
       errorBox.classList.add('show');
       btn.disabled = false;
       btn.textContent = 'Merge families';
+    }
+  }
+
+  // ---- Find duplicates / merge children ----
+  let childDuplicatePairsCache = [];
+  let childMergeCandidate = null; // { a, b, keeperSide }
+
+  async function openChildDuplicatesModal() {
+    document.getElementById('child-duplicates-list').innerHTML = `<div class="empty-state-sm"><p>Looking for duplicates…</p></div>`;
+    document.getElementById('child-duplicates-modal-overlay').classList.add('show');
+    try {
+      childDuplicatePairsCache = await apiFetch('/children/duplicates');
+      renderChildDuplicatesList();
+    } catch (err) {
+      document.getElementById('child-duplicates-list').innerHTML = `<div class="empty-state-sm"><p>${err.message}</p></div>`;
+    }
+  }
+
+  function closeChildDuplicatesModal() {
+    document.getElementById('child-duplicates-modal-overlay').classList.remove('show');
+  }
+
+  function renderChildDuplicatesList() {
+    const wrap = document.getElementById('child-duplicates-list');
+    if (childDuplicatePairsCache.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>No likely duplicates found</h3><p>Nothing shares the same name and date of birth right now.</p></div>`;
+      return;
+    }
+    wrap.innerHTML = childDuplicatePairsCache.map((pair, i) => `
+      <div style="border:1px solid var(--sage-light); border-radius:10px; padding:14px 16px; margin-bottom:10px;">
+        <div style="font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; color:var(--wood); margin-bottom:8px;">Same name &amp; birthdate</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+          <div style="flex:1;">
+            <strong>${escapeHtml(pair.child_a.first_name)} ${escapeHtml(pair.child_a.last_name)}</strong>
+            <div style="font-size:12.5px; color:#6B7A76;">${formatDate(pair.child_a.date_of_birth)} — family: ${escapeHtml(pair.child_a.primary_parent_name)}</div>
+            <div style="font-size:12px; color:#8A9490;">${pair.child_a.enrollment_status === 'active' ? 'Active' : 'Withdrawn'}</div>
+          </div>
+          <div style="font-size:12px; color:#8A9490;">vs</div>
+          <div style="flex:1; text-align:right;">
+            <strong>${escapeHtml(pair.child_b.first_name)} ${escapeHtml(pair.child_b.last_name)}</strong>
+            <div style="font-size:12.5px; color:#6B7A76;">${formatDate(pair.child_b.date_of_birth)} — family: ${escapeHtml(pair.child_b.primary_parent_name)}</div>
+            <div style="font-size:12px; color:#8A9490;">${pair.child_b.enrollment_status === 'active' ? 'Active' : 'Withdrawn'}</div>
+          </div>
+        </div>
+        <div style="margin-top:10px; text-align:right;">
+          <button class="btn btn-ghost" style="padding:8px 16px; font-size:13px; width:auto;" onclick="startChildMerge(${i})">Review &amp; merge</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function startChildMerge(pairIndex) {
+    const pair = childDuplicatePairsCache[pairIndex];
+    childMergeCandidate = { a: pair.child_a, b: pair.child_b, keeperSide: 'a' };
+    closeChildDuplicatesModal();
+    renderMergeChildModal();
+    document.getElementById('merge-child-modal-overlay').classList.add('show');
+  }
+
+  function renderMergeChildModal() {
+    const { a, b, keeperSide } = childMergeCandidate;
+    document.getElementById('merge-child-modal-error').classList.remove('show');
+
+    document.getElementById('merge-child-modal-body').innerHTML = `
+      <div class="field">
+        <label>Which record should survive?</label>
+        <div style="display:flex; gap:10px;">
+          <label style="flex:1; border:1.5px solid ${keeperSide === 'a' ? 'var(--forest-deep)' : 'var(--sage-light)'}; border-radius:10px; padding:12px; cursor:pointer;">
+            <input type="radio" name="merge-child-keeper-side" value="a" ${keeperSide === 'a' ? 'checked' : ''} onchange="setChildMergeKeeperSide('a')" style="width:auto; margin-right:6px;">
+            <strong>${escapeHtml(a.first_name)} ${escapeHtml(a.last_name)}</strong>
+            <div style="font-size:12px; color:#6B7A76; margin-left:20px;">Family: ${escapeHtml(a.primary_parent_name)}</div>
+            <div style="font-size:12px; color:#6B7A76; margin-left:20px;">${a.enrollment_status === 'active' ? 'Active' : 'Withdrawn'}${a.room ? ' — ' + escapeHtml(a.room) : ''}</div>
+          </label>
+          <label style="flex:1; border:1.5px solid ${keeperSide === 'b' ? 'var(--forest-deep)' : 'var(--sage-light)'}; border-radius:10px; padding:12px; cursor:pointer;">
+            <input type="radio" name="merge-child-keeper-side" value="b" ${keeperSide === 'b' ? 'checked' : ''} onchange="setChildMergeKeeperSide('b')" style="width:auto; margin-right:6px;">
+            <strong>${escapeHtml(b.first_name)} ${escapeHtml(b.last_name)}</strong>
+            <div style="font-size:12px; color:#6B7A76; margin-left:20px;">Family: ${escapeHtml(b.primary_parent_name)}</div>
+            <div style="font-size:12px; color:#6B7A76; margin-left:20px;">${b.enrollment_status === 'active' ? 'Active' : 'Withdrawn'}${b.room ? ' — ' + escapeHtml(b.room) : ''}</div>
+          </label>
+        </div>
+      </div>
+      <div class="note" style="text-align:left; margin-top:4px;">The child stays under whichever family the keeper record already belongs to — merging never moves a child between families.</div>
+    `;
+  }
+
+  function setChildMergeKeeperSide(side) {
+    childMergeCandidate.keeperSide = side;
+    renderMergeChildModal();
+  }
+
+  function closeMergeChildModal() {
+    document.getElementById('merge-child-modal-overlay').classList.remove('show');
+    childMergeCandidate = null;
+  }
+
+  async function confirmMergeChildren() {
+    if (!childMergeCandidate) return;
+    const { a, b, keeperSide } = childMergeCandidate;
+    const keeper = keeperSide === 'a' ? a : b;
+    const other = keeperSide === 'a' ? b : a;
+
+    if (!confirm(`Merge the other ${other.first_name} ${other.last_name} record into this one? This moves every attendance record, invoice line, document, and daily report onto the keeper and permanently deletes the other record. This cannot be undone.`)) return;
+
+    const btn = document.getElementById('merge-child-confirm-btn');
+    const errorBox = document.getElementById('merge-child-modal-error');
+    btn.disabled = true;
+    btn.textContent = 'Merging…';
+    errorBox.classList.remove('show');
+
+    try {
+      await apiFetch('/children/merge', {
+        method: 'POST',
+        body: JSON.stringify({ keep_id: keeper.id, duplicate_id: other.id }),
+      });
+      closeMergeChildModal();
+      await loadChildrenList();
+      alert(`Merged successfully. ${keeper.first_name} ${keeper.last_name} now has everything from both records.`);
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Merge children';
     }
   }
 
