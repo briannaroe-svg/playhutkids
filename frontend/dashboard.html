@@ -1424,6 +1424,21 @@
   </div>
 </div>
 
+<!-- ============ IMPORT FROM STRIPE MODAL (admin only) ============ -->
+<div class="modal-overlay" id="stripe-import-modal-overlay">
+  <div class="modal" style="max-width:640px;">
+    <h3>Import from Stripe</h3>
+    <p class="modal-sub">Active Stripe subscriptions. Importing one creates (or reuses) a family here, attaches its saved card, sets up the same monthly billing in this app, and cancels the Stripe subscription so it isn't charged twice.</p>
+    <div class="error-banner" id="stripe-import-error"></div>
+    <div id="stripe-import-list" style="max-height:60vh; overflow-y:auto;">
+      <div class="empty-state"><p>Loading…</p></div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeStripeImportModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ EDIT TIMESHEET ENTRY MODAL (admin only) ============ -->
 <div class="modal-overlay" id="ts-edit-modal-overlay">
   <div class="modal">
@@ -5448,7 +5463,10 @@
 
       <div class="page-header" style="margin-bottom:14px;">
         <div><h2 style="font-size:19px;">Recurring plans</h2><p>Automatically bills a family's saved card on a set day each month.</p></div>
-        <button class="btn btn-ghost" onclick="openRecurringPlanModal()">+ New plan</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost" onclick="openStripeImportModal()">Import from Stripe</button>
+          <button class="btn btn-ghost" onclick="openRecurringPlanModal()">+ New plan</button>
+        </div>
       </div>
       <div class="card" id="recurring-plans-wrap">
         <div class="empty-state"><p>Loading…</p></div>
@@ -5546,6 +5564,92 @@
       </table>
     `;
   }
+
+  // ---- Import from Stripe ----
+  let stripeImportSubsCache = [];
+
+  async function openStripeImportModal() {
+    document.getElementById('stripe-import-error').classList.remove('show');
+    document.getElementById('stripe-import-list').innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+    document.getElementById('stripe-import-modal-overlay').classList.add('show');
+
+    try {
+      stripeImportSubsCache = await apiFetch('/recurring-plans/stripe-subscriptions');
+      renderStripeImportList();
+    } catch (err) {
+      document.getElementById('stripe-import-list').innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+    }
+  }
+
+  function closeStripeImportModal() {
+    document.getElementById('stripe-import-modal-overlay').classList.remove('show');
+  }
+
+  function renderStripeImportList() {
+    const wrap = document.getElementById('stripe-import-list');
+    if (stripeImportSubsCache.length === 0) {
+      wrap.innerHTML = `<div class="empty-state"><h3>Nothing to import</h3><p>No active Stripe subscriptions were found.</p></div>`;
+      return;
+    }
+    wrap.innerHTML = stripeImportSubsCache.map((s) => {
+      const safeId = s.subscription_id.replace(/[^a-zA-Z0-9]/g, '');
+      return `
+      <div style="border:1px solid var(--sage-light); border-radius:10px; padding:14px 16px; margin-bottom:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+          <div>
+            <strong>${escapeHtml(s.customer_name)}</strong>
+            <div style="font-size:12.5px; color:#6B7A76;">${escapeHtml(s.customer_email || 'No email on file')}</div>
+            ${s.existing_family_id
+              ? `<div style="font-size:12px; color:var(--success); margin-top:3px;">Matches existing family: ${escapeHtml(s.existing_family_name)}</div>`
+              : `<div style="font-size:12px; color:var(--wood); margin-top:3px;">Will create a new family</div>`}
+          </div>
+          <div style="text-align:right; white-space:nowrap;">
+            <strong>${s.amount != null ? formatCurrency(s.amount) : '—'}</strong>
+            <div style="font-size:12px; color:#6B7A76;">${s.interval ? 'per ' + s.interval : ''}</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; margin-top:10px;">
+          <label style="font-size:12.5px; color:#6B7A76;">Bill on day</label>
+          <input type="number" min="1" max="28" value="1" id="stripe-import-day-${safeId}" style="width:60px; padding:6px 8px; border:1.5px solid var(--sage-light); border-radius:6px;">
+          <button class="btn btn-coral" style="padding:8px 16px; font-size:13px; margin-left:auto;" id="stripe-import-btn-${safeId}" onclick="importStripeSubscription('${s.subscription_id}')">Import & cancel in Stripe</button>
+        </div>
+      </div>
+    `;
+    }).join('');
+  }
+
+  async function importStripeSubscription(subscriptionId) {
+    const safeId = subscriptionId.replace(/[^a-zA-Z0-9]/g, '');
+    const sub = stripeImportSubsCache.find(s => s.subscription_id === subscriptionId);
+    if (!sub) return;
+    const billingDay = Number(document.getElementById('stripe-import-day-' + safeId).value);
+    const errorBox = document.getElementById('stripe-import-error');
+    errorBox.classList.remove('show');
+
+    const confirmMsg = `Import ${sub.customer_name} (${formatCurrency(sub.amount)}${sub.interval ? '/' + sub.interval : ''}) as a recurring plan here, billing on day ${billingDay} of each month, and CANCEL this subscription in Stripe?\n\nThis cannot be undone — the family will only be billed through this app afterward.`;
+    if (!confirm(confirmMsg)) return;
+
+    const btn = document.getElementById('stripe-import-btn-' + safeId);
+    btn.disabled = true;
+    btn.textContent = 'Importing…';
+
+    try {
+      await apiFetch('/recurring-plans/import-from-stripe', {
+        method: 'POST',
+        body: JSON.stringify({ subscription_id: sub.subscription_id, billing_day: billingDay }),
+      });
+      stripeImportSubsCache = stripeImportSubsCache.filter(s => s.subscription_id !== subscriptionId);
+      renderStripeImportList();
+      recurringPlansCache = await apiFetch('/recurring-plans');
+      renderRecurringPlansTable();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Import & cancel in Stripe';
+    }
+  }
+
 
   async function toggleRecurringPlanActive(planId, newActive) {
     try {

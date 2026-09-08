@@ -131,8 +131,156 @@ router.delete('/:id(\\d+)', async (req, res) => {
   }
 });
 
-// GET /recurring-plans/runs?days=7 — recent run history across every plan,
-// for the admin-facing "notice" of what's happened lately.
+// GET /recurring-plans/stripe-subscriptions — admin only, live list of active
+// Stripe Subscriptions for review before importing. Flags whether a family
+// with the same email already exists in this app, so admin can see at a
+// glance which imports will create a new family vs. attach to an existing one.
+router.get('/stripe-subscriptions', requireAdmin, async (req, res) => {
+  try {
+    const subscriptions = await stripe.subscriptions.list({
+      status: 'active',
+      limit: 100,
+      expand: ['data.customer', 'data.items.data.price'],
+    });
+
+    const results = [];
+    for (const sub of subscriptions.data) {
+      const customer = sub.customer;
+      if (!customer || customer.deleted) continue; // skip subscriptions on deleted customers
+
+      const item = sub.items.data[0];
+      const price = item?.price;
+      const amount = price ? Number(price.unit_amount) / 100 : null;
+      const interval = price?.recurring?.interval || null;
+
+      const existingFamily = await pool.query(
+        `SELECT id, primary_parent_name FROM families WHERE primary_parent_email = $1`,
+        [customer.email]
+      );
+
+      results.push({
+        subscription_id: sub.id,
+        customer_id: customer.id,
+        customer_name: customer.name || '(no name on Stripe)',
+        customer_email: customer.email || null,
+        amount,
+        interval,
+        description: price?.product ? null : (item?.description || sub.description || null),
+        existing_family_id: existingFamily.rows[0]?.id || null,
+        existing_family_name: existingFamily.rows[0]?.primary_parent_name || null,
+      });
+    }
+
+    res.json(results);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch Stripe subscriptions: ' + err.message });
+  }
+});
+
+// POST /recurring-plans/import-from-stripe — admin only. Migrates ONE active
+// Stripe Subscription into this app's own recurring_plans system:
+//   1. Finds or creates the family (matched by email)
+//   2. Attaches the Subscription's Stripe Customer + its default payment
+//      method as that family's saved card, so this app's own billing can
+//      charge it later — no need to ask the parent to re-enter a card
+//   3. Creates the recurring_plans row with the same amount/day
+//   4. Cancels the Stripe Subscription, since this app's own billing now
+//      owns future charges — leaving both running would double-bill the family
+// Steps happen in this order deliberately: the Subscription is only
+// cancelled LAST, after everything else has succeeded, so a failure partway
+// through never leaves a family with no billing at all.
+router.post('/import-from-stripe', requireAdmin, async (req, res) => {
+  const { subscription_id, billing_day } = req.body;
+  if (!subscription_id || !billing_day) {
+    return res.status(400).json({ error: 'subscription_id and billing_day are required' });
+  }
+  if (billing_day < 1 || billing_day > 28) {
+    return res.status(400).json({ error: 'billing_day must be between 1 and 28' });
+  }
+
+  try {
+    const sub = await stripe.subscriptions.retrieve(subscription_id, { expand: ['customer', 'items.data.price'] });
+    const customer = sub.customer;
+    if (!customer || customer.deleted) return res.status(400).json({ error: 'The Stripe customer on this subscription no longer exists' });
+    if (!customer.email) return res.status(400).json({ error: 'This Stripe customer has no email on file — cannot match or create a family' });
+
+    const item = sub.items.data[0];
+    const price = item?.price;
+    if (!price) return res.status(400).json({ error: 'Could not read a price from this subscription' });
+    const amount = Number(price.unit_amount) / 100;
+
+    // Step 1: find or create the family
+    let family;
+    const existing = await pool.query(`SELECT * FROM families WHERE primary_parent_email = $1`, [customer.email]);
+    if (existing.rows.length > 0) {
+      family = existing.rows[0];
+    } else {
+      const created = await pool.query(
+        `INSERT INTO families (primary_parent_name, primary_parent_email, primary_parent_phone)
+         VALUES ($1,$2,$3) RETURNING *`,
+        [customer.name || customer.email, customer.email, customer.phone || null]
+      );
+      family = created.rows[0];
+    }
+
+    // Step 2: attach the Stripe customer + card display info, so this app's
+    // own billing can charge the SAME card the subscription was using —
+    // reusing the Stripe Customer ID directly rather than creating a new one,
+    // since the saved payment method lives on the Customer, not the Subscription.
+    let cardBrand = null, cardLast4 = null;
+    try {
+      const stripeCustomer = await stripe.customers.retrieve(customer.id);
+      const defaultPmId = stripeCustomer.invoice_settings?.default_payment_method || sub.default_payment_method;
+      if (defaultPmId) {
+        const pm = await stripe.paymentMethods.retrieve(typeof defaultPmId === 'string' ? defaultPmId : defaultPmId.id);
+        if (pm.card) { cardBrand = pm.card.brand; cardLast4 = pm.card.last4; }
+        // Make sure this Customer's default payment method is actually set,
+        // in case it was only set at the Subscription level before.
+        await stripe.customers.update(customer.id, { invoice_settings: { default_payment_method: pm.id } });
+      }
+    } catch (cardErr) {
+      console.error('Could not read/attach card while importing subscription', subscription_id, cardErr.message);
+      // Continue anyway — the plan can still be created; it just won't have
+      // a card to charge until one is added from the Families tab.
+    }
+
+    await pool.query(
+      `UPDATE families SET stripe_customer_id = $2, card_brand = COALESCE($3, card_brand), card_last4 = COALESCE($4, card_last4),
+              card_saved_at = CASE WHEN $3 IS NOT NULL THEN now() ELSE card_saved_at END
+       WHERE id = $1`,
+      [family.id, customer.id, cardBrand, cardLast4]
+    );
+
+    // Step 3: create the recurring plan
+    const lineItems = [{
+      description: price.nickname || sub.description || 'Recurring tuition (imported from Stripe)',
+      quantity: 1,
+      unit_price: amount,
+    }];
+    const planResult = await pool.query(
+      `INSERT INTO recurring_plans (family_id, line_items, billing_day, created_by)
+       VALUES ($1,$2,$3,$4) RETURNING *`,
+      [family.id, JSON.stringify(lineItems), billing_day, req.staff.staff_id]
+    );
+
+    // Step 4: cancel the Stripe subscription LAST, only now that the new
+    // plan is confirmed created.
+    await stripe.subscriptions.cancel(subscription_id);
+
+    res.status(201).json({
+      family,
+      plan: planResult.rows[0],
+      card_attached: !!cardBrand,
+      subscription_cancelled: true,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to import subscription: ' + err.message });
+  }
+});
+
+
 router.get('/runs', async (req, res) => {
   const days = Number(req.query.days) || 7;
   try {
