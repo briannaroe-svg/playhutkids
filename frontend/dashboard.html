@@ -164,6 +164,7 @@
   .badge-staff { background: var(--sage-light); color: #4A5B56; }
   .badge-active { background: var(--success-bg); color: var(--success); }
   .badge-inactive { background: var(--error-bg); color: var(--error); }
+  .list-count-badge { font-size: 15px; font-weight: 500; color: #8A9490; }
 
   .icon-btn {
     background: none; border: none; cursor: pointer; color: #6B7A76;
@@ -2438,7 +2439,7 @@
     main.innerHTML = `
       <div class="page-header">
         <div>
-          <h2>Children</h2>
+          <h2>Children <span class="list-count-badge" id="children-count-badge"></span></h2>
           <p>${isAdmin ? 'Enrolled children, their rooms, and who\'s checked in today.' : 'Enrolled children — check them in when they arrive.'}</p>
         </div>
         ${isAdmin ? `
@@ -2507,6 +2508,9 @@
     const filtered = term
       ? childrenCache.filter(c => (c.first_name + ' ' + c.last_name).toLowerCase().includes(term))
       : childrenCache;
+
+    const countBadge = document.getElementById('children-count-badge');
+    if (countBadge) countBadge.textContent = `(${filtered.length})`;
 
     if (childrenCache.length === 0) {
       wrap.innerHTML = childShowUnenrolled
@@ -6058,7 +6062,7 @@
     main.innerHTML = `
       <div class="page-header">
         <div>
-          <h2>Families</h2>
+          <h2>Families <span class="list-count-badge" id="families-count-badge"></span></h2>
           <p>Parent and guardian contact records — the billing address book.</p>
         </div>
         <div style="display:flex; gap:8px;">
@@ -6112,6 +6116,9 @@
 
   function renderFamiliesTable() {
     const wrap = document.getElementById('families-table-wrap');
+    const countBadge = document.getElementById('families-count-badge');
+    if (countBadge) countBadge.textContent = `(${familiesCache.length})`;
+
     if (familiesCache.length === 0) {
       const noResultsMsg = familyIncludeUnenrolled
         ? { h: 'No unenrolled families', p: 'Every family currently shown is enrolled.' }
