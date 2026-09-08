@@ -173,7 +173,8 @@
     <section id="home">
       <h2 class="section-title">Home <span class="badge badge-everyone">Everyone</span></h2>
       <p class="section-sub">Lands here right after logging in.</p>
-      <p>A quick daily briefing: today's date, room ratio status and documents expiring soon (both admin-only), today's posted events, who's scheduled to work today (admins see everyone, staff see their own shift), and a preview of everything scheduled — events and shifts — over the next 7 days. It's read-only; making changes still happens on Scheduling, Children, or the relevant tab.</p>
+      <p>A quick daily briefing: today's date, room ratio status and documents expiring soon (both admin-only), upcoming birthdays in the next two weeks, today's posted events, who's scheduled to work today (admins see everyone, staff see their own shift), and a preview of everything scheduled — events and shifts — over the next 7 days. It's read-only; making changes still happens on Scheduling, Children, or the relevant tab.</p>
+      <div class="note"><strong>Upcoming birthdays:</strong> shown to everyone, not just admin — any active child whose birthday falls in the next 14 days, with their room and the age they're turning. A child turning a year today shows a "Today" badge.</div>
     </section>
 
     <section id="families">
@@ -185,8 +186,10 @@
         <li>Search existing families by parent name or email</li>
         <li><strong>+ Add family</strong> to create a new record by hand</li>
         <li>Click <strong>Edit</strong> on any row to update contact details</li>
+        <li><strong>✕</strong> next to a family opens a confirmation to <strong>unenroll</strong> the whole household — withdraws every active child at once and pauses any recurring billing for them. The record, past invoices, and history are all kept.</li>
       </ul>
       <div class="note"><strong>Note:</strong> Families don't need to be created here one-by-one — the Registration tab creates a family and a child together in one signed step. Use Families directly when you just need to update contact info, or add a family without going through a full registration.</div>
+      <div class="note"><strong>Show unenrolled families:</strong> by default this list only shows families with at least one active child. Check the box next to the search bar to switch to showing <em>only</em> unenrolled families instead — useful for finding a household to review their history or resume billing if they come back. It's a strict either/or toggle, not additive.</div>
     </section>
 
     <section id="children">
@@ -208,14 +211,15 @@
       <ul>
         <li>See every actively enrolled child, their room, and today's check-in status</li>
         <li><strong>+ Add child</strong> for a quick roster entry (for a formal signed enrollment, use Registration instead)</li>
-        <li><strong>Edit</strong> a child to update their info or change their room</li>
+        <li><strong>Edit</strong> a child to update their info, room, or any of their care preferences</li>
         <li>Check any child in or out</li>
         <li><strong>Daily Report</strong> — fill out today's report for that child (see below)</li>
+        <li><strong>✕</strong> next to an active child opens a confirmation to <strong>unenroll</strong> them — this withdraws the child but keeps their full history (past invoices, reports, documents). If it's the family's only remaining active child, any recurring billing for that family is automatically paused too. Withdrawn children are hidden by default — check <strong>Show unenrolled children</strong> above the search box to see them again.</li>
       </ul>
       <h3 class="sub-heading">For staff</h3>
       <ul>
         <li>See the full roster, grouped by room, with today's status</li>
-        <li>Click a child's name to view their allergies, medical notes, and emergency contact — read-only, and parent contact info is intentionally left out of this view</li>
+        <li>Click a child's name to view their allergies, medical notes, emergency contact, and care preferences (potty trained, sunscreen/outdoor play, field trips, bathroom assistance consent, immunization status, and interests) — read-only, and parent contact info is intentionally left out of this view</li>
         <li>Check a child in when they arrive, check them out when they leave</li>
         <li><strong>Daily Report</strong> — fill out today's report for that child (see below)</li>
       </ul>
@@ -250,7 +254,9 @@
       <h3 class="sub-heading">What the form asks for</h3>
       <ol>
         <li><strong>Parent / guardian</strong> — name, email, phone, mailing address, and an optional secondary parent</li>
-        <li><strong>One or more children</strong> — <strong>+ Add another child</strong> repeats the whole child section, so siblings can be enrolled together in one sitting. Each child gets their own name, birthdate, program (daycare or preschool), allergies, medical notes, and emergency contact</li>
+        <li><strong>Household &amp; emergency info</strong> — physician name/phone, up to 3 emergency contacts, up to 3 authorized pick-up persons, photo/video consent, how they heard about the school, benefit eligibility (multi-student, military, first responder), and anything else worth knowing — all optional except the first emergency contact</li>
+        <li><strong>One or more children</strong> — <strong>+ Add another child</strong> repeats the whole child section, so siblings can be enrolled together in one sitting. Each child gets their own name, birthdate, program (daycare or preschool), allergies, medical notes, an emergency contact, potty-trained status, sunscreen/outdoor play consent, field trip consent, bathroom assistance consent, immunization status, and interests/personality</li>
+        <li><strong>Daycare Details</strong> <span style="font-weight:400; color:#8A9490;">(only shown when a child's program is set to Daycare)</span> — enrollment option, days needed, attendance type, drop-off/pick-up time estimates, an optional preschool add-on schedule, infant feeding plan, and infant care authorization. Switching that child to Preschool hides this section entirely.</li>
         <li><strong>Services</strong> <span style="font-weight:400; color:#8A9490;">(optional, per child)</span> — see <a href="#billing">Billing</a> below for what this does</li>
         <li><strong>A card on file</strong> — required</li>
         <li><strong>A signature</strong> — required</li>
