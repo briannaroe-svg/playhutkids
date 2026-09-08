@@ -207,4 +207,77 @@ router.delete('/:id(\\d+)/payment-method', async (req, res) => {
   }
 });
 
+// POST /families/bulk-import-enrollment — a one-time-use style route for
+// bringing already-enrolled families (e.g. from a Google Form or another
+// system) directly into Families/Children, WITHOUT going through the normal
+// self-registration flow — no signature, no card, no services required,
+// since these families already went through their own onboarding elsewhere.
+// Accepts one family + its children per call; the frontend review screen
+// calls this once per approved row after the admin has checked/corrected it.
+router.post('/bulk-import-enrollment', async (req, res) => {
+  const {
+    primary_parent_name, primary_parent_email, primary_parent_phone,
+    secondary_parent_name, secondary_parent_email, secondary_parent_phone,
+    mailing_address,
+    children, // [{ first_name, last_name, date_of_birth, program, allergies, emergency_contact_name, emergency_contact_phone }]
+  } = req.body;
+
+  if (!primary_parent_name || !primary_parent_email) {
+    return res.status(400).json({ error: 'Primary parent name and email are required' });
+  }
+  if (!Array.isArray(children) || children.length === 0) {
+    return res.status(400).json({ error: 'At least one child is required' });
+  }
+  for (const c of children) {
+    if (!c.first_name || !c.last_name || !c.date_of_birth || !c.program) {
+      return res.status(400).json({ error: 'Each child needs a first name, last name, date of birth, and program' });
+    }
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Reuse an existing family if this exact email is already in the system
+    // (e.g. importing a second program's row for a family already created
+    // from the first) rather than creating a duplicate.
+    let family;
+    const existing = await client.query(`SELECT * FROM families WHERE primary_parent_email = $1`, [primary_parent_email]);
+    if (existing.rows.length > 0) {
+      family = existing.rows[0];
+    } else {
+      const created = await client.query(
+        `INSERT INTO families (primary_parent_name, primary_parent_email, primary_parent_phone,
+                                secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [primary_parent_name, primary_parent_email, primary_parent_phone || null,
+         secondary_parent_name || null, secondary_parent_email || null, secondary_parent_phone || null,
+         mailing_address || null]
+      );
+      family = created.rows[0];
+    }
+
+    const createdChildren = [];
+    for (const c of children) {
+      const childResult = await client.query(
+        `INSERT INTO children (family_id, first_name, last_name, date_of_birth, program, allergies,
+                                emergency_contact_name, emergency_contact_phone, enrollment_status, enrollment_date)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'active', CURRENT_DATE) RETURNING *`,
+        [family.id, c.first_name, c.last_name, c.date_of_birth, c.program, c.allergies || null,
+         c.emergency_contact_name || null, c.emergency_contact_phone || null]
+      );
+      createdChildren.push(childResult.rows[0]);
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json({ family, children: createdChildren });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err);
+    res.status(500).json({ error: 'Failed to import family: ' + err.message });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
