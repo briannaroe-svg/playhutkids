@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 // GET /messages — list every family's thread with its last message and unread
 // count, for a staff inbox view. Any staff member can see every family's
@@ -81,6 +81,19 @@ router.post('/:familyId(\\d+)', requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+// DELETE /messages/:familyId — admin only. Permanently deletes the ENTIRE
+// conversation thread with a family (every message, both directions) — this
+// is a whole-thread delete, not a single-message delete, and cannot be undone.
+router.delete('/:familyId(\\d+)', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`DELETE FROM messages WHERE family_id = $1 RETURNING id`, [req.params.familyId]);
+    res.json({ deleted_count: result.rows.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete conversation' });
   }
 });
 

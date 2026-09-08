@@ -4672,6 +4672,7 @@
   }
 
   function renderConversationsList() {
+    const isAdmin = currentUser.access_level === 'admin';
     const wrap = document.getElementById('conversations-wrap');
     if (conversationsCache.length === 0) {
       wrap.innerHTML = `<div class="empty-state"><h3>No conversations yet</h3><p>Messages a family sends will show up here.</p></div>`;
@@ -4689,12 +4690,31 @@
               </td>
               <td style="max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(c.last_message || '')}</td>
               <td>${c.last_message_at ? formatDate(c.last_message_at) : '—'}</td>
-              <td><button class="icon-btn" onclick="openThread(${c.family_id})">Open</button></td>
+              <td>
+                <button class="icon-btn" onclick="openThread(${c.family_id})">Open</button>
+                ${isAdmin ? `<button class="invoice-x-btn" title="Delete conversation" onclick="deleteConversation(${c.family_id}, '${escapeHtml(c.primary_parent_name).replace(/'/g, "\\'")}')">✕</button>` : ''}
+              </td>
             </tr>
           `).join('')}
         </tbody>
       </table>
     `;
+  }
+
+  // Deletes an ENTIRE conversation thread with a family — every message,
+  // both directions — not a single message. Admin only, matching the
+  // backend route's own restriction.
+  async function deleteConversation(familyId, familyName) {
+    if (!confirm(`Permanently delete the entire conversation with ${familyName}? This removes every message in both directions and cannot be undone.`)) return;
+    try {
+      await apiFetch('/messages/' + familyId, { method: 'DELETE' });
+      conversationsCache = await apiFetch('/messages');
+      renderConversationsList();
+      const threadPanel = document.getElementById('thread-panel-wrap');
+      if (threadPanel) threadPanel.innerHTML = ''; // close the thread if it was open
+    } catch (err) {
+      alert('Could not delete conversation: ' + err.message);
+    }
   }
 
   async function openThread(familyId) {
