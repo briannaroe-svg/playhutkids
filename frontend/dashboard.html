@@ -3593,6 +3593,7 @@
               <td>
                 ${w.status === 'waiting' ? `
                   <button class="icon-btn" onclick="openWaitlistModal(${w.id})">Edit</button>
+                  <button class="icon-btn" style="color:var(--success);" onclick="markWaitlistEnrolled(${w.id})">Mark enrolled</button>
                   <button class="icon-btn" style="color:var(--error);" onclick="deleteWaitlistEntry(${w.id})">Remove</button>
                 ` : '<span style="color:#8A9490; font-size:13px;">Converted to registration</span>'}
               </td>
@@ -3611,6 +3612,20 @@
       renderWaitlistTable();
     } catch (err) {
       alert('Could not remove entry: ' + err.message);
+    }
+  }
+
+  // Manual "mark enrolled" — for a child who was enrolled through a path
+  // that doesn't auto-convert the waitlist (bulk import, added by hand),
+  // since only going through Registration does that automatically today.
+  async function markWaitlistEnrolled(id) {
+    if (!confirm('Mark this inquiry as enrolled? Use this once the child is actually enrolled in Children.')) return;
+    try {
+      await apiFetch('/waitlist/' + id + '/mark-enrolled', { method: 'POST' });
+      waitlistCache = await apiFetch('/waitlist');
+      renderWaitlistTable();
+    } catch (err) {
+      alert('Could not update entry: ' + err.message);
     }
   }
 

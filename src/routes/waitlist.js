@@ -106,4 +106,24 @@ router.delete('/:id(\\d+)', async (req, res) => {
   }
 });
 
+// POST /waitlist/:id/mark-enrolled — manually mark an entry enrolled, for
+// cases where the child was actually enrolled through a path that doesn't
+// auto-convert the waitlist (e.g. bulk-imported directly into Children, or
+// added by hand) rather than through Registration, which is the only place
+// that does this automatically today.
+router.post('/:id(\\d+)/mark-enrolled', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE waitlist_entries SET status = 'enrolled', converted_at = now()
+       WHERE id = $1 RETURNING *`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Waitlist entry not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to mark enrolled' });
+  }
+});
+
 module.exports = router;
