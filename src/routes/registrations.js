@@ -190,8 +190,11 @@ async function completeRegistration(registration, { signer_name, signature_data,
         (family_id, first_name, last_name, date_of_birth, program, enrollment_date,
          allergies, medical_notes, emergency_contact_name, emergency_contact_phone, base_tuition_rate,
          potty_trained, sunscreen_outdoor_play_consent, field_trip_consent, bathroom_assistance_consent,
-         immunization_status, child_interests_personality)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
+         immunization_status, child_interests_personality,
+         daycare_enrollment_option, daycare_schedule_days, daycare_attendance_type,
+         daycare_dropoff_time, daycare_pickup_time, preschool_addon_schedule,
+         infant_feeding_plan, infant_care_authorization_consent)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25) RETURNING id`,
       [familyId, registration.child_first_name, registration.child_last_name, registration.child_date_of_birth,
        registration.child_program, new Date().toISOString().slice(0, 10),
        registration.child_allergies, registration.child_medical_notes,
@@ -199,7 +202,11 @@ async function completeRegistration(registration, { signer_name, signature_data,
        registration.child_base_tuition_rate,
        registration.child_potty_trained, registration.child_sunscreen_outdoor_play_consent,
        registration.child_field_trip_consent, registration.child_bathroom_assistance_consent,
-       registration.child_immunization_status, registration.child_interests_personality]
+       registration.child_immunization_status, registration.child_interests_personality,
+       registration.child_daycare_enrollment_option, registration.child_daycare_schedule_days,
+       registration.child_daycare_attendance_type, registration.child_daycare_dropoff_time,
+       registration.child_daycare_pickup_time, registration.child_preschool_addon_schedule,
+       registration.child_infant_feeding_plan, registration.child_infant_care_authorization_consent]
     );
     const childId = childResult.rows[0].id;
 
@@ -431,8 +438,11 @@ router.post('/self-register', async (req, res) => {
           child_emergency_contact_phone,
           child_potty_trained, child_sunscreen_outdoor_play_consent, child_field_trip_consent,
           child_bathroom_assistance_consent, child_immunization_status, child_interests_personality,
+          child_daycare_enrollment_option, child_daycare_schedule_days, child_daycare_attendance_type,
+          child_daycare_dropoff_time, child_daycare_pickup_time, child_preschool_addon_schedule,
+          child_infant_feeding_plan, child_infant_care_authorization_consent,
           sign_method
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,'self_service')
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,'self_service')
         RETURNING *`,
         [primary_parent_name, primary_parent_email, primary_parent_phone,
          secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address,
@@ -447,7 +457,11 @@ router.post('/self-register', async (req, res) => {
          c.sunscreen_outdoor_play_consent === undefined ? null : c.sunscreen_outdoor_play_consent,
          c.field_trip_consent === undefined ? null : c.field_trip_consent,
          c.bathroom_assistance_consent === undefined ? null : c.bathroom_assistance_consent,
-         c.immunization_status || null, c.child_interests_personality || null]
+         c.immunization_status || null, c.child_interests_personality || null,
+         c.daycare_enrollment_option || null, c.daycare_schedule_days || null, c.daycare_attendance_type || null,
+         c.daycare_dropoff_time || null, c.daycare_pickup_time || null, c.preschool_addon_schedule || null,
+         c.infant_feeding_plan || null,
+         c.infant_care_authorization_consent === undefined ? null : c.infant_care_authorization_consent]
       );
       const registration = insertResult.rows[0];
 

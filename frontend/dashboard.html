@@ -4042,7 +4042,7 @@
         </div>
         <div class="field">
           <label for="reg-child-${id}-program">Program</label>
-          <select id="reg-child-${id}-program" required>
+          <select id="reg-child-${id}-program" required onchange="toggleRegDaycareSection(${id})">
             <option value="daycare">Daycare</option>
             <option value="preschool">Preschool</option>
           </select>
@@ -4111,6 +4111,67 @@
         <label for="reg-child-${id}-interests">Child's interests / personality <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
         <input type="text" id="reg-child-${id}-interests">
       </div>
+
+      <div id="reg-child-${id}-daycare-section" style="background:var(--cream); border:1px solid rgba(139,94,52,0.18); border-radius:10px; padding:14px 16px 2px; margin-bottom:16px;">
+        <p class="reg-section-title" style="font-size:11.5px; margin:0 0 10px;">Daycare Details</p>
+        <div class="field">
+          <label for="reg-child-${id}-enrollment-option">Enrollment option</label>
+          <select id="reg-child-${id}-enrollment-option" onchange="toggleRegPreschoolAddon(${id})">
+            <option value="daycare_only">Daycare Only</option>
+            <option value="daycare_plus_preschool">Daycare + Preschool Add-On</option>
+            <option value="after_school_care">After-School Care</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Days needed <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; padding-top:4px;">
+            ${['Monday','Tuesday','Wednesday','Thursday','Friday'].map(day => `
+              <label style="display:flex; align-items:center; gap:5px; font-weight:400; font-size:14px;">
+                <input type="checkbox" class="reg-child-${id}-schedule-day" value="${day}" style="width:auto;"> ${day}
+              </label>
+            `).join('')}
+          </div>
+        </div>
+        <div class="field">
+          <label for="reg-child-${id}-attendance-type">Attendance type</label>
+          <select id="reg-child-${id}-attendance-type">
+            <option value="full_time">Full Time (max 10 hours a day)</option>
+            <option value="part_time">Part Time (5 hours a day)</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="reg-child-${id}-dropoff-time">Drop-off time <span style="font-weight:400; color:#8A9490;">(estimate)</span></label>
+            <input type="time" id="reg-child-${id}-dropoff-time">
+          </div>
+          <div class="field">
+            <label for="reg-child-${id}-pickup-time">Pick-up time <span style="font-weight:400; color:#8A9490;">(estimate)</span></label>
+            <input type="time" id="reg-child-${id}-pickup-time">
+          </div>
+        </div>
+        <div class="field" id="reg-child-${id}-preschool-addon-wrap" style="display:none;">
+          <label for="reg-child-${id}-preschool-addon">Preferred preschool add-on schedule</label>
+          <select id="reg-child-${id}-preschool-addon">
+            <option value="">—</option>
+            <option value="3 Year Old-Little Acorns- Morning 8:30 AM - 11:30 AM">3 Year Old-Little Acorns — Morning 8:30–11:30 AM</option>
+            <option value="3 Year Old-Little Acorns- Afternoon 12:30 PM - 3:30 PM">3 Year Old-Little Acorns — Afternoon 12:30–3:30 PM</option>
+            <option value="4 Year Old-Forest Rangers- Morning 8:30 AM - 11:30 AM">4 Year Old-Forest Rangers — Morning 8:30–11:30 AM</option>
+            <option value="4 Year Old-Forest Rangers- Afternoon 12:30 PM - 3:30 PM">4 Year Old-Forest Rangers — Afternoon 12:30–3:30 PM</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="reg-child-${id}-infant-feeding">Infant feeding plan <span style="font-weight:400; color:#8A9490;">(if applicable)</span></label>
+          <input type="text" id="reg-child-${id}-infant-feeding">
+        </div>
+        <div class="field">
+          <label for="reg-child-${id}-infant-care-auth">Personal care &amp; infant care authorization</label>
+          <select id="reg-child-${id}-infant-care-auth">
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+      </div>
+
       <div class="field">
         <label>Services <span style="font-weight:400; color:#8A9490;">(optional)</span></label>
         <div id="reg-child-${id}-services"></div>
@@ -4127,6 +4188,18 @@
     updateRegRemoveLinksVisibility();
   }
 
+  function toggleRegDaycareSection(id) {
+    const program = document.getElementById(`reg-child-${id}-program`).value;
+    const section = document.getElementById(`reg-child-${id}-daycare-section`);
+    if (section) section.style.display = program === 'daycare' ? 'block' : 'none';
+  }
+
+  function toggleRegPreschoolAddon(id) {
+    const option = document.getElementById(`reg-child-${id}-enrollment-option`).value;
+    const wrap = document.getElementById(`reg-child-${id}-preschool-addon-wrap`);
+    if (wrap) wrap.style.display = option === 'daycare_plus_preschool' ? 'block' : 'none';
+  }
+
   function updateRegRemoveLinksVisibility() {
     const blocks = document.querySelectorAll('#reg-children-container .child-block');
     blocks.forEach(b => {
@@ -4140,11 +4213,28 @@
     return Array.from(blocks).map(block => {
       const id = block.id.replace('reg-child-block-', '');
       const pottyVal = document.getElementById(`reg-child-${id}-potty-trained`).value;
+      const program = document.getElementById(`reg-child-${id}-program`).value;
+
+      let daycareFields = {};
+      if (program === 'daycare') {
+        const scheduleDays = Array.from(document.querySelectorAll(`.reg-child-${id}-schedule-day:checked`)).map(el => el.value);
+        daycareFields = {
+          daycare_enrollment_option: document.getElementById(`reg-child-${id}-enrollment-option`).value,
+          daycare_schedule_days: scheduleDays.length > 0 ? scheduleDays.join(', ') : null,
+          daycare_attendance_type: document.getElementById(`reg-child-${id}-attendance-type`).value,
+          daycare_dropoff_time: document.getElementById(`reg-child-${id}-dropoff-time`).value || null,
+          daycare_pickup_time: document.getElementById(`reg-child-${id}-pickup-time`).value || null,
+          preschool_addon_schedule: document.getElementById(`reg-child-${id}-preschool-addon`).value || null,
+          infant_feeding_plan: document.getElementById(`reg-child-${id}-infant-feeding`).value.trim() || null,
+          infant_care_authorization_consent: document.getElementById(`reg-child-${id}-infant-care-auth`).value === 'true',
+        };
+      }
+
       return {
         first_name: document.getElementById(`reg-child-${id}-first-name`).value.trim(),
         last_name: document.getElementById(`reg-child-${id}-last-name`).value.trim(),
         date_of_birth: document.getElementById(`reg-child-${id}-dob`).value,
-        program: document.getElementById(`reg-child-${id}-program`).value,
+        program,
         allergies: document.getElementById(`reg-child-${id}-allergies`).value.trim() || null,
         medical_notes: document.getElementById(`reg-child-${id}-medical-notes`).value.trim() || null,
         emergency_contact_name: document.getElementById(`reg-child-${id}-emergency-name`).value.trim() || null,
@@ -4155,6 +4245,7 @@
         bathroom_assistance_consent: document.getElementById(`reg-child-${id}-bathroom-assist`).value === 'true',
         immunization_status: document.getElementById(`reg-child-${id}-immunization`).value || null,
         child_interests_personality: document.getElementById(`reg-child-${id}-interests`).value.trim() || null,
+        ...daycareFields,
         services: collectRegChildServices(id),
       };
     });
