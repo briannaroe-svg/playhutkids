@@ -285,10 +285,10 @@ router.post('/bulk-import-enrollment', async (req, res) => {
     const createdChildren = [];
     for (const c of children) {
       const childResult = await client.query(
-        `INSERT INTO children (family_id, first_name, last_name, date_of_birth, program, allergies,
+        `INSERT INTO children (family_id, first_name, last_name, date_of_birth, program, programs, allergies,
                                 emergency_contact_name, emergency_contact_phone, enrollment_status, enrollment_date)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'active', CURRENT_DATE) RETURNING *`,
-        [family.id, c.first_name, c.last_name, c.date_of_birth, c.program, c.allergies || null,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active', CURRENT_DATE) RETURNING *`,
+        [family.id, c.first_name, c.last_name, c.date_of_birth, c.program, [c.program], c.allergies || null,
          c.emergency_contact_name || null, c.emergency_contact_phone || null]
       );
       createdChildren.push(childResult.rows[0]);

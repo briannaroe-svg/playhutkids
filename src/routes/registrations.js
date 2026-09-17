@@ -187,16 +187,17 @@ async function completeRegistration(registration, { signer_name, signature_data,
 
     const childResult = await client.query(
       `INSERT INTO children
-        (family_id, first_name, last_name, date_of_birth, program, enrollment_date,
+        (family_id, first_name, last_name, date_of_birth, program, programs, enrollment_date,
          allergies, medical_notes, emergency_contact_name, emergency_contact_phone, base_tuition_rate,
          potty_trained, sunscreen_outdoor_play_consent, field_trip_consent, bathroom_assistance_consent,
          immunization_status, child_interests_personality,
          daycare_enrollment_option, daycare_schedule_days, daycare_attendance_type,
          daycare_dropoff_time, daycare_pickup_time, preschool_addon_schedule,
          infant_feeding_plan, infant_care_authorization_consent)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25) RETURNING id`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26) RETURNING id`,
       [familyId, registration.child_first_name, registration.child_last_name, registration.child_date_of_birth,
-       registration.child_program, new Date().toISOString().slice(0, 10),
+       registration.child_program, registration.child_programs || [registration.child_program],
+       new Date().toISOString().slice(0, 10),
        registration.child_allergies, registration.child_medical_notes,
        registration.child_emergency_contact_name, registration.child_emergency_contact_phone,
        registration.child_base_tuition_rate,
@@ -426,6 +427,15 @@ router.post('/self-register', async (req, res) => {
     const invoiceLineItemPlan = []; // [{ child_id, child_name, service_item_id, quantity }] — resolved to real prices below
 
     for (const c of children) {
+      // A child's real program set: if they're marked as daycare AND chose
+      // the "Daycare + Preschool Add-On" enrollment option, they're
+      // genuinely enrolled in both at once (e.g. preschool in the morning,
+      // daycare for the rest of the day) — not just "daycare with an extra
+      // schedule note." Anyone else keeps their single selected program.
+      const childPrograms = (c.program === 'daycare' && c.daycare_enrollment_option === 'daycare_plus_preschool')
+        ? ['daycare', 'preschool']
+        : [c.program];
+
       const insertResult = await pool.query(
         `INSERT INTO registrations (
           primary_parent_name, primary_parent_email, primary_parent_phone,
@@ -433,7 +443,7 @@ router.post('/self-register', async (req, res) => {
           physician_name_phone, emergency_contact_1_name_phone, emergency_contact_2_name_phone, emergency_contact_3_name_phone,
           pickup_person_1, pickup_person_2, pickup_person_3,
           photo_video_consent, referral_source, benefits_qualifications, additional_info,
-          child_first_name, child_last_name, child_date_of_birth, child_program,
+          child_first_name, child_last_name, child_date_of_birth, child_program, child_programs,
           child_allergies, child_medical_notes, child_emergency_contact_name,
           child_emergency_contact_phone,
           child_potty_trained, child_sunscreen_outdoor_play_consent, child_field_trip_consent,
@@ -442,7 +452,7 @@ router.post('/self-register', async (req, res) => {
           child_daycare_dropoff_time, child_daycare_pickup_time, child_preschool_addon_schedule,
           child_infant_feeding_plan, child_infant_care_authorization_consent,
           sign_method
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,'self_service')
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,'self_service')
         RETURNING *`,
         [primary_parent_name, primary_parent_email, primary_parent_phone,
          secondary_parent_name, secondary_parent_email, secondary_parent_phone, mailing_address,
@@ -450,7 +460,7 @@ router.post('/self-register', async (req, res) => {
          emergency_contact_1_name_phone || null, emergency_contact_2_name_phone || null, emergency_contact_3_name_phone || null,
          pickup_person_1 || null, pickup_person_2 || null, pickup_person_3 || null,
          photo_video_consent || null, referral_source || null, benefits_qualifications || null, additional_info || null,
-         c.first_name, c.last_name, c.date_of_birth, c.program,
+         c.first_name, c.last_name, c.date_of_birth, c.program, childPrograms,
          c.allergies || null, c.medical_notes || null, c.emergency_contact_name || null,
          c.emergency_contact_phone || null,
          c.potty_trained === undefined ? null : c.potty_trained,

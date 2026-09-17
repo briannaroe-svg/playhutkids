@@ -98,7 +98,7 @@ router.get('/', requireAuth, async (req, res) => {
   try {
     const columns = isAdmin
       ? 'c.*'
-      : `c.id, c.first_name, c.last_name, c.date_of_birth, c.program, c.room, c.enrollment_status,
+      : `c.id, c.first_name, c.last_name, c.date_of_birth, c.program, c.programs, c.room, c.enrollment_status,
          c.allergies, c.medical_notes, c.emergency_contact_name, c.emergency_contact_phone,
          c.potty_trained, c.sunscreen_outdoor_play_consent, c.field_trip_consent,
          c.bathroom_assistance_consent, c.immunization_status, c.child_interests_personality,
@@ -146,13 +146,27 @@ router.get('/:id(\\d+)', requireAuth, async (req, res) => {
 // POST /children  — new registration — admin only
 router.post('/', requireAdmin, async (req, res) => {
   const {
-    family_id, first_name, last_name, date_of_birth, program, room,
+    family_id, first_name, last_name, date_of_birth, program, programs, room,
     enrollment_date, allergies, medical_notes,
     emergency_contact_name, emergency_contact_phone, base_tuition_rate,
     potty_trained, sunscreen_outdoor_play_consent, field_trip_consent,
     bathroom_assistance_consent, immunization_status, child_interests_personality,
   } = req.body;
 
+  // Accept either the new `programs` array (a child can be daycare AND
+  // preschool at once) or the older single `program` value, wrapped into a
+  // one-item array — kept for any caller that hasn't been updated to send
+  // the array shape.
+  const resolvedPrograms = Array.isArray(programs) && programs.length > 0
+    ? programs
+    : program ? [program] : null;
+
+  if (!resolvedPrograms) {
+    return res.status(400).json({ error: 'At least one program (daycare and/or preschool) is required' });
+  }
+  if (resolvedPrograms.some(p => !['daycare', 'preschool'].includes(p))) {
+    return res.status(400).json({ error: 'programs can only contain "daycare" and/or "preschool"' });
+  }
   if (room && !VALID_ROOMS.includes(room)) {
     return res.status(400).json({ error: 'Invalid room' });
   }
@@ -160,13 +174,13 @@ router.post('/', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
       `INSERT INTO children
-        (family_id, first_name, last_name, date_of_birth, program, room, enrollment_date,
+        (family_id, first_name, last_name, date_of_birth, program, programs, room, enrollment_date,
          allergies, medical_notes, emergency_contact_name, emergency_contact_phone, base_tuition_rate,
          potty_trained, sunscreen_outdoor_play_consent, field_trip_consent,
          bathroom_assistance_consent, immunization_status, child_interests_personality)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        RETURNING *`,
-      [family_id, first_name, last_name, date_of_birth, program, room || null, enrollment_date,
+      [family_id, first_name, last_name, date_of_birth, resolvedPrograms[0], resolvedPrograms, room || null, enrollment_date,
        allergies, medical_notes, emergency_contact_name, emergency_contact_phone, base_tuition_rate,
        potty_trained ?? null, sunscreen_outdoor_play_consent ?? null, field_trip_consent ?? null,
        bathroom_assistance_consent ?? null, immunization_status || null, child_interests_personality || null]
@@ -184,6 +198,17 @@ router.put('/:id(\\d+)', requireAdmin, async (req, res) => {
 
   if (fields.room !== undefined && fields.room !== null && !VALID_ROOMS.includes(fields.room)) {
     return res.status(400).json({ error: 'Invalid room' });
+  }
+  if (fields.programs !== undefined) {
+    if (!Array.isArray(fields.programs) || fields.programs.length === 0) {
+      return res.status(400).json({ error: 'programs must be a non-empty array' });
+    }
+    if (fields.programs.some(p => !['daycare', 'preschool'].includes(p))) {
+      return res.status(400).json({ error: 'programs can only contain "daycare" and/or "preschool"' });
+    }
+    // Keep the old single-value `program` column in sync with the new array
+    // — first entry wins for anything that still reads the old column.
+    fields.program = fields.programs[0];
   }
 
   const setClauses = Object.keys(fields).map((key, i) => `${key} = $${i + 2}`).join(', ');

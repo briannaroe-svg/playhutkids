@@ -1097,11 +1097,16 @@
           <input type="date" id="child-dob" required>
         </div>
         <div class="field">
-          <label for="child-program">Program</label>
-          <select id="child-program" required>
-            <option value="daycare">Daycare</option>
-            <option value="preschool">Preschool</option>
-          </select>
+          <label>Program</label>
+          <div style="display:flex; gap:16px; padding-top:6px;">
+            <label style="display:flex; align-items:center; gap:6px; font-weight:400; font-size:14px;">
+              <input type="checkbox" id="child-program-daycare" style="width:auto;"> Daycare
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; font-weight:400; font-size:14px;">
+              <input type="checkbox" id="child-program-preschool" style="width:auto;"> Preschool
+            </label>
+          </div>
+          <p class="field-hint">Check both if this child is enrolled in both at once (e.g. preschool in the morning, daycare the rest of the day).</p>
         </div>
       </div>
 
@@ -2975,12 +2980,23 @@
   }
 
   // ---- Child detail modal (staff, read-only — allergy/medical/emergency info only) ----
+  // Formats a child's program(s) for display — "Daycare", "Preschool", or
+  // "Daycare & Preschool" for a child enrolled in both at once. Falls back
+  // to the older single `program` value for any record that predates the
+  // programs array (shouldn't happen after the migration backfill, but
+  // cheap insurance against a null/missing array).
+  function formatChildPrograms(c) {
+    const programs = c.programs && c.programs.length > 0 ? c.programs : (c.program ? [c.program] : []);
+    const labels = programs.map(p => p === 'preschool' ? 'Preschool' : 'Daycare');
+    return labels.length > 0 ? labels.join(' & ') : '—';
+  }
+
   async function openChildDetailModal(childId) {
     const c = childrenCache.find(x => x.id === childId);
     if (!c) return;
 
     document.getElementById('child-detail-name').textContent = `${c.first_name} ${c.last_name}`;
-    document.getElementById('child-detail-program').textContent = c.program === 'preschool' ? 'Preschool' : 'Daycare';
+    document.getElementById('child-detail-program').textContent = formatChildPrograms(c);
 
     const val = (v) => v ? escapeHtml(v) : '<span class="detail-value empty">None on file</span>';
     const hasAllergies = hasRealAllergy(c.allergies);
@@ -3230,7 +3246,7 @@
               </a>
             </div>
             <div class="detail-value" style="text-align:right; color:#8A9490;">
-              ${c.enrollment_status === 'active' ? escapeHtml(c.program === 'preschool' ? 'Preschool' : 'Daycare') : 'Withdrawn'}
+              ${c.enrollment_status === 'active' ? escapeHtml(formatChildPrograms(c)) : 'Withdrawn'}
             </div>
           </div>
         `).join('')}
@@ -3477,13 +3493,13 @@
           <div style="flex:1;">
             <strong>${escapeHtml(pair.child_a.first_name)} ${escapeHtml(pair.child_a.last_name)}</strong>
             <div style="font-size:12.5px; color:#6B7A76;">${formatDate(pair.child_a.date_of_birth)} — family: ${escapeHtml(pair.child_a.primary_parent_name)}</div>
-            <div style="font-size:12px; color:#8A9490;">${pair.child_a.enrollment_status === 'active' ? 'Active' : 'Withdrawn'}</div>
+            <div style="font-size:12px; color:#8A9490;">${pair.child_a.enrollment_status === 'active' ? 'Active' : 'Withdrawn'} — ${escapeHtml(formatChildPrograms(pair.child_a))}</div>
           </div>
           <div style="font-size:12px; color:#8A9490;">vs</div>
           <div style="flex:1; text-align:right;">
             <strong>${escapeHtml(pair.child_b.first_name)} ${escapeHtml(pair.child_b.last_name)}</strong>
             <div style="font-size:12.5px; color:#6B7A76;">${formatDate(pair.child_b.date_of_birth)} — family: ${escapeHtml(pair.child_b.primary_parent_name)}</div>
-            <div style="font-size:12px; color:#8A9490;">${pair.child_b.enrollment_status === 'active' ? 'Active' : 'Withdrawn'}</div>
+            <div style="font-size:12px; color:#8A9490;">${pair.child_b.enrollment_status === 'active' ? 'Active' : 'Withdrawn'} — ${escapeHtml(formatChildPrograms(pair.child_b))}</div>
           </div>
         </div>
         <div style="margin-top:10px; text-align:right;">
@@ -3513,17 +3529,19 @@
             <input type="radio" name="merge-child-keeper-side" value="a" ${keeperSide === 'a' ? 'checked' : ''} onchange="setChildMergeKeeperSide('a')" style="width:auto; margin-right:6px;">
             <strong>${escapeHtml(a.first_name)} ${escapeHtml(a.last_name)}</strong>
             <div style="font-size:12px; color:#6B7A76; margin-left:20px;">Family: ${escapeHtml(a.primary_parent_name)}</div>
+            <div style="font-size:12px; color:#6B7A76; margin-left:20px;">Program: ${escapeHtml(formatChildPrograms(a))}</div>
             <div style="font-size:12px; color:#6B7A76; margin-left:20px;">${a.enrollment_status === 'active' ? 'Active' : 'Withdrawn'}${a.room ? ' — ' + escapeHtml(a.room) : ''}</div>
           </label>
           <label style="flex:1; border:1.5px solid ${keeperSide === 'b' ? 'var(--teal)' : 'var(--sage-light)'}; border-radius:10px; padding:12px; cursor:pointer;">
             <input type="radio" name="merge-child-keeper-side" value="b" ${keeperSide === 'b' ? 'checked' : ''} onchange="setChildMergeKeeperSide('b')" style="width:auto; margin-right:6px;">
             <strong>${escapeHtml(b.first_name)} ${escapeHtml(b.last_name)}</strong>
             <div style="font-size:12px; color:#6B7A76; margin-left:20px;">Family: ${escapeHtml(b.primary_parent_name)}</div>
+            <div style="font-size:12px; color:#6B7A76; margin-left:20px;">Program: ${escapeHtml(formatChildPrograms(b))}</div>
             <div style="font-size:12px; color:#6B7A76; margin-left:20px;">${b.enrollment_status === 'active' ? 'Active' : 'Withdrawn'}${b.room ? ' — ' + escapeHtml(b.room) : ''}</div>
           </label>
         </div>
       </div>
-      <div class="note" style="text-align:left; margin-top:4px;">The child stays under whichever family the keeper record already belongs to — merging never moves a child between families.</div>
+      <div class="note" style="text-align:left; margin-top:4px;">The child stays under whichever family the keeper record already belongs to — merging never moves a child between families. The keeper's own program(s) are kept as-is; if the two sides have different programs, pick the keeper whose program is actually correct, or fix it afterward from Edit Child.</div>
     `;
   }
 
@@ -3585,7 +3603,9 @@
       document.getElementById('child-first-name').value = c.first_name;
       document.getElementById('child-last-name').value = c.last_name;
       document.getElementById('child-dob').value = c.date_of_birth ? c.date_of_birth.slice(0, 10) : '';
-      document.getElementById('child-program').value = c.program;
+      const childPrograms = c.programs && c.programs.length > 0 ? c.programs : (c.program ? [c.program] : []);
+      document.getElementById('child-program-daycare').checked = childPrograms.includes('daycare');
+      document.getElementById('child-program-preschool').checked = childPrograms.includes('preschool');
       document.getElementById('child-room').value = c.room || '';
       document.getElementById('child-tuition').value = c.base_tuition_rate || '';
       document.getElementById('child-allergies').value = c.allergies || '';
@@ -3658,12 +3678,21 @@
       return;
     }
 
+    const selectedPrograms = [];
+    if (document.getElementById('child-program-daycare').checked) selectedPrograms.push('daycare');
+    if (document.getElementById('child-program-preschool').checked) selectedPrograms.push('preschool');
+    if (selectedPrograms.length === 0) {
+      errorBox.textContent = 'Check at least one program (Daycare and/or Preschool).';
+      errorBox.classList.add('show');
+      return;
+    }
+
     const pottyVal = document.getElementById('child-potty-trained').value;
     const payload = {
       first_name: document.getElementById('child-first-name').value.trim(),
       last_name: document.getElementById('child-last-name').value.trim(),
       date_of_birth: document.getElementById('child-dob').value,
-      program: document.getElementById('child-program').value,
+      programs: selectedPrograms,
       room: document.getElementById('child-room').value || null,
       base_tuition_rate: document.getElementById('child-tuition').value || null,
       allergies: document.getElementById('child-allergies').value.trim() || null,
