@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Waiver, Release &amp; Hold Harmless Agreement — The Little Play Hut</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --ink: #1f2937;
+    --muted: #6b7280;
+    --line: #d1d5db;
+    --green: #6fbf3f;
+    --green-dark: #5aa632;
+    --red-bg: #fde2e1;
+    --red: #d64c46;
+    --bg: #f4f5f7;
+    --error: #b3462e;
+    --error-bg: #fbeae4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: var(--bg); color: var(--ink); padding: 24px 16px 60px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  .card { background: #fff; border-radius: 14px; padding: 32px 32px 26px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 20px; margin: 0 0 16px; }
+  .sub { color: var(--muted); font-size: 14.5px; margin: 0 0 26px; }
+  .section-title { font-size: 15px; font-weight: 700; margin: 26px 0 14px; }
+  .section-title:first-of-type { margin-top: 0; }
+
+  .field-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+  .field { flex: 1; min-width: 220px; }
+  .field label { display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 6px; }
+  .field label .req { color: var(--red); margin-left: 2px; }
+  .field input, .field select {
+    width: 100%; padding: 11px 13px; border: 1.5px solid var(--line); border-radius: 8px;
+    font-size: 15px; font-family: inherit; color: var(--ink); background: #fff;
+  }
+  .field input::placeholder { color: #9ca3af; }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--green); }
+
+  .dob-row { display: flex; gap: 10px; }
+  .dob-row select { flex: 1; }
+
+  .minor-block { border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin-bottom: 16px; position: relative; }
+  .minor-block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .minor-block-header h3 { font-size: 17px; margin: 0; }
+  .remove-minor-btn {
+    background: var(--red-bg); color: var(--red); border: none; border-radius: 8px;
+    width: 34px; height: 34px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center;
+  }
+
+  .btn { border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; padding: 13px 22px; }
+  .btn-add {
+    background: #eef1f5; color: var(--ink); border-radius: 20px; padding: 10px 18px; font-size: 14px;
+  }
+  .btn-primary { background: var(--green); color: #fff; width: 100%; padding: 15px; font-size: 15px; }
+  .btn-primary:hover { background: var(--green-dark); }
+  .btn-primary:disabled { background: #b9c7ae; cursor: not-allowed; }
+  .btn-secondary { background: #eef1f5; color: var(--ink); padding: 13px 22px; }
+  .actions-row { display: flex; justify-content: space-between; align-items: center; margin-top: 26px; }
+
+  .waiver-text {
+    border: 1px solid var(--line); border-radius: 8px; padding: 18px 20px; height: 280px;
+    overflow-y: auto; font-size: 14px; line-height: 1.6; background: #fff; margin-bottom: 22px;
+  }
+  .waiver-text p { margin: 0 0 14px; }
+  .waiver-text p:last-child { margin-bottom: 0; }
+  .waiver-text strong { display: block; margin-bottom: 2px; }
+
+  .sig-wrap { border: 1.5px solid var(--line); border-radius: 10px; padding: 16px; background: #fafbfc; }
+  .sig-canvas-box { border: 1.5px solid var(--line); border-radius: 8px; background: #fff; position: relative; }
+  canvas#sig-canvas { display: block; width: 100%; height: 160px; touch-action: none; cursor: crosshair; }
+  .sig-placeholder {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #9ca3af; font-size: 14px; pointer-events: none;
+  }
+  .sig-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+  .clear-btn { background: #eef1f5; color: var(--ink); border: none; border-radius: 6px; padding: 9px 16px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+
+  .error-banner {
+    display: none; background: var(--error-bg); color: var(--error); font-size: 13.5px; font-weight: 500;
+    padding: 10px 14px; border-radius: 8px; margin-bottom: 18px;
+  }
+  .error-banner.visible { display: block; }
+
+  .center-state { text-align: center; padding: 30px 10px; }
+  .center-state h2 { margin: 16px 0 10px; }
+  .center-state p { color: var(--muted); font-size: 14.5px; margin: 0 0 8px; max-width: 480px; margin-left: auto; margin-right: auto; }
+  .success-icon {
+    width: 56px; height: 56px; border-radius: 50%; margin: 0 auto; display: flex; align-items: center; justify-content: center;
+    background: #e9f7e2; color: var(--green-dark);
+  }
+  .disclaimer-note {
+    background: #fff7e6; border: 1px solid #f0d999; border-radius: 8px; padding: 12px 16px;
+    font-size: 13px; color: #7a5c00; margin-top: 18px;
+  }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="card">
+    <h1>The Little Play Hut</h1>
+    <p class="sub">Participation Agreement, Liability Waiver &amp; Hold Harmless Agreement</p>
+
+    <!-- SCREEN 1: Adult + Minor info -->
+    <div class="screen active" id="screen-info">
+      <div class="error-banner" id="info-error"></div>
+
+      <p class="section-title">Adult Information</p>
+      <div class="field-row">
+        <div class="field">
+          <label for="adult-email">Email Address<span class="req">*</span></label>
+          <input type="email" id="adult-email" placeholder="johnsmith@example.com" required>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="adult-first-name">First Name<span class="req">*</span></label>
+          <input type="text" id="adult-first-name" placeholder="John" required>
+        </div>
+        <div class="field">
+          <label for="adult-last-name">Last Name<span class="req">*</span></label>
+          <input type="text" id="adult-last-name" placeholder="Smith" required>
+        </div>
+      </div>
+      <div class="field">
+        <label>Birth Date<span class="req">*</span></label>
+        <div class="dob-row">
+          <select id="adult-dob-year" required><option value="">Select Year</option></select>
+          <select id="adult-dob-month" required><option value="">Select Month</option></select>
+          <select id="adult-dob-day" required><option value="">Select Day</option></select>
+        </div>
+      </div>
+
+      <p class="section-title">Contact Information</p>
+      <div class="field-row">
+        <div class="field">
+          <label for="adult-phone">Phone Number<span class="req">*</span></label>
+          <input type="text" id="adult-phone" required>
+        </div>
+        <div class="field">
+          <label for="adult-city">City<span class="req">*</span></label>
+          <input type="text" id="adult-city" required>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="adult-state">State/Province<span class="req">*</span></label>
+          <input type="text" id="adult-state" required>
+        </div>
+        <div class="field">
+          <label for="adult-zip">Zip/Postal Code<span class="req">*</span></label>
+          <input type="text" id="adult-zip" required>
+        </div>
+      </div>
+
+      <div id="minors-container"></div>
+      <button type="button" class="btn btn-add" onclick="addMinorBlock()">+ ADD MINOR</button>
+
+      <div class="actions-row" style="justify-content:flex-end;">
+        <button type="button" class="btn btn-primary" style="width:auto;" onclick="goToWaiverScreen()">CONTINUE</button>
+      </div>
+    </div>
+
+    <!-- SCREEN 2: Waiver text + signature -->
+    <div class="screen" id="screen-waiver">
+      <h2>Waiver, Release and Hold Harmless Agreement</h2>
+
+      <div class="waiver-text" id="waiver-text-box">
+        <p><strong>I agree to the following:</strong></p>
+        <p>As the parent or guardian of a participant in The Little Play Hut I recognize and acknowledge that there are certain risks of physical injury, and I agree to assume the full risk of any injuries, including death, damage or loss which I may sustain as a result of participating, in any manner, in any and all activities associated within The Little Play Hut.</p>
+        <p>I also recognize and acknowledge that all activities involving strenuous exertion or body contact are hazardous recreation activities which involve substantial risk of injury to a participant. Further, I understand that this Agreement encompasses all exercises and physical movements of any nature undertaken inside the little play hut, the use and adjustment of any and all machinery, equipment, apparatus and anything related to my use of the services, facilities or premises involved in the little play hut as well as the provision of or failure to provide instructions or supervision.</p>
+        <p>I hereby agree to waive and relinquish any and all claims that I may have, due to participating in the activities, including any claims for negligence or any other unintentional conduct against any and all other participating or cooperating governmental units, independent contractors, officers, agents, servants and employees of the governmental units and independent contractors, and any and all other persons and entities that might be directly or indirectly liable for any injuries that I might sustain while participating in the activities.</p>
+        <p>I hereby fully release and discharge The Little Play Hut and the above mentioned other persons and entities from any and all claims for injuries, including death, damage or loss that I may have or that may accrue to me because of my participation in the activities.</p>
+        <p>I also hereby agree to indemnify, hold harmless and defend The Little Play Hut and all other persons and entities mentioned above from any and all claims resulting from injuries, including death, damages and loss sustained by anyone, which arise out of or are in any way associated with my conduct and the activities within the little play hut.</p>
+        <p>I understand the nature of the activities for which I am registering and have read and fully understand this Waiver, Release and Hold Harmless Agreement.</p>
+        <p>I further understand and agree that any advertisements or warnings of the particular risks of the activities that I subsequently receive will be incorporated herein by reference and become a part of this Agreement.</p>
+        <p>My participation in this activity is voluntary and no one is forcing me to participate in spite of the risks. I understand the effect of this waiver and acceptance of risk on my legal rights.</p>
+        <p>By signing this release of liability and participating in The Little Play Hut program(s), I hereby fully and forever release and discharge indemnify and hold harmless The Little Play Hut, the property owner, the property manager, and the County/City/Town and their employees and agents from any and all liabilities, claims, demands, damages, rights of action, suits or causes of action present of future, whether they same be known or unknown, anticipated or unanticipated, resulting from or arising out of my use or intended use of said premises, facilities or equipment to the fullest extent permitted by law.</p>
+        <p>I fully and forever release and discharge the released parties and their employees and agents from any and all negligent acts and omissions in the same, and intend to be legally bound by this release to the fullest extent permitted by law.</p>
+        <p>I consent to The Little Play Hut contacting me from the information provided with promotional, discounts, policies, or concerns regarding my child.</p>
+        <p>I understand that security cameras installed around and within The Little Play Hut's facility are for the safety of all participants and may be referenced should any incidents or injury occur.</p>
+        <p><strong>sensory bins area</strong> - I understand that the sensory bin area will contain dried beans, corn, flour, sand, and small object. I understand that I will be responsible for my child to play in this area at all times. I understand that The Little Play Hut will not be responsible for any injury, allergic reactions to products used in this area as it was advised ahead of time what these bins contains.</p>
+        <p><strong>Photo Release</strong> - I grant The Little Play Hut permission to use any photographs, video, or sound bites obtained of me or any minor Participant child at The Little Play Hut's facility for any legal use including but not limited to: publicity, advertisement and web content. I understand that no royalty or other compensation shall be payable to me or the minor Participant by reason of such use.</p>
+        <p><strong>Parent or Legal Guardian Certification and Consent</strong> – I hereby certify that I am the parent or legal guardian of the minor Participant children whose name(s) appear above and I have authority to waive rights on behalf of the minor Participant(s). I have read and I understand all of the provisions of this document and the risks of the Activities. I understand that the Activities could cause injury and even death. I acknowledge that I have read and understand the terms of this document and I am freely and voluntarily signing this document. This Participation Agreement, Liability Waiver, and Hold Harmless Agreement has no expiration date.</p>
+        <p>I understand that there are no refunds.</p>
+        <p>Waivers are good for one year.</p>
+      </div>
+
+      <div class="error-banner" id="sig-error"></div>
+
+      <div class="sig-wrap">
+        <div class="sig-canvas-box">
+          <canvas id="sig-canvas"></canvas>
+          <div class="sig-placeholder" id="sig-placeholder">Sign Above</div>
+        </div>
+        <div class="sig-actions">
+          <button type="button" class="clear-btn" onclick="clearSignature()">CLEAR</button>
+        </div>
+      </div>
+
+      <div class="actions-row">
+        <button type="button" class="btn btn-secondary" onclick="goToInfoScreen()">BACK</button>
+        <button type="button" class="btn btn-primary" style="width:auto;" id="finish-btn" onclick="finishWaiver()">I'M FINISHED</button>
+      </div>
+
+      <div class="disclaimer-note">
+        When you click "I'm finished," a signed copy of this waiver is emailed to The Little Play Hut and offered to you as a download for your own records.
+      </div>
+    </div>
+
+    <!-- SCREEN 3: Done -->
+    <div class="screen" id="screen-done">
+      <div class="center-state">
+        <div class="success-icon" id="done-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h2 id="done-heading">Waiver signed</h2>
+        <p id="done-message">Your signed waiver has been emailed to The Little Play Hut. You can also download a copy for your own records below.</p>
+        <button type="button" class="btn btn-primary" style="width:auto;" onclick="downloadSignedPdf()">Download signed PDF</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // This page is hosted on the Render Static Site (playhutkids.onrender.com,
+  // same place as dashboard.html/login.html), but the /little-play-hut-waiver
+  // route lives on the separate backend Express service — so, unlike a
+  // same-origin setup, this needs the backend's full URL, not an empty string.
+  const API_BASE = 'https://little-playhut-backend.onrender.com';
+
+  let minorCount = 0;
+
+  function populateDobSelects(prefix) {
+    const yearSel = document.getElementById(`${prefix}-dob-year`);
+    const monthSel = document.getElementById(`${prefix}-dob-month`);
+    const daySel = document.getElementById(`${prefix}-dob-day`);
+    const currentYear = new Date().getFullYear();
+    for (let y = currentYear; y >= currentYear - 90; y--) {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y;
+      yearSel.appendChild(opt);
+    }
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    months.forEach((m, i) => {
+      const opt = document.createElement('option');
+      opt.value = i + 1; opt.textContent = m;
+      monthSel.appendChild(opt);
+    });
+    for (let d = 1; d <= 31; d++) {
+      const opt = document.createElement('option');
+      opt.value = d; opt.textContent = d;
+      daySel.appendChild(opt);
+    }
+  }
+  populateDobSelects('adult');
+
+  function addMinorBlock() {
+    minorCount++;
+    const id = minorCount;
+    const container = document.getElementById('minors-container');
+    const block = document.createElement('div');
+    block.className = 'minor-block';
+    block.id = `minor-block-${id}`;
+    block.innerHTML = `
+      <div class="minor-block-header">
+        <h3>Minor ${id}</h3>
+        <button type="button" class="remove-minor-btn" onclick="removeMinorBlock(${id})" title="Remove">🗑</button>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="minor-${id}-first-name">First Name<span class="req">*</span></label>
+          <input type="text" id="minor-${id}-first-name" required>
+        </div>
+        <div class="field">
+          <label for="minor-${id}-last-name">Last Name<span class="req">*</span></label>
+          <input type="text" id="minor-${id}-last-name" required>
+        </div>
+      </div>
+      <div class="field">
+        <label>Birth Date<span class="req">*</span></label>
+        <div class="dob-row">
+          <select id="minor-${id}-dob-year" required><option value="">Select Year</option></select>
+          <select id="minor-${id}-dob-month" required><option value="">Select Month</option></select>
+          <select id="minor-${id}-dob-day" required><option value="">Select Day</option></select>
+        </div>
+      </div>
+    `;
+    container.appendChild(block);
+    populateDobSelects(`minor-${id}`);
+  }
+  addMinorBlock(); // start with one, matching the screenshots
+
+  function removeMinorBlock(id) {
+    const blocks = document.querySelectorAll('.minor-block');
+    if (blocks.length <= 1) return; // at least one minor required
+    const block = document.getElementById(`minor-block-${id}`);
+    if (block) block.remove();
+  }
+
+  function collectMinors() {
+    return Array.from(document.querySelectorAll('.minor-block')).map(block => {
+      const id = block.id.replace('minor-block-', '');
+      return {
+        first_name: document.getElementById(`minor-${id}-first-name`).value.trim(),
+        last_name: document.getElementById(`minor-${id}-last-name`).value.trim(),
+        dob_year: document.getElementById(`minor-${id}-dob-year`).value,
+        dob_month: document.getElementById(`minor-${id}-dob-month`).value,
+        dob_day: document.getElementById(`minor-${id}-dob-day`).value,
+      };
+    });
+  }
+
+  function goToWaiverScreen() {
+    const errorBox = document.getElementById('info-error');
+    errorBox.classList.remove('visible');
+
+    const requiredIds = [
+      'adult-email','adult-first-name','adult-last-name','adult-dob-year','adult-dob-month','adult-dob-day',
+      'adult-phone','adult-city','adult-state','adult-zip',
+    ];
+    for (const id of requiredIds) {
+      if (!document.getElementById(id).value.trim()) {
+        errorBox.textContent = 'Please fill in every required adult field before continuing.';
+        errorBox.classList.add('visible');
+        return;
+      }
+    }
+    const minors = collectMinors();
+    for (const m of minors) {
+      if (!m.first_name || !m.last_name || !m.dob_year || !m.dob_month || !m.dob_day) {
+        errorBox.textContent = 'Please fill in every required field for each minor before continuing.';
+        errorBox.classList.add('visible');
+        return;
+      }
+    }
+
+    document.getElementById('screen-info').classList.remove('active');
+    document.getElementById('screen-waiver').classList.add('active');
+    window.scrollTo(0, 0);
+    setTimeout(initSignaturePad, 50);
+  }
+
+  function goToInfoScreen() {
+    document.getElementById('screen-waiver').classList.remove('active');
+    document.getElementById('screen-info').classList.add('active');
+    window.scrollTo(0, 0);
+  }
+
+  // ---- Signature pad ----
+  let sigPad = null;
+
+  function initSignaturePad() {
+    const canvas = document.getElementById('sig-canvas');
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      setTimeout(initSignaturePad, 50);
+      return;
+    }
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.strokeStyle = '#1f2937';
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    sigPad = { canvas, ctx, drawing: false, hasStroke: false, lastX: 0, lastY: 0 };
+
+    const getPos = (e) => {
+      const r = canvas.getBoundingClientRect();
+      const point = e.touches ? e.touches[0] : e;
+      return { x: point.clientX - r.left, y: point.clientY - r.top };
+    };
+    const start = (e) => {
+      e.preventDefault();
+      const p = getPos(e);
+      sigPad.drawing = true; sigPad.hasStroke = true;
+      sigPad.lastX = p.x; sigPad.lastY = p.y;
+      document.getElementById('sig-placeholder').style.display = 'none';
+    };
+    const move = (e) => {
+      if (!sigPad.drawing) return;
+      e.preventDefault();
+      const p = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(sigPad.lastX, sigPad.lastY);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      sigPad.lastX = p.x; sigPad.lastY = p.y;
+    };
+    const end = () => { sigPad.drawing = false; };
+
+    canvas.onmousedown = start; canvas.onmousemove = move;
+    canvas.onmouseup = end; canvas.onmouseleave = end;
+    canvas.ontouchstart = start; canvas.ontouchmove = move; canvas.ontouchend = end;
+  }
+
+  function clearSignature() {
+    if (!sigPad) return;
+    sigPad.ctx.clearRect(0, 0, sigPad.canvas.width, sigPad.canvas.height);
+    sigPad.hasStroke = false;
+    document.getElementById('sig-placeholder').style.display = 'flex';
+  }
+
+  async function finishWaiver() {
+    const errorBox = document.getElementById('sig-error');
+    errorBox.classList.remove('visible');
+
+    if (!sigPad || !sigPad.hasStroke) {
+      errorBox.textContent = 'Please sign above before finishing.';
+      errorBox.classList.add('visible');
+      return;
+    }
+
+    const btn = document.getElementById('finish-btn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+
+    const adultName = `${document.getElementById('adult-first-name').value.trim()} ${document.getElementById('adult-last-name').value.trim()}`;
+    const adultEmail = document.getElementById('adult-email').value.trim();
+    const minorNames = Array.from(document.querySelectorAll('.minor-block')).map(block => {
+      const id = block.id.replace('minor-block-', '');
+      return `${document.getElementById(`minor-${id}-first-name`).value.trim()} ${document.getElementById(`minor-${id}-last-name`).value.trim()}`;
+    });
+
+    let base64Pdf;
+    try {
+      base64Pdf = buildSignedPdf(); // also stores window._signedPdfDoc for the download button
+    } catch (err) {
+      errorBox.textContent = 'Something went wrong preparing the PDF: ' + err.message;
+      errorBox.classList.add('visible');
+      btn.disabled = false;
+      btn.textContent = "I'M FINISHED";
+      return;
+    }
+
+    try {
+      const res = await fetch(API_BASE + '/little-play-hut-waiver/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdf_base64: base64Pdf, adult_name: adultName, adult_email: adultEmail, minor_names: minorNames }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'The waiver could not be sent — please try again.');
+
+      document.getElementById('done-heading').textContent = 'Waiver signed';
+      document.getElementById('done-message').textContent = 'Your signed waiver has been emailed to The Little Play Hut. You can also download a copy for your own records below.';
+    } catch (err) {
+      // The PDF still exists locally and can still be downloaded even if
+      // the email send failed — never lose the parent's completed waiver
+      // just because the network step didn't work.
+      document.getElementById('done-icon').style.background = '#fde2e1';
+      document.getElementById('done-icon').style.color = '#d64c46';
+      document.getElementById('done-heading').textContent = 'Signed, but not sent yet';
+      document.getElementById('done-message').textContent = `We couldn't email this to The Little Play Hut (${err.message}). Please download your signed copy below and bring or send it to the business directly.`;
+    } finally {
+      document.getElementById('screen-waiver').classList.remove('active');
+      document.getElementById('screen-done').classList.add('active');
+      window.scrollTo(0, 0);
+      btn.disabled = false;
+      btn.textContent = "I'M FINISHED";
+    }
+  }
+
+  function buildSignedPdf() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    const marginX = 54;
+    const pageWidth = 612;
+    const usableWidth = pageWidth - marginX * 2;
+    let y = 60;
+
+    const adult = {
+      email: document.getElementById('adult-email').value.trim(),
+      first: document.getElementById('adult-first-name').value.trim(),
+      last: document.getElementById('adult-last-name').value.trim(),
+      dob: `${document.getElementById('adult-dob-month').selectedOptions[0].text} ${document.getElementById('adult-dob-day').value}, ${document.getElementById('adult-dob-year').value}`,
+      phone: document.getElementById('adult-phone').value.trim(),
+      city: document.getElementById('adult-city').value.trim(),
+      state: document.getElementById('adult-state').value.trim(),
+      zip: document.getElementById('adult-zip').value.trim(),
+    };
+    const minors = document.querySelectorAll('.minor-block');
+    const minorLines = Array.from(minors).map(block => {
+      const id = block.id.replace('minor-block-', '');
+      const first = document.getElementById(`minor-${id}-first-name`).value.trim();
+      const last = document.getElementById(`minor-${id}-last-name`).value.trim();
+      const monthText = document.getElementById(`minor-${id}-dob-month`).selectedOptions[0].text;
+      const day = document.getElementById(`minor-${id}-dob-day`).value;
+      const year = document.getElementById(`minor-${id}-dob-year`).value;
+      return `${first} ${last} — DOB: ${monthText} ${day}, ${year}`;
+    });
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
+    doc.text('The Little Play Hut', marginX, y); y += 20;
+    doc.setFontSize(12);
+    doc.text('Waiver, Release and Hold Harmless Agreement', marginX, y); y += 26;
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5);
+    doc.text('Adult / Signer', marginX, y); y += 14;
+    doc.setFont('helvetica', 'normal');
+    [
+      `${adult.first} ${adult.last} — ${adult.email}`,
+      `DOB: ${adult.dob}`,
+      `Phone: ${adult.phone}`,
+      `${adult.city}, ${adult.state} ${adult.zip}`,
+    ].forEach(line => { doc.text(line, marginX, y); y += 13; });
+    y += 8;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Minor Participant(s)', marginX, y); y += 14;
+    doc.setFont('helvetica', 'normal');
+    minorLines.forEach(line => { doc.text(line, marginX, y); y += 13; });
+    y += 12;
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5);
+    doc.text('Agreement text', marginX, y); y += 14;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.7);
+
+    const paragraphs = Array.from(document.querySelectorAll('#waiver-text-box p')).map(p => p.textContent);
+    for (const para of paragraphs) {
+      const lines = doc.splitTextToSize(para, usableWidth);
+      for (const line of lines) {
+        if (y > 730) { doc.addPage(); y = 50; }
+        doc.text(line, marginX, y);
+        y += 11;
+      }
+      y += 5;
+    }
+
+    if (y > 650) { doc.addPage(); y = 50; }
+    y += 20;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5);
+    doc.text('Signature', marginX, y); y += 10;
+
+    const sigDataUrl = sigPad.canvas.toDataURL('image/png');
+    doc.addImage(sigDataUrl, 'PNG', marginX, y, 220, 70);
+    y += 78;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    const now = new Date();
+    doc.text(`Signed by ${adult.first} ${adult.last} on ${now.toLocaleDateString()} at ${now.toLocaleTimeString()}`, marginX, y);
+
+    window._signedPdfDoc = doc;
+    return doc.output('datauristring').split(',')[1]; // strip the "data:application/pdf;base64," prefix, keep just the base64 payload
+  }
+
+  function downloadSignedPdf() {
+    if (!window._signedPdfDoc) return;
+    const adultLast = document.getElementById('adult-last-name').value.trim() || 'waiver';
+    window._signedPdfDoc.save(`LittlePlayHut-Waiver-${adultLast}.pdf`);
+  }
+</script>
+
+</body>
+</html>

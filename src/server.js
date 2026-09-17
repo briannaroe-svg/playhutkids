@@ -25,6 +25,7 @@ const messagesRoutes = require('./routes/messages');
 const waitlistRoutes = require('./routes/waitlist');
 const childDocumentsRoutes = require('./routes/childDocuments');
 const recurringPlansRoutes = require('./routes/recurringPlans');
+const littlePlayHutWaiverRoutes = require('./routes/littlePlayHutWaiver');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -88,6 +89,13 @@ app.use('/messages', messagesRoutes);
 app.use('/waitlist', waitlistRoutes);
 app.use('/child-documents', childDocumentsRoutes);
 app.use('/recurring-plans', recurringPlansRoutes);
+
+// The Little Play Hut is a separate sibling business (play space/party
+// venue, not the preschool/daycare) — this route only relays a signed
+// waiver PDF by email and never touches any of this app's own tables.
+// Hosted here purely for convenience (same Render service), not because
+// it's part of the daycare/preschool data model.
+app.use('/little-play-hut-waiver', littlePlayHutWaiverRoutes);
 
 app.get('/', (req, res) => {
   res.json({ status: 'Little Playhut backend is running' });
