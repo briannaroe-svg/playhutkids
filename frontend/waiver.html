@@ -57,6 +57,13 @@
   .btn-add {
     background: #eef1f5; color: var(--ink); border-radius: 20px; padding: 10px 18px; font-size: 14px;
   }
+  .who-option-btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; padding: 18px 20px; border: 1.5px solid var(--line); border-radius: 10px;
+    background: #fafbfc; font-size: 16px; font-weight: 500; color: var(--ink); cursor: pointer;
+  }
+  .who-option-btn:hover { border-color: var(--green); background: #f4faf1; }
+  .who-option-icon { font-size: 18px; }
   .btn-primary { background: var(--green); color: #fff; width: 100%; padding: 15px; font-size: 15px; }
   .btn-primary:hover { background: var(--green-dark); }
   .btn-primary:disabled { background: #b9c7ae; cursor: not-allowed; }
@@ -110,8 +117,24 @@
     <h1>The Little Play Hut</h1>
     <p class="sub">Participation Agreement, Liability Waiver &amp; Hold Harmless Agreement</p>
 
+    <!-- SCREEN 0: Who are you signing for? -->
+    <div class="screen active" id="screen-who">
+      <div class="center-state" style="padding-top:10px;">
+        <h2 style="font-size:26px;">Who are you signing for?</h2>
+        <p>Select an option below whether you are signing for yourself or for yourself and minor(s).</p>
+      </div>
+      <div style="max-width:420px; margin:0 auto; display:flex; flex-direction:column; gap:14px;">
+        <button type="button" class="who-option-btn" onclick="chooseWhoSigning(false)">
+          <span class="who-option-icon">👤</span> Myself Only
+        </button>
+        <button type="button" class="who-option-btn" onclick="chooseWhoSigning(true)">
+          <span class="who-option-icon">👥</span> Myself &amp; Minor(s)
+        </button>
+      </div>
+    </div>
+
     <!-- SCREEN 1: Adult + Minor info -->
-    <div class="screen active" id="screen-info">
+    <div class="screen" id="screen-info">
       <div class="error-banner" id="info-error"></div>
 
       <p class="section-title">Adult Information</p>
@@ -162,10 +185,14 @@
         </div>
       </div>
 
-      <div id="minors-container"></div>
-      <button type="button" class="btn btn-add" onclick="addMinorBlock()">+ ADD MINOR</button>
+      <div id="minors-section" style="display:none;">
+        <p class="section-title">Minor(s)</p>
+        <div id="minors-container"></div>
+        <button type="button" class="btn btn-add" onclick="addMinorBlock()">+ ADD MINOR</button>
+      </div>
 
-      <div class="actions-row" style="justify-content:flex-end;">
+      <div class="actions-row">
+        <button type="button" class="btn btn-secondary" onclick="goBackToWhoScreen()">BACK</button>
         <button type="button" class="btn btn-primary" style="width:auto;" onclick="goToWaiverScreen()">CONTINUE</button>
       </div>
     </div>
@@ -298,11 +325,27 @@
     container.appendChild(block);
     populateDobSelects(`minor-${id}`);
   }
-  addMinorBlock(); // start with one, matching the screenshots
+
+  // "Myself only" vs "Myself & Minor(s)" — chosen on the very first screen.
+  // Only the second option shows the Minor(s) section at all and seeds it
+  // with one starting minor block; "Myself only" hides that section
+  // entirely and the signer proceeds with just their own information.
+  let signingForMinors = false;
+
+  function chooseWhoSigning(includesMinors) {
+    signingForMinors = includesMinors;
+    document.getElementById('minors-section').style.display = includesMinors ? 'block' : 'none';
+    if (includesMinors && document.querySelectorAll('.minor-block').length === 0) {
+      addMinorBlock();
+    }
+    document.getElementById('screen-who').classList.remove('active');
+    document.getElementById('screen-info').classList.add('active');
+    window.scrollTo(0, 0);
+  }
 
   function removeMinorBlock(id) {
     const blocks = document.querySelectorAll('.minor-block');
-    if (blocks.length <= 1) return; // at least one minor required
+    if (blocks.length <= 1) return; // at least one minor required once "Myself & Minor(s)" is chosen
     const block = document.getElementById(`minor-block-${id}`);
     if (block) block.remove();
   }
@@ -353,6 +396,12 @@
   function goToInfoScreen() {
     document.getElementById('screen-waiver').classList.remove('active');
     document.getElementById('screen-info').classList.add('active');
+    window.scrollTo(0, 0);
+  }
+
+  function goBackToWhoScreen() {
+    document.getElementById('screen-info').classList.remove('active');
+    document.getElementById('screen-who').classList.add('active');
     window.scrollTo(0, 0);
   }
 
@@ -519,11 +568,17 @@
     ].forEach(line => { doc.text(line, marginX, y); y += 13; });
     y += 8;
 
-    doc.setFont('helvetica', 'bold');
-    doc.text('Minor Participant(s)', marginX, y); y += 14;
-    doc.setFont('helvetica', 'normal');
-    minorLines.forEach(line => { doc.text(line, marginX, y); y += 13; });
-    y += 12;
+    if (minorLines.length > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Minor Participant(s)', marginX, y); y += 14;
+      doc.setFont('helvetica', 'normal');
+      minorLines.forEach(line => { doc.text(line, marginX, y); y += 13; });
+      y += 12;
+    } else {
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(9.5);
+      doc.text('Signing for self only — no minors listed.', marginX, y); y += 18;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5);
+    }
 
     doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5);
     doc.text('Agreement text', marginX, y); y += 14;
